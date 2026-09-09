@@ -1,0 +1,51 @@
+Sistema DeControl/
+├── bd/
+│   ├── database.sql
+│   ├── seed_data.sql
+│   └── test_data.sql
+├── clases/
+├── config/
+│   ├── config.php
+│   └── database.php
+├── layouts/
+│   ├── header.php
+│   └── footer.php
+├── auth/                                    
+│   ├── login.php
+│   ├── logout.php
+│   └── forgot_password.php
+├── insumo/
+│   ├── dashboard.php                        
+│   ├── crear_insumo.php
+│   ├── editar_insumo.php
+│   ├── detalles_insumo.php
+│   └── deshabilitar_insumo.php              
+├── movimiento/
+│   ├── dashboard.php                        
+│   ├── crear_movimiento.php
+│   ├── editar_movimiento.php
+│   ├── detalle_movimiento.php
+│   └── deshabilitar_movimiento.php          
+├── orden_de_trabajo/                        
+│   ├── dashboard.php                        
+│   ├── crear_orden_de_trabajo.php
+│   ├── editar_orden_de_trabajo.php
+│   ├── detalle_orden_de_trabajo.php
+│   └── deshabilitar_orden_de_trabajo.php    
+├── operario/
+│   ├── dashboard.php                        
+│   ├── crear_operario.php
+│   ├── editar_operario.php
+│   └── deshabilitar_operario.php            
+├── reportes/
+│   └── dashboard.php                        
+├── rubro/
+│   ├── dashboard.php                        
+│   ├── crear_rubro.php
+│   ├── editar_rubro.php
+│   └── deshabilitar_rubro.php               
+└── usuarios/
+    ├── dashboard.php                        
+    ├── crear_usuario.php
+    ├── editar_usuario.php
+    └── deshabilitar_usuario.php             
