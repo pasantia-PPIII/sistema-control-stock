@@ -35,8 +35,11 @@ CREATE TABLE rol (
 CREATE TABLE rubro (
     id_rubro INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
-    descripcion VARCHAR(255)
+    descripcion VARCHAR(255),
+    valido BOOLEAN DEFAULT TRUE
 );
+
+COMMENT ON COLUMN rubro.activo IS 'TRUE = Activo, FALSE = Inactivo/Deshabilitado';
 
 CREATE TABLE tipo (
     id_tipo INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -91,6 +94,7 @@ CREATE TABLE operario (
     nombre VARCHAR(100) NOT NULL,
     codigo VARCHAR(50) UNIQUE,
     id_rubro INT,
+    activo BOOLEAN DEFAULT TRUE,
     CONSTRAINT fk_operario_rubro FOREIGN KEY (id_rubro) REFERENCES rubro(id_rubro)
 );
 
@@ -99,6 +103,7 @@ CREATE TABLE usuario (
 	dni_operario VARCHAR(20) UNIQUE,
     contrasena VARCHAR(255) NOT NULL,
     id_rol INT NOT NULL,
+    activo BOOLEAN  DEFAULT TRUE,
 	CONSTRAINT fk_usuario_operario FOREIGN KEY (dni_operario)
 		REFERENCES operario(dni)
 		ON DELETE SET NULL
@@ -119,6 +124,7 @@ CREATE TABLE insumos (
     fecha_vencimiento DATE,
     serie_modelo VARCHAR(100),
     fecha_registro DATE NOT NULL DEFAULT CURRENT_DATE,
+    activo BOOLEAN DEFAULT TRUE,
     CONSTRAINT fk_insumos_unidad FOREIGN KEY (id_unidad_medida) REFERENCES unidad_medida(id_unidad_medida),
     CONSTRAINT fk_insumos_tipo FOREIGN KEY (id_tipo) REFERENCES tipo(id_tipo),
     CONSTRAINT fk_insumos_rubro FOREIGN KEY (id_rubro) REFERENCES rubro(id_rubro),
@@ -133,6 +139,7 @@ CREATE TABLE herramienta (
     fecha_devolucion DATE,
     estado VARCHAR(50),
     observaciones TEXT,
+    activo  BOOLEAN DEFAULT TRUE,
     CONSTRAINT fk_herramienta_operario FOREIGN KEY (id_operario) REFERENCES operario(dni)
 );
 
@@ -148,10 +155,13 @@ CREATE TABLE movimiento (
     fecha DATE NOT NULL,
     hora TIME NOT NULL,
     observaciones TEXT,
+    activo BOOLEAN DEFAULT TRUE,
     CONSTRAINT fk_mov_tipo FOREIGN KEY (id_tipo_mov) REFERENCES tipo_movimiento(id_tipo_mov),
     CONSTRAINT fk_mov_operario FOREIGN KEY (id_operario) REFERENCES operario(dni),
     CONSTRAINT fk_mov_usuario FOREIGN KEY (id_usuario) REFERENCES usuario(dni)
 );
+
+COMMENT ON COLUMN movimiento.activo IS 'TRUE= VÁLIDO, FALSE= Anulado/Cancelado';
 
 CREATE TABLE movimiento_detalle (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -178,11 +188,15 @@ CREATE TABLE orden_de_trabajo (
     hora_final TIME,
     estado VARCHAR(50),
     observaciones TEXT,
+    activo BOOLEAN DEFAULT TRUE,
+    archivo_pdf VARCHAR (255),
     CONSTRAINT fk_odt_mov_egreso FOREIGN KEY (id_mov_egreso) REFERENCES movimiento(id_movimiento),
     CONSTRAINT fk_odt_mov_dev FOREIGN KEY (id_mov_devolucion) REFERENCES movimiento(id_movimiento),
     CONSTRAINT fk_odt_localidad FOREIGN KEY (id_localidad) REFERENCES localidad(id_localidad),
     CONSTRAINT fk_odt_jurisdiccion FOREIGN KEY (id_jurisdiccion) REFERENCES jurisdiccion(id_jurisdiccion)
 );
+
+COMMENT ON COLUMN orden_de_trabajo.activo IS 'TRUE= Activa, FALSE=Anulada';
 
 -- La comisión relaciona operarios a una Orden de Trabajo (ODT)
 CREATE TABLE comision (
