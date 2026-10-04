@@ -1,4 +1,4 @@
-<<?php
+<?php
 require_once __DIR__ . '/../config/database.php';
 
 class Insumo {
@@ -32,7 +32,6 @@ class Insumo {
                 LEFT JOIN ubicacion u ON i.id_ubicacion = u.id_ubicacion
                 LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual";
         
-        // CAMBIO 1: Filtramos solo los activos, a menos que se pida explícitamente lo contrario
         if (!$incluir_inactivos) {
             $sql .= " WHERE i.activo = TRUE";
         }
@@ -43,7 +42,7 @@ class Insumo {
     }
 
     /**
-     * Obtiene un insumo específico por su código
+     * Obtiene un insumo específico por su código.
      * @param string $codigo Código del insumo
      * @return array|false Datos del insumo
      */
@@ -60,13 +59,22 @@ class Insumo {
                 LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
                 LEFT JOIN ubicacion u ON i.id_ubicacion = u.id_ubicacion
                 LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
-                WHERE i.codigo = :codigo AND i.activo = TRUE"; // CAMBIO 2: Solo buscamos si está activo
+                WHERE i.codigo = :codigo AND i.activo = TRUE";
 
         return $this->db->fetchOne($sql, ['codigo' => $codigo]);
     }
 
     /**
-     * Busca insumos por nombre o código (para el buscador del dashboard)
+     * Alias de getByCodigo() para consistencia de nomenclatura con las demás clases.
+     * @param string $codigo Código del insumo
+     * @return array|false Datos del insumo
+     */
+    public function getById($codigo) {
+        return $this->getByCodigo($codigo);
+    }
+
+    /**
+     * Busca insumos por nombre o código (para el buscador del dashboard).
      * @param string $termino Texto a buscar
      * @return array Resultados
      */
@@ -76,13 +84,13 @@ class Insumo {
                 LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
                 LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
                 WHERE (i.nombre ILIKE :termino OR i.codigo ILIKE :termino)
-                AND i.activo = TRUE"; // CAMBIO 3: El buscador ignora los insumos deshabilitados
+                AND i.activo = TRUE";
         
         return $this->db->fetchAll($sql, ['termino' => '%' . $termino . '%']);
     }
 
     /**
-     * Obtiene insumos con stock bajo (menor al stock_minimo)
+     * Obtiene insumos con stock bajo (menor al stock_minimo).
      * @return array Insumos con stock crítico
      */
     public function getStockBajo() {
@@ -90,9 +98,28 @@ class Insumo {
                 FROM insumos i
                 LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
                 WHERE s.stock_actual < i.stock_minimo 
-                AND i.activo = TRUE"; // CAMBIO 4: No alertar sobre stock de insumos ya dados de baja
+                AND i.activo = TRUE";
         
         return $this->db->fetchAll($sql);
+    }
+
+    /**
+     * Verifica si ya existe un insumo con el mismo código.
+     * @param string $codigo Código a verificar
+     * @param string|null $codigo_original Código actual (para excluirlo al editar)
+     * @return bool true si ya existe
+     */
+    public function existeCodigo($codigo, $codigo_original = null) {
+        $sql = "SELECT COUNT(*) as total FROM insumos WHERE codigo = :codigo";
+        $params = ['codigo' => $codigo];
+
+        if ($codigo_original !== null) {
+            $sql .= " AND codigo != :codigo_original";
+            $params['codigo_original'] = $codigo_original;
+        }
+
+        $result = $this->db->fetchOne($sql, $params);
+        return $result['total'] > 0;
     }
 
     // =========================================================
@@ -100,19 +127,28 @@ class Insumo {
     // =========================================================
 
     /**
-     * Crea un nuevo insumo en la base de datos
+     * Crea un nuevo insumo en la base de datos.
      * @param array $data Datos del insumo
-     * @return bool true si se creó correctamente
+     * @return array El registro insertado completo
      */
     public function create($data) {
         try {
+            // Whitelist de campos permitidos para el INSERT
+            // Evita que campos extra del formulario (ej: csrf_token) rompan el query
+            $camposPermitidos = [
+                'codigo', 'nombre', 'id_unidad_medida', 'id_tipo', 'id_rubro',
+                'id_ubicacion', 'id_stock_actual', 'stock_minimo', 'es_perecedero',
+                'fecha_vencimiento', 'serie_modelo', 'fecha_registro', 'activo'
+            ];
+            $data = array_intersect_key($data, array_flip($camposPermitidos));
+
             $data['es_perecedero'] = isset($data['es_perecedero']) ? true : false;
             
             if (empty($data['fecha_vencimiento'])) {
                 $data['fecha_vencimiento'] = null;
             }
 
-            // CAMBIO 5: Aseguramos que al crearse, el insumo nazca activo
+            // Aseguramos que al crearse, el insumo nazca activo
             $data['activo'] = true;
 
             return $this->db->insert('insumos', $data);
@@ -122,22 +158,29 @@ class Insumo {
     }
 
     /**
-     * Actualiza los datos de un insumo existente
+     * Actualiza los datos de un insumo existente.
      * @param string $codigo Código del insumo a actualizar
      * @param array $data Nuevos datos
      * @return bool true si se actualizó correctamente
      */
     public function update($codigo, $data) {
         try {
+            // Whitelist de campos permitidos para el UPDATE
+            // Excluye 'activo' (solo por deshabilitar/habilitar) y 'codigo' (PK inmutable)
+            $camposPermitidos = [
+                'nombre', 'id_unidad_medida', 'id_tipo', 'id_rubro',
+                'id_ubicacion', 'stock_minimo', 'es_perecedero',
+                'fecha_vencimiento', 'serie_modelo'
+            ];
+            $data = array_intersect_key($data, array_flip($camposPermitidos));
+
             $data['es_perecedero'] = isset($data['es_perecedero']) ? true : false;
             
             if (empty($data['fecha_vencimiento'])) {
                 $data['fecha_vencimiento'] = null;
             }
 
-            // NOTA: No permitimos que el formulario de edición modifique el campo 'activo' directamente.
-            // Eso se maneja exclusivamente con los métodos deshabilitar() y habilitar().
-            
+            // 'activo' se maneja exclusivamente con deshabilitar() y habilitar()
             return $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
         } catch (PDOException $e) {
             throw new Exception("Error al actualizar el insumo: " . $e->getMessage());
@@ -152,7 +195,6 @@ class Insumo {
      */
     public function deshabilitar($codigo) {
         try {
-            // CAMBIO 6: Reemplazamos el DELETE por un UPDATE que cambia el estado
             $data = ['activo' => false];
             return $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
         } catch (PDOException $e) {
@@ -187,7 +229,7 @@ class Insumo {
     }
 
     public function getRubros() {
-        // CAMBIO 7: Los selectores solo deben mostrar rubros que estén activos
+        // Solo muestra rubros activos en los selectores de formularios
         return $this->db->fetchAll("SELECT * FROM rubro WHERE activo = TRUE ORDER BY nombre");
     }
 

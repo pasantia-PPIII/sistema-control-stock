@@ -228,5 +228,25 @@ class Herramienta {
         $result = $this->db->fetchOne($sql);
         return (int)$result['total'];
     }
+
+    /**
+     * Busca herramientas por nombre del operario, estado u observaciones.
+     * @param string $termino Texto a buscar
+     * @return array Resultados
+     */
+    public function buscar($termino) {
+        $sql = "SELECT h.*, 
+                       o.apellido || ', ' || o.nombre as nombre_operario
+                FROM herramienta h
+                LEFT JOIN operario o ON h.id_operario = o.dni
+                WHERE (o.apellido ILIKE :termino
+                   OR o.nombre ILIKE :termino
+                   OR h.estado ILIKE :termino
+                   OR h.observaciones ILIKE :termino)
+                AND h.activo = TRUE
+                ORDER BY h.fecha_entrega DESC";
+
+        return $this->db->fetchAll($sql, ['termino' => '%' . $termino . '%']);
+    }
 }
 ?>

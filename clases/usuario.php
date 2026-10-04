@@ -155,14 +155,17 @@ class Usuario {
      */
     public function update($dni, $data) {
         try {
+            // Whitelist: solo permite actualizar estos campos
+            $camposPermitidos = ['dni_operario', 'id_rol', 'password'];
+            $data = array_intersect_key($data, array_flip($camposPermitidos));
+
             if (!empty($data['password'])) {
                 $data['contrasena'] = password_hash($data['password'], PASSWORD_DEFAULT);
                 unset($data['password']);
             }
 
-            // CAMBIO 5: No permitimos modificar el campo 'activo' desde aquí
-            // Eso se maneja exclusivamente con deshabilitar() y habilitar()
-            unset($data['activo']);
+            // 'activo' se maneja exclusivamente con deshabilitar() y habilitar()
+            // DNI (PK) tampoco se permite modificar
 
             return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
         } catch (PDOException $e) {
@@ -269,6 +272,28 @@ class Usuario {
 
     public function puedeVerReportes() {
         return isset($_SESSION['dni_usuario']);
+    }
+
+    /**
+     * Busca usuarios por DNI o nombre/apellido del operario asociado.
+     * @param string $termino Texto a buscar
+     * @return array Resultados
+     */
+    public function buscar($termino) {
+        $sql = "SELECT u.dni, u.dni_operario, u.id_rol, 
+                       r.rol as nombre_rol,
+                       o.nombre as operario_nombre, 
+                       o.apellido as operario_apellido
+                FROM usuario u
+                INNER JOIN rol r ON u.id_rol = r.id_rol
+                LEFT JOIN operario o ON u.dni_operario = o.dni
+                WHERE (u.dni ILIKE :termino
+                   OR o.nombre ILIKE :termino
+                   OR o.apellido ILIKE :termino)
+                AND u.activo = TRUE
+                ORDER BY o.apellido, o.nombre";
+
+        return $this->db->fetchAll($sql, ['termino' => '%' . $termino . '%']);
     }
 }
 ?>

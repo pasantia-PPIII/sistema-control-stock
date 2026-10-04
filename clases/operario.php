@@ -104,8 +104,13 @@ class Operario {
      */
     public function create($data) {
         try {
+            // Whitelist de campos permitidos para el INSERT
+            // Evita que campos extra del formulario rompan el query
+            $camposPermitidos = ['dni', 'apellido', 'nombre', 'codigo', 'id_rubro', 'activo'];
+            $data = array_intersect_key($data, array_flip($camposPermitidos));
+
             // Validar campos obligatorios
-            if (empty(trim($data['dni'])) || empty(trim($data['apellido'])) || empty(trim($data['nombre']))) {
+            if (empty(trim($data['dni'] ?? '')) || empty(trim($data['apellido'] ?? '')) || empty(trim($data['nombre'] ?? ''))) {
                 throw new Exception("DNI, Apellido y Nombre son obligatorios.");
             }
 
@@ -113,7 +118,7 @@ class Operario {
             $data['activo'] = true;
 
             // Limpiar el código si viene vacío para evitar problemas con UNIQUE
-            if (empty(trim($data['codigo']))) {
+            if (empty(trim($data['codigo'] ?? ''))) {
                 $data['codigo'] = null;
             }
 
@@ -138,19 +143,21 @@ class Operario {
      */
     public function update($dni_original, $data) {
         try {
-            if (empty(trim($data['apellido'])) || empty(trim($data['nombre']))) {
+            // Whitelist: solo permite actualizar estos campos
+            $camposPermitidos = ['apellido', 'nombre', 'codigo', 'id_rubro'];
+            $data = array_intersect_key($data, array_flip($camposPermitidos));
+
+            if (empty(trim($data['apellido'] ?? '')) || empty(trim($data['nombre'] ?? ''))) {
                 throw new Exception("Apellido y Nombre son obligatorios.");
             }
 
-            if (empty(trim($data['codigo']))) {
+            if (empty(trim($data['codigo'] ?? ''))) {
                 $data['codigo'] = null;
             }
 
             $data['id_rubro'] = !empty($data['id_rubro']) ? (int)$data['id_rubro'] : null;
 
-            // Nota: No permitimos cambiar el DNI (clave primaria) desde aquí. 
-            // Si fuera necesario, se haría con un método específico y mucho cuidado por las relaciones.
-            
+            // Nota: No permitimos cambiar el DNI (clave primaria) desde aquí.
             return $this->db->update('operario', $data, 'dni = :dni', ['dni' => $dni_original]);
         } catch (PDOException $e) {
             if ($e->getCode() == '23505') {
@@ -237,6 +244,21 @@ class Operario {
                 WHERE activo = TRUE 
                 ORDER BY apellido ASC, nombre ASC";
         return $this->db->fetchAll($sql);
+    }
+
+    /**
+     * Obtiene todos los operarios activos de un rubro específico.
+     * Ütil para filtrar en formularios de asignación.
+     * @param int $id_rubro ID del rubro
+     * @return array Lista de operarios del rubro
+     */
+    public function getByRubro($id_rubro) {
+        $sql = "SELECT o.*, r.nombre as nombre_rubro
+                FROM operario o
+                LEFT JOIN rubro r ON o.id_rubro = r.id_rubro
+                WHERE o.id_rubro = :id_rubro AND o.activo = TRUE
+                ORDER BY o.apellido ASC, o.nombre ASC";
+        return $this->db->fetchAll($sql, ['id_rubro' => $id_rubro]);
     }
 }
 ?>

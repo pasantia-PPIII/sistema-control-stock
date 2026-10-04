@@ -36,7 +36,7 @@ CREATE TABLE rubro (
     id_rubro INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
     descripcion VARCHAR(255),
-    valido BOOLEAN DEFAULT TRUE
+    activo BOOLEAN DEFAULT TRUE
 );
 
 COMMENT ON COLUMN rubro.activo IS 'TRUE = Activo, FALSE = Inactivo/Deshabilitado';
@@ -137,10 +137,11 @@ CREATE TABLE herramienta (
     id_operario VARCHAR(20),
     fecha_entrega DATE,
     fecha_devolucion DATE,
-    estado VARCHAR(50),
+    id_estado_herramienta INT,
     observaciones TEXT,
     activo  BOOLEAN DEFAULT TRUE,
-    CONSTRAINT fk_herramienta_operario FOREIGN KEY (id_operario) REFERENCES operario(dni)
+    CONSTRAINT fk_herramienta_operario FOREIGN KEY (id_operario) REFERENCES operario(dni),
+    CONSTRAINT fk_herramienta_estado FOREIGN KEY (id_estado_herramienta) REFERENCES estado_herramienta(id_estado_herramienta)
 );
 
 -- ---------------------------------------------------------

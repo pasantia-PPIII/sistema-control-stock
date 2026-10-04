@@ -423,5 +423,34 @@ class OrdenDeTrabajo {
                 ORDER BY total DESC";
         return $this->db->fetchAll($sql);
     }
+
+    /**
+     * Obtiene los movimientos vinculados a una ODT (egreso y devolución).
+     * Devuelve los datos completos de cada movimiento para mostrar en el frontend.
+     * @param int $id_odt ID de la orden de trabajo
+     * @return array Movimientos vinculados con tipo y fecha
+     */
+    public function getMovimientosVinculados($id_odt) {
+        $sql = "SELECT 
+                    'egreso' as rol_en_odt,
+                    m.id_movimiento, m.fecha, m.hora, m.observaciones,
+                    tm.tipo as nombre_tipo_movimiento
+                FROM orden_de_trabajo o
+                INNER JOIN movimiento m ON o.id_mov_egreso = m.id_movimiento
+                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                WHERE o.id_odt = :id_odt AND o.id_mov_egreso IS NOT NULL
+                UNION ALL
+                SELECT 
+                    'devolucion' as rol_en_odt,
+                    m.id_movimiento, m.fecha, m.hora, m.observaciones,
+                    tm.tipo as nombre_tipo_movimiento
+                FROM orden_de_trabajo o
+                INNER JOIN movimiento m ON o.id_mov_devolucion = m.id_movimiento
+                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                WHERE o.id_odt = :id_odt2 AND o.id_mov_devolucion IS NOT NULL
+                ORDER BY fecha ASC";
+
+        return $this->db->fetchAll($sql, ['id_odt' => $id_odt, 'id_odt2' => $id_odt]);
+    }
 }
 ?>

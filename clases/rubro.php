@@ -27,7 +27,7 @@ class Rubro {
         
         // Por defecto, solo mostramos los rubros activos
         if (!$incluir_inactivos) {
-            $sql .= " WHERE r.activo = 1";
+            $sql .= " WHERE r.activo = TRUE";
         }
 
         $sql .= " GROUP BY r.id_rubro
@@ -103,9 +103,9 @@ class Rubro {
             }
 
             $rubroData = [
-                'nombre' => trim($data['nombre']),
+                'nombre'      => trim($data['nombre']),
                 'descripcion' => !empty($data['descripcion']) ? trim($data['descripcion']) : null,
-                'activo' => 1 // Se crea activo por defecto
+                'activo'      => true // Usar booleano nativo de PHP/PostgreSQL
             ];
 
             return $this->db->insert('rubro', $rubroData);
@@ -128,7 +128,7 @@ class Rubro {
             }
 
             $rubroData = [
-                'nombre' => trim($data['nombre']),
+                'nombre'      => trim($data['nombre']),
                 'descripcion' => !empty($data['descripcion']) ? trim($data['descripcion']) : null
             ];
 
@@ -152,7 +152,7 @@ class Rubro {
      */
     public function deshabilitar($id_rubro) {
         try {
-            $rubroData = ['activo' => 0];
+            $rubroData = ['activo' => false]; // Booleano nativo (no 0)
             return $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
         } catch (PDOException $e) {
             throw new Exception("Error al deshabilitar el rubro: " . $e->getMessage());
@@ -167,7 +167,7 @@ class Rubro {
      */
     public function habilitar($id_rubro) {
         try {
-            $rubroData = ['activo' => 1];
+            $rubroData = ['activo' => true]; // Booleano nativo (no 1)
             return $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
         } catch (PDOException $e) {
             throw new Exception("Error al habilitar el rubro: " . $e->getMessage());
@@ -200,7 +200,7 @@ class Rubro {
     }
 
     /**
-     * Obtiene un rubro por su nombre (búsqueda exacta, sin distinguir mayusculas/minusculas)
+     * Obtiene un rubro por su nombre (búsqueda exacta, sin distinguir mayúsculas/minúsculas).
      * 
      * @param string $nombre - Nombre del rubro
      * @return array|false - Datos del rubro o false si no existe
@@ -211,19 +211,33 @@ class Rubro {
     }
 
     /**
-     * Obtiene el total de rubros registrados en el sistema.
+     * Obtiene el total de rubros ACTIVOS registrados en el sistema.
      * 
-     * @return int - Cantidad de rubros
+     * @return int - Cantidad de rubros activos
      */
     public function getTotal() {
-        $sql = "SELECT COUNT(*) as total FROM rubro";
+        $sql = "SELECT COUNT(*) as total FROM rubro WHERE activo = TRUE";
         $result = $this->db->fetchOne($sql);
         return (int)$result['total'];
     }
 
     /**
+     * Obtiene todos los rubros activos en formato simplificado para llenar un <select>.
+     * Método equivalente al getParaSelect() de Operario, para consistencia del frontend.
+     * 
+     * @return array - Lista simplificada de rubros activos (id_rubro, nombre)
+     */
+    public function getParaSelect() {
+        $sql = "SELECT id_rubro, nombre 
+                FROM rubro 
+                WHERE activo = TRUE 
+                ORDER BY nombre ASC";
+        return $this->db->fetchAll($sql);
+    }
+
+    /**
      * Obtiene el total de insumos agrupados por rubro.
-     * Útil para mostrar estadísticas o gráficos.
+     * Útil para mostrar estadísticas o gráficos en el dashboard.
      * 
      * @return array - Lista de rubros con su cantidad de insumos
      */
@@ -232,7 +246,7 @@ class Rubro {
                        COUNT(i.codigo) as total_insumos
                 FROM rubro r
                 LEFT JOIN insumos i ON r.id_rubro = i.id_rubro
-                WHERE r.activo = 1
+                WHERE r.activo = TRUE
                 GROUP BY r.id_rubro, r.nombre
                 ORDER BY total_insumos DESC";
 

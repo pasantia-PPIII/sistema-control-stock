@@ -224,5 +224,63 @@ class Movimiento {
     public function getEstadosHerramienta() {
         return $this->db->fetchAll("SELECT id_estado_herramienta, estado FROM estado_herramienta ORDER BY estado");
     }
+
+    /**
+     * Busca movimientos por observaciones, tipo de movimiento o nombre de operario.
+     * @param string $termino Texto a buscar
+     * @return array Resultados
+     */
+    public function buscar($termino) {
+        $sql = "SELECT m.id_movimiento, m.fecha, m.hora, m.observaciones, m.activo,
+                       tm.tipo as nombre_tipo_movimiento,
+                       u.dni as dni_usuario,
+                       o.apellido || ', ' || o.nombre as nombre_operario
+                FROM movimiento m
+                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                INNER JOIN usuario u ON m.id_usuario = u.dni
+                LEFT JOIN operario o ON m.id_operario = o.dni
+                WHERE (m.observaciones ILIKE :termino
+                   OR tm.tipo ILIKE :termino
+                   OR o.apellido ILIKE :termino
+                   OR o.nombre ILIKE :termino
+                   OR CAST(m.id_movimiento AS TEXT) = :termino_exacto)
+                AND m.activo = TRUE
+                ORDER BY m.fecha DESC, m.hora DESC";
+
+        return $this->db->fetchAll($sql, [
+            'termino'       => '%' . $termino . '%',
+            'termino_exacto' => $termino
+        ]);
+    }
+
+    /**
+     * Obtiene movimientos dentro de un rango de fechas.
+     * @param string $fecha_desde Fecha inicio (formato Y-m-d)
+     * @param string $fecha_hasta Fecha fin (formato Y-m-d)
+     * @param bool $incluir_anulados Si es true, incluye los anulados
+     * @return array Lista de movimientos en el rango
+     */
+    public function getByFecha($fecha_desde, $fecha_hasta, $incluir_anulados = false) {
+        $sql = "SELECT m.id_movimiento, m.fecha, m.hora, m.observaciones, m.activo,
+                       tm.tipo as nombre_tipo_movimiento,
+                       u.dni as dni_usuario,
+                       o.apellido || ', ' || o.nombre as nombre_operario
+                FROM movimiento m
+                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                INNER JOIN usuario u ON m.id_usuario = u.dni
+                LEFT JOIN operario o ON m.id_operario = o.dni
+                WHERE m.fecha BETWEEN :fecha_desde AND :fecha_hasta";
+
+        if (!$incluir_anulados) {
+            $sql .= " AND m.activo = TRUE";
+        }
+
+        $sql .= " ORDER BY m.fecha DESC, m.hora DESC";
+
+        return $this->db->fetchAll($sql, [
+            'fecha_desde' => $fecha_desde,
+            'fecha_hasta' => $fecha_hasta
+        ]);
+    }
 }
 ?>
