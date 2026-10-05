@@ -7,17 +7,22 @@ if (session_status() === PHP_SESSION_NONE) {
 // =========================================================
 // CONFIGURACIÓN DE LA BASE DE DATOS (PostgreSQL)
 // =========================================================
-define('DB_HOST', 'localhost');          // Servidor de la base de datos
-define('DB_PORT', '5432');               // Puerto de PostgreSQL (por defecto 5432)
-define('DB_NAME', 'db_control_stock');   // Nombre de la base de datos
-define('DB_USER', 'postgres');           // Usuario de la base de datos
-define('DB_PASS', '');                   // Contraseña del usuario (vacía en desarrollo local)
+// Las credenciales reales van en config/env.php (no versionado); se cargan primero
+// y los valores de abajo solo se usan como respaldo si env.php no existe.
+if (file_exists(__DIR__ . '/env.php')) {
+    require_once __DIR__ . '/env.php';
+}
+defined('DB_HOST') || define('DB_HOST', 'localhost');          // Servidor de la base de datos
+defined('DB_PORT') || define('DB_PORT', '5432');               // Puerto de PostgreSQL (por defecto 5432)
+defined('DB_NAME') || define('DB_NAME', 'db_control_stock');   // Nombre de la base de datos
+defined('DB_USER') || define('DB_USER', 'postgres');           // Usuario de la base de datos
+defined('DB_PASS') || define('DB_PASS', '');                   // Contraseña del usuario
 
 // =========================================================
 // CONFIGURACIÓN DE LA APLICACIÓN
 // =========================================================
 define('SITE_NAME', 'Control de Stock - Taller ONABE');  // Nombre del sistema
-define('BASE_URL', 'http://localhost/control-stock/');     // URL base del proyecto
+define('BASE_URL', 'http://sistema-control-stock/');     // URL base del proyecto
 define('BASE_PATH', __DIR__ . '/../');                     // Ruta absoluta del proyecto
 
 // =========================================================
