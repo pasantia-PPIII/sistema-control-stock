@@ -5,12 +5,11 @@
 -- =========================================================
 
 -- 1. Roles del Sistema
--- Basado en RF-02: Administrador/Jefe de taller, Pañolero/Encargado de depósito, Operario, Consulta.
+-- Basado en RF-02, simplificado a tres roles: admin, pañolero y vista (solo lectura).
 INSERT INTO rol (id_rol, rol, descripcion) VALUES
-(1, 'Administrador / Jefe de taller', 'Acceso total, gestión de usuarios, OTs e inventario'),
-(2, 'Pañolero / Encargado de depósito', 'Supervisión de pañol, entregas, recepciones y auditoría'),
-(3, 'Operario', 'Asignación de materiales, herramientas y OTs'),
-(4, 'Consulta', 'Acceso exclusivo de lectura y generación de reportes')
+(1, 'admin', 'Acceso total, gestión de usuarios, OTs e inventario'),
+(2, 'pañolero', 'Supervisión de pañol, entregas, recepciones y auditoría'),
+(3, 'vista', 'Acceso exclusivo de lectura y generación de reportes')
 ON CONFLICT (id_rol) DO UPDATE SET rol = EXCLUDED.rol, descripcion = EXCLUDED.descripcion;
 
 -- 2. Tipos de Insumo
@@ -86,3 +85,16 @@ INSERT INTO rubro (id_rubro, nombre, descripcion, activo) VALUES
 (3, 'Pintura', 'Látex, esmaltes, brochas, rodillos y solventes', TRUE),
 (4, 'Herrería', 'Electrodos, discos de corte, perfiles y soldadura', TRUE)
 ON CONFLICT (id_rubro) DO UPDATE SET nombre = EXCLUDED.nombre;
+
+-- 9. Reajuste de secuencias
+-- Los datos de arriba se insertaron con ID explícito: se alinean las secuencias para que los
+-- registros que se creen desde el sistema no choquen con estos IDs.
+SELECT setval(pg_get_serial_sequence('rol', 'id_rol'), (SELECT MAX(id_rol) FROM rol));
+SELECT setval(pg_get_serial_sequence('tipo', 'id_tipo'), (SELECT MAX(id_tipo) FROM tipo));
+SELECT setval(pg_get_serial_sequence('unidad_medida', 'id_unidad_medida'), (SELECT MAX(id_unidad_medida) FROM unidad_medida));
+SELECT setval(pg_get_serial_sequence('ubicacion', 'id_ubicacion'), (SELECT MAX(id_ubicacion) FROM ubicacion));
+SELECT setval(pg_get_serial_sequence('estado_herramienta', 'id_estado_herramienta'), (SELECT MAX(id_estado_herramienta) FROM estado_herramienta));
+SELECT setval(pg_get_serial_sequence('tipo_movimiento', 'id_tipo_mov'), (SELECT MAX(id_tipo_mov) FROM tipo_movimiento));
+SELECT setval(pg_get_serial_sequence('localidad', 'id_localidad'), (SELECT MAX(id_localidad) FROM localidad));
+SELECT setval(pg_get_serial_sequence('jurisdiccion', 'id_jurisdiccion'), (SELECT MAX(id_jurisdiccion) FROM jurisdiccion));
+SELECT setval(pg_get_serial_sequence('rubro', 'id_rubro'), (SELECT MAX(id_rubro) FROM rubro));

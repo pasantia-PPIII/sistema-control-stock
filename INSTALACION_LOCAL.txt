@@ -1,0 +1,155 @@
+=====================================================================
+ SISTEMA DE CONTROL DE STOCK - TALLER ONABE
+ Cómo bajar el proyecto y conectarlo a tu PostgreSQL local (WAMP)
+=====================================================================
+
+REQUISITOS
+  - WAMP instalado (con PHP 8.0 o superior)
+  - PostgreSQL instalado (con pgAdmin o la herramienta psql)
+  - Git
+
+---------------------------------------------------------------------
+PASO 1 - Clonar el repositorio dentro de WAMP
+---------------------------------------------------------------------
+  Abrir una terminal y ejecutar:
+
+    cd C:\wamp64\www
+    git clone <URL-DEL-REPOSITORIO> sistema-control-stock
+    cd sistema-control-stock
+    git checkout feature-migracion      (o la rama que corresponda)
+
+  IMPORTANTE: la carpeta debe quedar como "sistema-control-stock" dentro
+  de "www", así la URL será http://localhost/sistema-control-stock/
+
+---------------------------------------------------------------------
+PASO 2 - Activar las extensiones de PostgreSQL en PHP
+---------------------------------------------------------------------
+  1. Clic en el ícono de WAMP (barra de tareas) > PHP > Extensiones PHP.
+  2. Tildar:  pdo_pgsql   y   pgsql
+     (WAMP reinicia los servicios solo.)
+
+  Si no aparecen en el menú, abrir el php.ini (clic en WAMP > PHP >
+  php.ini), quitar el ";" del comienzo de estas líneas y reiniciar WAMP:
+
+    extension=pdo_pgsql
+    extension=pgsql
+
+  Ojo: WAMP tiene un php.ini para Apache y otro para consola. Usar el
+  de Apache (el del menú de WAMP).
+
+  Para comprobarlo: crear un archivo info.php en el proyecto con
+    <?php phpinfo();
+  abrirlo en el navegador y buscar "pdo_pgsql". Borrar el archivo después.
+
+---------------------------------------------------------------------
+PASO 3 - Crear la base de datos
+---------------------------------------------------------------------
+  En pgAdmin: clic derecho en "Databases" > Create > Database...
+  Nombre:  db_control_stock
+
+  O con la terminal:
+    psql -U postgres -c "CREATE DATABASE db_control_stock;"
+
+---------------------------------------------------------------------
+PASO 4 - Cargar las tablas y los datos
+---------------------------------------------------------------------
+  Ejecutar los scripts de la carpeta "bd" EN ESTE ORDEN:
+
+    1) bd/db_control_stock.sql   (estructura de tablas)
+    2) bd/seed_data.sql          (roles, tipos, estados, unidades, etc.)
+    3) bd/test_data.sql          (datos de prueba - solo para desarrollo)
+
+  Con la terminal, desde la carpeta del proyecto:
+
+    psql -U postgres -d db_control_stock -f bd/db_control_stock.sql
+    psql -U postgres -d db_control_stock -f bd/seed_data.sql
+    psql -U postgres -d db_control_stock -f bd/test_data.sql
+
+  O en pgAdmin: clic derecho sobre la base > Query Tool > abrir cada
+  archivo (ícono de carpeta) > ejecutar (F5).
+
+  Si "psql" no se reconoce, usar la ruta completa, por ejemplo:
+    "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres ...
+
+  Si hay problemas con tildes o la ñ, ejecutar antes en la terminal:
+    chcp 65001
+
+  Si ya tenías la base creada ANTES de que se agregara el límite de
+  intentos de login, ejecutar además:
+    psql -U postgres -d db_control_stock -f bd/migracion_intentos_login.sql
+
+---------------------------------------------------------------------
+PASO 5 - Crear tu archivo de configuración (credenciales propias)
+---------------------------------------------------------------------
+  1. En la carpeta "config" copiar el archivo  env.example.php
+     y llamar a la copia  env.php
+  2. Abrir env.php y completar con TUS datos de PostgreSQL:
+
+       define('DB_HOST', 'localhost');
+       define('DB_PORT', '5432');            <- el puerto de tu PostgreSQL
+       define('DB_NAME', 'db_control_stock');
+       define('DB_USER', 'postgres');        <- tu usuario
+       define('DB_PASS', 'tu_contraseña');   <- tu contraseña
+       define('APP_DEBUG', true);            <- true en tu PC, para ver errores
+
+  env.php es PERSONAL: está en .gitignore y NO se sube al repositorio.
+  Nunca subas tus contraseñas a Git.
+
+---------------------------------------------------------------------
+PASO 6 - Iniciar WAMP y entrar al sistema
+---------------------------------------------------------------------
+  1. Abrir WAMP y esperar el ícono VERDE (todos los servicios activos).
+  2. Abrir en el navegador:
+
+       http://localhost/sistema-control-stock/
+
+  3. Ingresar con un usuario de prueba (solo si cargaste test_data.sql):
+
+       DNI 12345678  -> admin      (contraseña: admin123)
+       DNI 87654321  -> pañolero   (contraseña: admin123)
+       DNI 10101010  -> vista      (contraseña: admin123)
+
+  Después de 5 intentos fallidos con un mismo DNI, el sistema bloquea
+  ese DNI durante unos minutos.
+
+---------------------------------------------------------------------
+CARPETA DE ARCHIVOS SUBIDOS
+---------------------------------------------------------------------
+  Los PDF de las órdenes de trabajo se guardan en uploads/pa_pdfs/.
+  Se crea sola al subir el primer archivo (no se sube a Git).
+
+---------------------------------------------------------------------
+SI ALGO FALLA
+---------------------------------------------------------------------
+  * Página en blanco:
+      Poner APP_DEBUG en true en config/env.php para ver el error.
+      También revisar el log de errores de PHP (WAMP > Logs > PHP).
+
+  * "could not find driver":
+      Falta la extensión pdo_pgsql (volver al PASO 2).
+
+  * "No se pudo conectar con la base de datos":
+      - Revisar DB_HOST, DB_PORT, DB_NAME, DB_USER y DB_PASS en env.php.
+      - Verificar que el servicio de PostgreSQL esté iniciado
+        (services.msc > postgresql-x64-XX).
+      - Verificar que la base db_control_stock exista.
+
+  * Se ve la página sin estilos o los enlaces llevan a un lugar raro:
+      Confirmar que la carpeta se llama "sistema-control-stock" y está
+      dentro de "www". Si se usa otra URL, definir en env.php:
+        define('BASE_URL', 'http://localhost/sistema-control-stock/');
+
+  * "Solicitud no válida (token de seguridad...)":
+      La sesión venció. Recargar la página (Ctrl + F5) y volver a intentar.
+
+  * Usuario bloqueado por intentos fallidos:
+      Esperar los minutos indicados en el mensaje.
+
+---------------------------------------------------------------------
+TRABAJAR CON GIT
+---------------------------------------------------------------------
+  Para traer cambios nuevos:     git pull
+  Si los cambios incluyen scripts SQL nuevos, ejecutarlos en tu base
+  (se avisa en el mensaje del commit o en el README).
+  Nunca hacer commit de config/env.php.
+=====================================================================

@@ -1,0 +1,417 @@
+/* assets/css/operarios.css - Estilos específicos para el módulo de Operarios */
+
+/* Barra de Filtros y Contenedor */
+.action-bar-filters {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.search-input-wrapper {
+    flex: 1;
+    min-width: 240px;
+    position: relative;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.75rem 1.1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: #ffffff;
+    font-size: 0.9rem;
+    outline: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.filter-select {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color);
+    padding: 0.75rem 1.2rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #334155;
+    outline: none;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.btn-pill-action {
+    background-color: var(--primary-blue);
+    color: #ffffff;
+    padding: 0.75rem 1.8rem;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    display: inline-block;
+    transition: background-color 0.2s;
+}
+
+.btn-pill-action:hover {
+    background-color: #1e293b;
+}
+
+/* Grilla de Operarios */
+.operarios-table-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.table-header-row {
+    display: grid;
+    grid-template-columns: 110px 120px 1.8fr 1.4fr 160px;
+    padding: 0.75rem 1.25rem;
+    font-weight: 700;
+    color: #0b1536;
+    font-size: 0.88rem;
+}
+
+.operario-card-row {
+    background-color: #ffffff;
+    display: grid;
+    grid-template-columns: 110px 120px 1.8fr 1.4fr 160px;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.86rem;
+    color: #475569;
+    cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.operario-card-row:hover {
+    background-color: #f8fafc;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.actions-cell {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+/* Badges de Estado */
+.badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: inline-block;
+}
+
+.badge-success {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.badge-danger {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-info {
+    background-color: #e0f2fe;
+    color: #0369a1;
+}
+
+.badge-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+/* Modales */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+}
+
+.modal-backdrop.active {
+    display: flex;
+}
+
+.modal-card {
+    background-color: #ffffff;
+    width: 100%;
+    max-width: 560px;
+    border-radius: 20px;
+    padding: 2rem 2.5rem;
+    position: relative;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.2rem;
+    background: transparent;
+    border: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+}
+
+.modal-close-btn:hover {
+    color: #0b1536;
+    background-color: #f1f5f9;
+}
+
+.modal-header-text {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.modal-header-text h2 {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #0b1536;
+}
+
+.modal-header-text p {
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+.modal-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem;
+    margin-bottom: 0.85rem;
+}
+
+.modal-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.modal-form-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.modal-input, .modal-select {
+    width: 100%;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background-color: #ffffff;
+    color: #1e293b;
+    outline: none;
+}
+
+.modal-input[readonly] {
+    background-color: #f1f5f9;
+    cursor: not-allowed;
+}
+
+.btn-modal-submit {
+    background-color: var(--primary-blue);
+    color: #ffffff;
+    border: none;
+    padding: 0.7rem 2rem;
+    border-radius: 24px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: block;
+    margin: 1.2rem auto 0 auto;
+    width: 100%;
+    max-width: 220px;
+    transition: background-color 0.2s;
+}
+
+.btn-modal-submit:hover {
+    background-color: #1e293b;
+}
+
+/* Paginación */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 1.5rem;
+    background-color: #ffffff;
+    padding: 0.45rem 1rem;
+    border-radius: 20px;
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.pagination-btn {
+    font-size: 0.8rem;
+    color: #64748b;
+    border-radius: 50%;
+    min-width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+    transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled):not(.active) {
+    background-color: #f1f5f9;
+    color: #1e293b;
+}
+
+.pagination-btn.text-label {
+    border-radius: 12px;
+    min-width: auto;
+    padding: 0 0.6rem;
+}
+
+.pagination-btn.active {
+    background-color: var(--primary-blue);
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    background-color: #ffffff;
+    border-radius: 8px;
+    color: #64748b;
+    font-size: 0.95rem;
+}
+
+/* Ficha del Operario (detalle_operario.php) */
+.ficha-panel {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 1.8rem 2rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    margin-bottom: 2rem;
+}
+
+.ficha-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.ficha-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #0b1536;
+    margin-top: 0.25rem;
+}
+
+.ficha-grid-datos {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.2rem 1.5rem;
+    margin-bottom: 2rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.2rem;
+}
+
+.ficha-dato-label {
+    font-size: 0.72rem;
+    color: #64748b;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    display: block;
+}
+
+.ficha-dato-valor {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin-top: 0.25rem;
+}
+
+.ficha-section {
+    margin-bottom: 2.2rem;
+}
+
+.ficha-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.85rem;
+}
+
+.ficha-section-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0b1536;
+}
+
+/* Tablas estándar para detalles */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+    text-align: left;
+}
+
+.data-table thead {
+    background-color: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table th {
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    color: #0b1536;
+}
+
+.data-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f8fafc;
+}

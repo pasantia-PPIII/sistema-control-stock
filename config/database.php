@@ -1,6 +1,25 @@
 <?php
 // config/database.php
 
+/**
+ * Convierte una excepción capturada en una Exception apta para mostrar al usuario.
+ *
+ * - Error de base de datos (PDOException): el detalle técnico (SQL, tablas, columnas) se guarda
+ *   solo en el log y el usuario recibe un mensaje genérico. En modo debug se agrega el detalle.
+ * - Cualquier otro error (validaciones propias como "El nombre ya existe"): se conserva su mensaje.
+ *
+ * Uso:  catch (Exception $e) { throw errorAmigable('Error al crear el rubro', $e); }
+ */
+function errorAmigable(string $contexto, Throwable $e): Exception
+{
+    if ($e instanceof PDOException) {
+        error_log('[DB] ' . $contexto . ': ' . $e->getMessage());
+        $detalle = (defined('DEBUG_MODE') && DEBUG_MODE) ? ' (' . $e->getMessage() . ')' : '';
+        return new Exception($contexto . '. Intente nuevamente.' . $detalle);
+    }
+    return new Exception($contexto . ': ' . $e->getMessage());
+}
+
 class Database
 {
     private static ?PDO $conexion = null;
@@ -27,7 +46,11 @@ class Database
                     PDO::ATTR_EMULATE_PREPARES => false,
                 ]);
             } catch (PDOException $e) {
-                die("Error crítico de conexión a PostgreSQL: " . $e->getMessage());
+                error_log("Conexión a PostgreSQL fallida: " . $e->getMessage());
+                http_response_code(500);
+                die((defined("DEBUG_MODE") && DEBUG_MODE)
+                    ? "Error crítico de conexión a PostgreSQL: " . $e->getMessage()
+                    : "No se pudo conectar con la base de datos. Intente más tarde.");
             }
         }
         return self::$conexion;
@@ -103,6 +126,11 @@ class Database
     public function rollBack(): bool
     {
         return self::getConnection()->rollBack();
+    }
+
+    public function inTransaction(): bool
+    {
+        return self::getConnection()->inTransaction();
     }
 
     public function lastInsertId(?string $name = null): string|false

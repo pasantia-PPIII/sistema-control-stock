@@ -110,7 +110,7 @@ class Rubro {
 
             return $this->db->insert('rubro', $rubroData);
         } catch (PDOException $e) {
-            throw new Exception("Error al crear el rubro: " . $e->getMessage());
+            throw errorAmigable('Error al crear el rubro', $e);
         }
     }
 
@@ -134,7 +134,7 @@ class Rubro {
 
             return $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
         } catch (PDOException $e) {
-            throw new Exception("Error al actualizar el rubro: " . $e->getMessage());
+            throw errorAmigable('Error al actualizar el rubro', $e);
         }
     }
 
@@ -155,7 +155,7 @@ class Rubro {
             $rubroData = ['activo' => false]; // Booleano nativo (no 0)
             return $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
         } catch (PDOException $e) {
-            throw new Exception("Error al deshabilitar el rubro: " . $e->getMessage());
+            throw errorAmigable('Error al deshabilitar el rubro', $e);
         }
     }
 
@@ -170,7 +170,7 @@ class Rubro {
             $rubroData = ['activo' => true]; // Booleano nativo (no 1)
             return $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
         } catch (PDOException $e) {
-            throw new Exception("Error al habilitar el rubro: " . $e->getMessage());
+            throw errorAmigable('Error al habilitar el rubro', $e);
         }
     }
 

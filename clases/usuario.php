@@ -34,20 +34,10 @@ class Usuario {
             $_SESSION['id_rol'] = $usuario['id_rol'];
             $_SESSION['nombre_rol'] = $usuario['nombre_rol'];
 
-            if (!empty($usuario['dni_operario'])) {
-                // CAMBIO 2: Verificamos que el operario asociado también esté activo
-                $operario = $this->db->fetchOne(
-                    "SELECT nombre, apellido FROM operario WHERE dni = :dni AND activo = TRUE",
-                    ['dni' => $usuario['dni_operario']]
-                );
-                if ($operario) {
-                    $_SESSION['usuario_nombre'] = $operario['nombre'] . ' ' . $operario['apellido'];
-                } else {
-                    $_SESSION['usuario_nombre'] = $usuario['dni'];
-                }
-            } else {
-                $_SESSION['usuario_nombre'] = $usuario['dni'];
-            }
+            // El nombre a mostrar sale del propio usuario (nombre y apellido son obligatorios en la tabla)
+            $nombreCompleto = trim(($usuario['nombre'] ?? '') . ' ' . ($usuario['apellido'] ?? ''));
+            $_SESSION['usuario_nombre'] = $nombreCompleto !== '' ? $nombreCompleto : $usuario['dni'];
+            $_SESSION['id_operario'] = !empty($usuario['id_operario']) ? (int)$usuario['id_operario'] : null;
 
             return true;
         }
@@ -70,13 +60,13 @@ class Usuario {
      * @return array - Lista de usuarios
      */
     public function getAll($incluir_inactivos = false) {
-        $sql = "SELECT u.dni, u.dni_operario, u.id_rol, 
+        $sql = "SELECT u.dni, u.nombre, u.apellido, u.activo, u.id_operario, o.dni as dni_operario, u.id_rol, 
                        r.rol as nombre_rol,
                        o.nombre as operario_nombre, 
                        o.apellido as operario_apellido
                 FROM usuario u
                 INNER JOIN rol r ON u.id_rol = r.id_rol
-                LEFT JOIN operario o ON u.dni_operario = o.dni";
+                LEFT JOIN operario o ON u.id_operario = o.id_operario";
         
         // CAMBIO 3: Filtramos solo usuarios activos por defecto
         if (!$incluir_inactivos) {
@@ -94,14 +84,16 @@ class Usuario {
      * @param string $dni - DNI del usuario a buscar
      * @return array|false - Datos del usuario o false si no existe
      */
-    public function getByDni($dni) {
-        $sql = "SELECT u.*, r.rol as nombre_rol,
-                       o.nombre as operario_nombre, 
+    public function getByDni($dni, $incluir_inactivos = false) {
+        $sql = "SELECT u.dni, u.nombre, u.apellido, u.id_rol, u.id_operario, u.activo,
+                       r.rol as nombre_rol,
+                       o.dni as dni_operario,
+                       o.nombre as operario_nombre,
                        o.apellido as operario_apellido
                 FROM usuario u
                 INNER JOIN rol r ON u.id_rol = r.id_rol
-                LEFT JOIN operario o ON u.dni_operario = o.dni
-                WHERE u.dni = :dni AND u.activo = TRUE";
+                LEFT JOIN operario o ON u.id_operario = o.id_operario
+                WHERE u.dni = :dni" . ($incluir_inactivos ? "" : " AND u.activo = TRUE");
 
         return $this->db->fetchOne($sql, ['dni' => $dni]);
     }
@@ -126,7 +118,7 @@ class Usuario {
     /**
      * Crea un nuevo usuario en el sistema.
      * 
-     * @param array $data - Datos del usuario (dni, dni_operario, id_rol)
+     * @param array $data - Datos del usuario (dni, nombre, apellido, id_operario, id_rol)
      * @param string $contrasena - Contraseña en texto plano
      * @return array - El registro insertado
      */
@@ -134,7 +126,9 @@ class Usuario {
         try {
             $userData = [
                 'dni' => $data['dni'],
-                'dni_operario' => !empty($data['dni_operario']) ? $data['dni_operario'] : null,
+                'nombre' => trim($data['nombre'] ?? ''),
+                'apellido' => trim($data['apellido'] ?? ''),
+                'id_operario' => !empty($data['id_operario']) ? (int)$data['id_operario'] : null,
                 'contrasena' => password_hash($contrasena, PASSWORD_DEFAULT),
                 'id_rol' => (int)$data['id_rol'],
                 'activo' => true // CAMBIO 4: Se crea activo por defecto
@@ -142,7 +136,7 @@ class Usuario {
 
             return $this->db->insert('usuario', $userData);
         } catch (PDOException $e) {
-            throw new Exception("Error al crear el usuario: " . $e->getMessage());
+            throw errorAmigable('Error al crear el usuario', $e);
         }
     }
 
@@ -156,7 +150,7 @@ class Usuario {
     public function update($dni, $data) {
         try {
             // Whitelist: solo permite actualizar estos campos
-            $camposPermitidos = ['dni_operario', 'id_rol', 'password'];
+            $camposPermitidos = ['nombre', 'apellido', 'id_operario', 'id_rol', 'password'];
             $data = array_intersect_key($data, array_flip($camposPermitidos));
 
             if (!empty($data['password'])) {
@@ -169,7 +163,7 @@ class Usuario {
 
             return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
         } catch (PDOException $e) {
-            throw new Exception("Error al actualizar el usuario: " . $e->getMessage());
+            throw errorAmigable('Error al actualizar el usuario', $e);
         }
     }
 
@@ -178,7 +172,7 @@ class Usuario {
             $data = ['contrasena' => password_hash($nueva_contrasena, PASSWORD_DEFAULT)];
             return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
         } catch (PDOException $e) {
-            throw new Exception("Error al cambiar la contraseña: " . $e->getMessage());
+            throw errorAmigable('Error al cambiar la contraseña', $e);
         }
     }
 
@@ -196,7 +190,7 @@ class Usuario {
             $data = ['activo' => false];
             return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
         } catch (PDOException $e) {
-            throw new Exception("Error al deshabilitar el usuario: " . $e->getMessage());
+            throw errorAmigable('Error al deshabilitar el usuario', $e);
         }
     }
 
@@ -210,7 +204,7 @@ class Usuario {
             $data = ['activo' => true];
             return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
         } catch (PDOException $e) {
-            throw new Exception("Error al habilitar el usuario: " . $e->getMessage());
+            throw errorAmigable('Error al habilitar el usuario', $e);
         }
     }
 
@@ -218,30 +212,30 @@ class Usuario {
      * Deshabilita el usuario asociado a un operario específico.
      * Útil cuando se da de baja un operario y queremos bloquear su acceso.
      * 
-     * @param string $dni_operario - DNI del operario
+     * @param int $id_operario - ID del operario
      * @return bool - true si se deshabilitó, false si no tenía usuario asociado
      */
-    public function deshabilitarPorOperario($dni_operario) {
+    public function deshabilitarPorOperario($id_operario) {
         try {
             $data = ['activo' => false];
-            return $this->db->update('usuario', $data, 'dni_operario = :dni', ['dni' => $dni_operario]);
+            return $this->db->update('usuario', $data, 'id_operario = :id_operario', ['id_operario' => $id_operario]);
         } catch (PDOException $e) {
-            throw new Exception("Error al deshabilitar usuario por operario: " . $e->getMessage());
+            throw errorAmigable('Error al deshabilitar usuario por operario', $e);
         }
     }
 
     /**
      * Habilita el usuario asociado a un operario específico.
      * 
-     * @param string $dni_operario - DNI del operario
+     * @param int $id_operario - ID del operario
      * @return bool - true si se habilitó
      */
-    public function habilitarPorOperario($dni_operario) {
+    public function habilitarPorOperario($id_operario) {
         try {
             $data = ['activo' => true];
-            return $this->db->update('usuario', $data, 'dni_operario = :dni', ['dni' => $dni_operario]);
+            return $this->db->update('usuario', $data, 'id_operario = :id_operario', ['id_operario' => $id_operario]);
         } catch (PDOException $e) {
-            throw new Exception("Error al habilitar usuario por operario: " . $e->getMessage());
+            throw errorAmigable('Error al habilitar usuario por operario', $e);
         }
     }
 
@@ -250,12 +244,11 @@ class Usuario {
     // =========================================================
 
     public function esAdmin() {
-        return isset($_SESSION['nombre_rol']) && $_SESSION['nombre_rol'] === 'administrador';
+        return isAdmin();
     }
 
     public function esPanolero() {
-        return isset($_SESSION['nombre_rol']) && 
-               in_array($_SESSION['nombre_rol'], ['administrador', 'panolero']);
+        return isPanolero();
     }
 
     public function puedeEditar() {
@@ -267,7 +260,7 @@ class Usuario {
     }
 
     public function esVisualizador() {
-        return isset($_SESSION['nombre_rol']) && $_SESSION['nombre_rol'] === 'visualizador';
+        return isVista();
     }
 
     public function puedeVerReportes() {
@@ -280,13 +273,13 @@ class Usuario {
      * @return array Resultados
      */
     public function buscar($termino) {
-        $sql = "SELECT u.dni, u.dni_operario, u.id_rol, 
+        $sql = "SELECT u.dni, u.nombre, u.apellido, u.activo, u.id_operario, o.dni as dni_operario, u.id_rol, 
                        r.rol as nombre_rol,
                        o.nombre as operario_nombre, 
                        o.apellido as operario_apellido
                 FROM usuario u
                 INNER JOIN rol r ON u.id_rol = r.id_rol
-                LEFT JOIN operario o ON u.dni_operario = o.dni
+                LEFT JOIN operario o ON u.id_operario = o.id_operario
                 WHERE (u.dni ILIKE :termino
                    OR o.nombre ILIKE :termino
                    OR o.apellido ILIKE :termino)
@@ -296,4 +289,4 @@ class Usuario {
         return $this->db->fetchAll($sql, ['termino' => '%' . $termino . '%']);
     }
 }
-?>
+?>

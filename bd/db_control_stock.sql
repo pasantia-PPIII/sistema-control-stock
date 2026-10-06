@@ -3,12 +3,14 @@
 -- =========================================================
 
 -- Limpieza preventiva en orden inverso de dependencias
+DROP TABLE IF EXISTS intento_login CASCADE;
 DROP TABLE IF EXISTS movimiento_detalle CASCADE;
 DROP TABLE IF EXISTS movimiento CASCADE;
 DROP TABLE IF EXISTS comision CASCADE;
 DROP TABLE IF EXISTS orden_de_trabajo CASCADE;
 DROP TABLE IF EXISTS herramienta CASCADE;
 DROP TABLE IF EXISTS insumos CASCADE;
+DROP TABLE IF EXISTS stock_actual CASCADE;
 DROP TABLE IF EXISTS usuario CASCADE;
 DROP TABLE IF EXISTS operario CASCADE;
 DROP TABLE IF EXISTS rubro CASCADE;
@@ -75,6 +77,12 @@ CREATE TABLE rubro (
     activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+CREATE TABLE stock_actual (
+    id_stock_actual SERIAL PRIMARY KEY,
+    stock_actual NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
 -- ---------------------------------------------------------
 -- 2. OPERARIOS Y USUARIOS
 -- ---------------------------------------------------------
@@ -114,7 +122,7 @@ CREATE TABLE insumos (
     id_rubro INT NOT NULL,
     id_ubicacion INT,
     id_unidad_medida INT,
-    stock_actual NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    id_stock_actual INT,
     stock_minimo NUMERIC(10,2) NOT NULL DEFAULT 0.00,
     es_perecedero BOOLEAN NOT NULL DEFAULT FALSE,
     fecha_vencimiento DATE,
@@ -126,18 +134,19 @@ CREATE TABLE insumos (
     CONSTRAINT fk_insumos_rubro FOREIGN KEY (id_rubro) REFERENCES rubro(id_rubro),
     CONSTRAINT fk_insumos_ubicacion FOREIGN KEY (id_ubicacion) REFERENCES ubicacion(id_ubicacion) ON DELETE SET NULL,
     CONSTRAINT fk_insumos_unidad FOREIGN KEY (id_unidad_medida) REFERENCES unidad_medida(id_unidad_medida) ON DELETE SET NULL,
-    CONSTRAINT fk_insumos_estado_herr FOREIGN KEY (id_estado_herramienta) REFERENCES estado_herramienta(id_estado_herramienta) ON DELETE SET NULL
+    CONSTRAINT fk_insumos_estado_herr FOREIGN KEY (id_estado_herramienta) REFERENCES estado_herramienta(id_estado_herramienta) ON DELETE SET NULL,
+    CONSTRAINT fk_insumos_stock_actual FOREIGN KEY (id_stock_actual) REFERENCES stock_actual(id_stock_actual) ON DELETE SET NULL
 );
 
 CREATE TABLE herramienta (
     id_herramienta SERIAL PRIMARY KEY,
-    id_operario VARCHAR(20),
+    id_operario INT,
     fecha_entrega DATE,
     fecha_devolucion DATE,
     id_estado_herramienta INT,
     observaciones TEXT,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
-    CONSTRAINT fk_herramienta_operario FOREIGN KEY (id_operario) REFERENCES operario(dni) ON DELETE SET NULL,
+    CONSTRAINT fk_herramienta_operario FOREIGN KEY (id_operario) REFERENCES operario(id_operario) ON DELETE SET NULL,
     CONSTRAINT fk_herramienta_estado_herr FOREIGN KEY (id_estado_herramienta) REFERENCES estado_herramienta(id_estado_herramienta) ON DELETE SET NULL
 );
 
@@ -169,9 +178,10 @@ CREATE TABLE orden_de_trabajo (
 CREATE TABLE comision (
     id_comision SERIAL PRIMARY KEY,
     id_odt INT NOT NULL,
-    id_operario VARCHAR(20) NOT NULL,
+    id_operario INT NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
     CONSTRAINT fk_comision_odt FOREIGN KEY (id_odt) REFERENCES orden_de_trabajo(id_odt) ON DELETE CASCADE,
-    CONSTRAINT fk_comision_operario FOREIGN KEY (id_operario) REFERENCES operario(dni) ON DELETE CASCADE
+    CONSTRAINT fk_comision_operario FOREIGN KEY (id_operario) REFERENCES operario(id_operario) ON DELETE CASCADE
 );
 
 -- ---------------------------------------------------------
@@ -209,3 +219,21 @@ CREATE TABLE movimiento_detalle (
 ALTER TABLE orden_de_trabajo
     ADD CONSTRAINT fk_odt_mov_egreso FOREIGN KEY (id_mov_egreso) REFERENCES movimiento(id_movimiento) ON DELETE SET NULL,
     ADD CONSTRAINT fk_odt_mov_dev FOREIGN KEY (id_mov_devolucion) REFERENCES movimiento(id_movimiento) ON DELETE SET NULL;
+
+
+-- ---------------------------------------------------------
+-- 6. SEGURIDAD: INTENTOS DE LOGIN
+-- ---------------------------------------------------------
+-- Límite de 5 intentos fallidos por DNI en 15 minutos (se controla en auth/login.php).
+-- No se borran registros: un login correcto reinicia la cuenta porque solo se cuentan
+-- los fallos posteriores al último acierto.
+
+CREATE TABLE intento_login (
+    id_intento SERIAL PRIMARY KEY,
+    dni VARCHAR(20) NOT NULL,
+    ip VARCHAR(45),
+    exitoso BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_intento_login_dni_fecha ON intento_login (dni, fecha_hora);
