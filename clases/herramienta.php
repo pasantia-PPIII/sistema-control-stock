@@ -21,7 +21,7 @@ class Herramienta {
         $sql = "SELECT h.*, 
                        o.apellido || ', ' || o.nombre as nombre_operario
                 FROM herramienta h
-                LEFT JOIN operario o ON h.id_operario = o.dni";
+                LEFT JOIN operario o ON h.id_operario = o.id_operario";
         
         if (!$incluir_inactivas) {
             $sql .= " WHERE h.activo = TRUE";
@@ -42,7 +42,7 @@ class Herramienta {
                        o.apellido || ', ' || o.nombre as nombre_operario,
                        o.dni as dni_operario
                 FROM herramienta h
-                LEFT JOIN operario o ON h.id_operario = o.dni
+                LEFT JOIN operario o ON h.id_operario = o.id_operario
                 WHERE h.id_herramienta = :id AND h.activo = TRUE";
 
         return $this->db->fetchOne($sql, ['id' => $id_herramienta]);
@@ -51,19 +51,19 @@ class Herramienta {
     /**
      * Obtiene las herramientas actualmente asignadas a un operario
      * Útil para ver qué tiene un operario en su poder
-     * @param string $dni_operario dni del operario
+     * @param int $id_operario ID del operario
      * @return array Lista de herramientas
      */
-    public function getByOperario($dni_operario) {
+    public function getByOperario($id_operario) {
         $sql = "SELECT h.*, eh.estado as nombre_estado
                 FROM herramienta h
-                LEFT JOIN estado_herramienta eh ON h.estado = eh.estado
-                WHERE h.id_operario = :dni 
+                LEFT JOIN estado_herramienta eh ON h.id_estado_herramienta = eh.id_estado_herramienta
+                WHERE h.id_operario = :id_operario 
                 AND h.fecha_devolucion IS NULL 
                 AND h.activo = TRUE
                 ORDER BY h.fecha_entrega DESC";
         
-        return $this->db->fetchAll($sql, ['dni' => $dni_operario]);
+        return $this->db->fetchAll($sql, ['id_operario' => (int)$id_operario]);
     }
 
     /**
@@ -75,7 +75,7 @@ class Herramienta {
         $sql = "SELECT h.*, 
                        o.apellido || ', ' || o.nombre as nombre_operario
                 FROM herramienta h
-                INNER JOIN operario o ON h.id_operario = o.dni
+                INNER JOIN operario o ON h.id_operario = o.id_operario
                 WHERE h.fecha_devolucion IS NULL 
                 AND h.activo = TRUE
                 ORDER BY h.fecha_entrega ASC";
@@ -109,7 +109,7 @@ class Herramienta {
 
             return $this->db->insert('herramienta', $herramientaData);
         } catch (PDOException $e) {
-            throw new Exception("Error al registrar la entrega: " . $e->getMessage());
+            throw errorAmigable('Error al registrar la entrega', $e);
         }
     }
 
@@ -134,7 +134,7 @@ class Herramienta {
 
             return $this->db->update('herramienta', $data, 'id_herramienta = :id', ['id' => $id_herramienta]);
         } catch (PDOException $e) {
-            throw new Exception("Error al registrar la devolución: " . $e->getMessage());
+            throw errorAmigable('Error al registrar la devolución', $e);
         }
     }
 
@@ -161,7 +161,7 @@ class Herramienta {
 
             return $this->db->update('herramienta', $allowedFields, 'id_herramienta = :id', ['id' => $id_herramienta]);
         } catch (PDOException $e) {
-            throw new Exception("Error al actualizar la herramienta: " . $e->getMessage());
+            throw errorAmigable('Error al actualizar la herramienta', $e);
         }
     }
 
@@ -179,7 +179,7 @@ class Herramienta {
             $data = ['activo' => false];
             return $this->db->update('herramienta', $data, 'id_herramienta = :id', ['id' => $id_herramienta]);
         } catch (PDOException $e) {
-            throw new Exception("Error al dar de baja la herramienta: " . $e->getMessage());
+            throw errorAmigable('Error al dar de baja la herramienta', $e);
         }
     }
 
@@ -188,7 +188,7 @@ class Herramienta {
             $data = ['activo' => true];
             return $this->db->update('herramienta', $data, 'id_herramienta = :id', ['id' => $id_herramienta]);
         } catch (PDOException $e) {
-            throw new Exception("Error al reactivar la herramienta: " . $e->getMessage());
+            throw errorAmigable('Error al reactivar la herramienta', $e);
         }
     }
 
@@ -238,7 +238,7 @@ class Herramienta {
         $sql = "SELECT h.*, 
                        o.apellido || ', ' || o.nombre as nombre_operario
                 FROM herramienta h
-                LEFT JOIN operario o ON h.id_operario = o.dni
+                LEFT JOIN operario o ON h.id_operario = o.id_operario
                 WHERE (o.apellido ILIKE :termino
                    OR o.nombre ILIKE :termino
                    OR h.estado ILIKE :termino

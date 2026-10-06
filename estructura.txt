@@ -1,51 +1,94 @@
-Sistema DeControl/
+sistema-control-stock/
+├── index.php                          Punto de entrada: redirige al panel o al login
+├── README.md
+├── INSTALACION_LOCAL.txt              Guía para bajar y conectar el sistema en WAMP
+├── estructura.txt
+├── .gitignore                         (config/env.php y uploads/ no se versionan)
+│
+├── assets/
+│   ├── css/                           global.css + un CSS por módulo (panel, insumos, movimientos, ...)
+│   ├── img/                           logo.jpeg
+│   └── js/
+│       └── main.js                    Agrega el token CSRF a todos los fetch no-GET
+│
+├── auth/
+│   ├── login.php                      Inicio de sesión (CSRF + límite de 5 intentos fallidos, incluido en este archivo)
+│   ├── logout.php                     Cierre de sesión (solo POST con token CSRF)
+│   └── forgot_password.php            (vacío, pendiente)
+│
 ├── bd/
-│   ├── database.sql
-│   ├── seed_data.sql
-│   └── test_data.sql
-├── clases/
+│   ├── db_control_stock.sql           Estructura de la base (tablas)
+│   ├── seed_data.sql                  Datos base: roles, tipos, estados, unidades, etc.
+│   ├── test_data.sql                  Datos de prueba (solo desarrollo)
+│   └── migracion_intentos_login.sql   Para bases ya creadas: agrega la tabla intento_login
+│
+├── clases/                            Lógica de negocio y acceso a datos
+│   ├── herramienta.php
+│   ├── insumo.php
+│   ├── movimiento.php                 Incluye el efecto sobre el stock y la anulación
+│   ├── operario.php
+│   ├── orden_de_trabajo.php           Vínculos con movimientos y comisión de operarios
+│   ├── panel.php                      Consultas del Panel de Control
+│   ├── rubro.php
+│   └── usuario.php
+│
 ├── config/
-│   ├── config.php
-│   └── database.php
-├── layouts/
-│   ├── header.php
+│   ├── config.php                     Sesión, BASE_URL, CSRF, roles y helpers
+│   ├── database.php                   Conexión PDO a PostgreSQL
+│   ├── env.example.php                Plantilla de configuración (se versiona)
+│   └── env.php                        Configuración local (NO se versiona, se crea a mano)
+│
+├── layout/
+│   ├── header.php                     Menú lateral, barra superior, meta CSRF
 │   └── footer.php
-├── auth/                                    
-│   ├── login.php
-│   ├── logout.php
-│   └── forgot_password.php
+│
+├── panel/
+│   └── dashboard.php                  Panel de Control (resumen según el rol)
+│
 ├── insumo/
-│   ├── dashboard.php                        
+│   ├── dashboard.php
 │   ├── crear_insumo.php
 │   ├── editar_insumo.php
 │   ├── detalles_insumo.php
-│   └── deshabilitar_insumo.php              
+│   └── deshabilitar_insumo.php
+│
 ├── movimiento/
-│   ├── dashboard.php                        
+│   ├── dashboard.php
 │   ├── crear_movimiento.php
-│   ├── editar_movimiento.php
+│   ├── editar_movimiento.php          (vacío, pendiente)
 │   ├── detalle_movimiento.php
-│   └── deshabilitar_movimiento.php          
-├── orden_de_trabajo/                        
-│   ├── dashboard.php                        
+│   └── deshabilitar_movimiento.php    Anula el movimiento y revierte el stock
+│
+├── orden_de_trabajo/
+│   ├── dashboard.php
 │   ├── crear_orden_de_trabajo.php
 │   ├── editar_orden_de_trabajo.php
 │   ├── detalle_orden_de_trabajo.php
-│   └── deshabilitar_orden_de_trabajo.php    
+│   ├── deshabilitar_orden_de_trabajo.php
+│   └── pdf_upload.php                 Validación y guardado del PDF adjunto
+│
 ├── operario/
-│   ├── dashboard.php                        
+│   ├── dashboard.php
 │   ├── crear_operario.php
 │   ├── editar_operario.php
-│   └── deshabilitar_operario.php            
-├── reportes/
-│   └── dashboard.php                        
+│   ├── detalle_operario.php
+│   └── deshabilitar_operario.php
+│
+├── reporte/
+│   └── dashboard.php                  Stock crítico y auditoría de movimientos
+│
 ├── rubro/
-│   ├── dashboard.php                        
+│   ├── dashboard.php
 │   ├── crear_rubro.php
 │   ├── editar_rubro.php
-│   └── deshabilitar_rubro.php               
-└── usuarios/
-    ├── dashboard.php                        
-    ├── crear_usuario.php
-    ├── editar_usuario.php
-    └── deshabilitar_usuario.php             
+│   ├── detalle_rubro.php
+│   └── deshabilitar_rubro.php
+│
+├── usuario/
+│   ├── dashboard.php
+│   ├── crear_usuario.php
+│   ├── editar_usuario.php
+│   ├── detalle_usuario.php
+│   └── deshabilitar_usuario.php
+│
+└── uploads/                           PDFs de órdenes de trabajo (se crea sola, no se versiona)

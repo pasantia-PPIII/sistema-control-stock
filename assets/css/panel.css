@@ -1,0 +1,139 @@
+/* assets/css/panel.css - Panel de Control */
+
+.panel-rol {
+    margin: 0 0 1rem 0;
+    color: #64748b;
+    font-size: 0.95rem;
+}
+
+.panel-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.panel-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.panel-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    text-decoration: none;
+    color: #0b1536;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.panel-kpi:hover {
+    border-color: #94a3b8;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.panel-kpi-valor {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.panel-kpi-titulo {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.panel-kpi.alerta.activo {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.panel-kpi.alerta.activo .panel-kpi-valor {
+    color: #dc2626;
+}
+
+.panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 1rem;
+}
+
+@media (max-width: 520px) {
+    .panel-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.panel-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1.1rem 1.3rem;
+    overflow-x: auto;
+}
+
+.panel-card h2 {
+    margin: 0 0 0.8rem 0;
+    font-size: 1rem;
+    color: #0b1536;
+}
+
+.panel-vacio {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.panel-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.panel-tabla th {
+    text-align: left;
+    color: #64748b;
+    font-weight: 600;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 0.4rem 0.5rem;
+}
+
+.panel-tabla td {
+    padding: 0.45rem 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+}
+
+.panel-tabla .num {
+    text-align: right;
+}
+
+.panel-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.8rem;
+}
+
+.panel-chip {
+    background: #f1f5f9;
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+    font-size: 0.8rem;
+    color: #334155;
+}
+
+.panel-vencido {
+    color: #dc2626;
+    font-weight: 700;
+    font-size: 0.8rem;
+}

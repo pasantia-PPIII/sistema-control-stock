@@ -86,18 +86,18 @@ class OrdenDeTrabajo {
 
     /**
      * Obtiene las orden de trab asignadas a un operario específico (a traves de la tabla comision)
-     * @param string $dni_operario DNI del operario
+     * @param int $id_operario ID del operario
      * @return array Lista de ODTs
      */
-    public function getByOperario($dni_operario) {
+    public function getByOperario($id_operario) {
         $sql = "SELECT o.*, l.localidad as nombre_localidad
                 FROM orden_de_trabajo o
                 INNER JOIN comision c ON o.id_odt = c.id_odt
                 LEFT JOIN localidad l ON o.id_localidad = l.id_localidad
-                WHERE c.id_operario = :dni AND o.activo = TRUE
+                WHERE c.id_operario = :id_operario AND c.activo = TRUE AND o.activo = TRUE
                 ORDER BY o.fecha_inicio DESC";
         
-        return $this->db->fetchAll($sql, ['dni' => $dni_operario]);
+        return $this->db->fetchAll($sql, ['id_operario' => (int)$id_operario]);
     }
 
     /**
@@ -106,9 +106,9 @@ class OrdenDeTrabajo {
      * @return array Lista de operarios
      */
     public function getOperariosAsignados($id_odt) {
-        $sql = "SELECT o.dni, o.nombre, o.apellido, r.nombre as nombre_rubro
+        $sql = "SELECT o.id_operario, o.dni, o.nombre, o.apellido, r.nombre as nombre_rubro
                 FROM operario o
-                INNER JOIN comision c ON o.dni = c.id_operario
+                INNER JOIN comision c ON o.id_operario = c.id_operario AND c.activo = TRUE
                 LEFT JOIN rubro r ON o.id_rubro = r.id_rubro
                 WHERE c.id_odt = :id_odt
                 ORDER BY o.apellido ASC";
@@ -120,197 +120,394 @@ class OrdenDeTrabajo {
     // 2. CREAR Y ACTUALIZAR (CREATE / UPDATE)
     // =========================================================
 
+    // Campos de la tabla orden_de_trabajo que se pueden cargar / editar desde el formulario
+    private const CAMPOS_EDITABLES = [
+        'numero_ot', 'pa', 'trabajo_a_realizar', 'id_localidad', 'id_jurisdiccion',
+        'fecha_inicio', 'fecha_final', 'hora_inicio', 'hora_final',
+        'estado', 'observaciones', 'archivo_pdf'
+    ];
+
     /**
-     * Crea una nueva Orden de Trabajo.
+     * Normaliza los datos del formulario: solo campos permitidos, vacíos a NULL, claves foráneas a int.
+     * Solo se devuelven las claves presentes en $data (así update() no pisa lo que no se envió).
+     */
+    private function limpiarDatos(array $data) {
+        $out = array_intersect_key($data, array_flip(self::CAMPOS_EDITABLES));
+
+        foreach (['pa', 'observaciones', 'trabajo_a_realizar', 'archivo_pdf', 'numero_ot'] as $campo) {
+            if (array_key_exists($campo, $out)) {
+                $v = trim((string)$out[$campo]);
+                $out[$campo] = ($v !== '') ? $v : null;
+            }
+        }
+        foreach (['fecha_inicio', 'fecha_final', 'hora_inicio', 'hora_final'] as $campo) {
+            if (array_key_exists($campo, $out)) {
+                $out[$campo] = !empty($out[$campo]) ? $out[$campo] : null;
+            }
+        }
+        foreach (['id_localidad', 'id_jurisdiccion'] as $campo) {
+            if (array_key_exists($campo, $out)) {
+                $out[$campo] = !empty($out[$campo]) ? (int)$out[$campo] : null;
+            }
+        }
+        if (array_key_exists('estado', $out)) {
+            $v = trim((string)$out['estado']);
+            $out['estado'] = ($v !== '') ? $v : 'Pendiente';
+        }
+        return $out;
+    }
+
+    /**
+     * Crea una nueva Orden de Trabajo junto con su comisión de operarios y,
+     * opcionalmente, sus movimientos de entrega y de devolución. Todo en una transacción.
+     *
      * @param array $data Datos de la ODT
+     * @param array $ids_operarios id_operario de los operarios asignados (comisión)
+     * @param int|null $id_mov_egreso Movimiento de tipo Entrega (opcional)
+     * @param int|null $id_mov_devolucion Movimiento de tipo Devolución (opcional)
      * @return array El registro insertado con su ID generado
      */
-    public function create($data) {
+    public function create($data, $ids_operarios = [], $id_mov_egreso = null, $id_mov_devolucion = null) {
+        $this->db->beginTransaction();
         try {
-            // Validaciones básicas
-            if (empty(trim($data['trabajo_a_realizar']))) {
+            $data = $this->limpiarDatos($data);
+
+            if (empty($data['numero_ot'])) {
+                throw new Exception("El número de Orden de Trabajo es obligatorio.");
+            }
+            if (empty($data['trabajo_a_realizar'])) {
                 throw new Exception("La descripción del trabajo a realizar es obligatoria.");
             }
-
-            // Limpieza de campos opcionales: si vienen vacíos, los convertimos a NULL
-            $data['pa'] = !empty(trim($data['pa'])) ? trim($data['pa']) : null;
-            $data['fecha_inicio'] = !empty($data['fecha_inicio']) ? $data['fecha_inicio'] : null;
-            $data['fecha_final'] = !empty($data['fecha_final']) ? $data['fecha_final'] : null;
-            $data['hora_inicio'] = !empty($data['hora_inicio']) ? $data['hora_inicio'] : null;
-            $data['hora_final'] = !empty($data['hora_final']) ? $data['hora_final'] : null;
-            $data['observaciones'] = !empty(trim($data['observaciones'])) ? trim($data['observaciones']) : null;
-            
-            // Estado por defecto si no se envía
-            $data['estado'] = !empty(trim($data['estado'])) ? trim($data['estado']) : 'Pendiente';
-
-            // Forzamos que se cree activa
+            $data['estado'] = $data['estado'] ?? 'Pendiente';
             $data['activo'] = true;
 
-            // Manejo de claves foráneas nulas
-            $data['id_localidad'] = !empty($data['id_localidad']) ? (int)$data['id_localidad'] : null;
-            $data['id_jurisdiccion'] = !empty($data['id_jurisdiccion']) ? (int)$data['id_jurisdiccion'] : null;
+            $orden = $this->db->insert('orden_de_trabajo', $data);
+            $id_odt = (int)$orden['id_odt'];
 
-            // Los movimientos se asignan DESPUÉS de crear la ODT, no al crearla
-            $data['id_mov_egreso'] = null;
-            $data['id_mov_devolucion'] = null;
+            $this->aplicarVinculo($id_odt, 'id_mov_egreso', 'Entrega', $id_mov_egreso);
+            $this->aplicarVinculo($id_odt, 'id_mov_devolucion', 'Devolución', $id_mov_devolucion);
+            $this->sincronizarOperarios($id_odt, $ids_operarios);
 
-            return $this->db->insert('orden_de_trabajo', $data);
-        } catch (PDOException $e) {
-            throw new Exception("Error al crear la Orden de Trabajo: " . $e->getMessage());
+            $this->db->commit();
+            return $orden;
+        } catch (Throwable $e) {
+            $this->cerrarConError($e, 'crear la Orden de Trabajo');
         }
     }
 
     /**
-     * Actualiza una Orden de Trabajo existente.
+     * Actualiza una Orden de Trabajo. Solo se modifican los campos presentes en $data.
+     *
      * @param int $id_odt ID de la orden a actualizar
      * @param array $data Nuevos datos
+     * @param array|null $ids_operarios Comisión completa (null = no tocar la comisión)
+     * @param array|null $vinculos ['id_mov_egreso' => ?int, 'id_mov_devolucion' => ?int]; solo se aplican las claves presentes
      * @return bool true si se actualizó correctamente
      */
-    public function update($id_odt, $data) {
+    public function update($id_odt, $data, $ids_operarios = null, $vinculos = null) {
+        $this->db->beginTransaction();
         try {
-            if (empty(trim($data['trabajo_a_realizar']))) {
+            $data = $this->limpiarDatos($data);
+
+            if (array_key_exists('trabajo_a_realizar', $data) && empty($data['trabajo_a_realizar'])
+                && !empty($this->getById($id_odt)['trabajo_a_realizar'] ?? null)) {
                 throw new Exception("La descripción del trabajo a realizar es obligatoria.");
             }
+            if (array_key_exists('numero_ot', $data) && empty($data['numero_ot'])) {
+                throw new Exception("El número de Orden de Trabajo es obligatorio.");
+            }
 
-            // Misma limpieza de campos opcionales
-            $data['pa'] = !empty(trim($data['pa'])) ? trim($data['pa']) : null;
-            $data['fecha_inicio'] = !empty($data['fecha_inicio']) ? $data['fecha_inicio'] : null;
-            $data['fecha_final'] = !empty($data['fecha_final']) ? $data['fecha_final'] : null;
-            $data['hora_inicio'] = !empty($data['hora_inicio']) ? $data['hora_inicio'] : null;
-            $data['hora_final'] = !empty($data['hora_final']) ? $data['hora_final'] : null;
-            $data['observaciones'] = !empty(trim($data['observaciones'])) ? trim($data['observaciones']) : null;
+            if (!empty($data)) {
+                $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => (int)$id_odt]);
+            }
+            if (is_array($vinculos)) {
+                if (array_key_exists('id_mov_egreso', $vinculos)) {
+                    $this->aplicarVinculo((int)$id_odt, 'id_mov_egreso', 'Entrega', $vinculos['id_mov_egreso']);
+                }
+                if (array_key_exists('id_mov_devolucion', $vinculos)) {
+                    $this->aplicarVinculo((int)$id_odt, 'id_mov_devolucion', 'Devolución', $vinculos['id_mov_devolucion']);
+                }
+            }
+            if (is_array($ids_operarios)) {
+                $this->sincronizarOperarios((int)$id_odt, $ids_operarios);
+            }
 
-            $data['id_localidad'] = !empty($data['id_localidad']) ? (int)$data['id_localidad'] : null;
-            $data['id_jurisdiccion'] = !empty($data['id_jurisdiccion']) ? (int)$data['id_jurisdiccion'] : null;
-
-            // Eliminamos 'activo' del array de update
-            unset($data['activo']);
-
-            return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
-        } catch (PDOException $e) {
-            throw new Exception("Error al actualizar la Orden de Trabajo: " . $e->getMessage());
+            $this->db->commit();
+            return true;
+        } catch (Throwable $e) {
+            $this->cerrarConError($e, 'actualizar la Orden de Trabajo');
         }
+    }
+
+    /**
+     * Deshace la transacción abierta y relanza el error (los de base de datos se registran en el log y se
+     * reemplazan por un mensaje genérico; los de validación se conservan).
+     */
+    private function cerrarConError($e, $accion) {
+        if ($this->db->inTransaction()) {
+            $this->db->rollBack();
+        }
+        if ($e instanceof PDOException) {
+            error_log("OrdenDeTrabajo - error al {$accion}: " . $e->getMessage());
+            throw new Exception("Error al {$accion}. Intente nuevamente.");
+        }
+        throw new Exception($e->getMessage());
     }
 
     // =========================================================
     // 3. GESTIÓN DE COMISIONES (ASIGNAR/QUITAR OPERARIOS)
+    //    Nunca se borran filas: quitar un operario lo marca como inactivo en la comisión.
     // =========================================================
 
     /**
-     * Asigna un operario a una Orden de Trabajo (crea una comisión).
+     * Asigna un operario a una Orden de Trabajo (crea o reactiva su fila de comisión).
      * @param int $id_odt ID de la orden
-     * @param string $dni_operario DNI del operario
+     * @param int $id_operario ID del operario
      * @return bool true si se asignó correctamente
      */
-    public function asignarOperario($id_odt, $dni_operario) {
+    public function asignarOperario($id_odt, $id_operario) {
         try {
-            // Verificar que el operario no esté ya asignado
-            if ($this->operarioYaAsignado($id_odt, $dni_operario)) {
-                throw new Exception("Este operario ya está asignado a la orden de trabajo.");
+            $operario = $this->db->fetchOne(
+                "SELECT activo FROM operario WHERE id_operario = :id",
+                ['id' => (int)$id_operario]
+            );
+            if (!$operario || !$operario['activo']) {
+                throw new Exception("El operario seleccionado no existe o está deshabilitado.");
             }
 
-            $comisionData = [
-                'id_odt' => $id_odt,
-                'id_operario' => $dni_operario
-            ];
+            $fila = $this->db->fetchOne(
+                "SELECT id_comision, activo FROM comision WHERE id_odt = :id_odt AND id_operario = :id_operario",
+                ['id_odt' => (int)$id_odt, 'id_operario' => (int)$id_operario]
+            );
 
-            return $this->db->insert('comision', $comisionData);
-        } catch (PDOException $e) {
-            throw new Exception("Error al asignar el operario: " . $e->getMessage());
-        }
-    }
+            if ($fila && $fila['activo']) {
+                throw new Exception("Este operario ya está asignado a la orden de trabajo.");
+            }
+            if ($fila) {
+                return Database::execute("UPDATE comision SET activo = TRUE WHERE id_comision = :id", ['id' => $fila['id_comision']]);
+            }
 
-    /**
-     * Quita un operario de una Orden de Trabajo (elimina la comisión).
-     * @param int $id_odt ID de la orden
-     * @param string $dni_operario DNI del operario
-     * @return bool true si se quitó correctamente
-     */
-    public function quitarOperario($id_odt, $dni_operario) {
-        try {
-            return $this->db->delete('comision', 'id_odt = :id_odt AND id_operario = :dni', [
-                'id_odt' => $id_odt,
-                'dni' => $dni_operario
+            return (bool)$this->db->insert('comision', [
+                'id_odt' => (int)$id_odt,
+                'id_operario' => (int)$id_operario,
+                'activo' => true
             ]);
         } catch (PDOException $e) {
-            throw new Exception("Error al quitar el operario: " . $e->getMessage());
+            error_log('OrdenDeTrabajo::asignarOperario - ' . $e->getMessage());
+            throw new Exception("Error al asignar el operario.");
         }
     }
 
     /**
-     * Verifica si un operario ya está asignado a una orden d trab
+     * Quita un operario de la comisión de una Orden de Trabajo (lo marca inactivo, no se borra).
      * @param int $id_odt ID de la orden
-     * @param string $dni_operario DNI del operario
-     * @return bool
+     * @param int $id_operario ID del operario
+     * @return bool true si se quitó correctamente
      */
-    private function operarioYaAsignado($id_odt, $dni_operario) {
-        $sql = "SELECT COUNT(*) as total FROM comision 
-                WHERE id_odt = :id_odt AND id_operario = :dni";
-        $result = $this->db->fetchOne($sql, [
-            'id_odt' => $id_odt,
-            'dni' => $dni_operario
-        ]);
-        return $result['total'] > 0;
+    public function quitarOperario($id_odt, $id_operario) {
+        try {
+            return Database::execute(
+                "UPDATE comision SET activo = FALSE WHERE id_odt = :id_odt AND id_operario = :id_operario",
+                ['id_odt' => (int)$id_odt, 'id_operario' => (int)$id_operario]
+            );
+        } catch (PDOException $e) {
+            error_log('OrdenDeTrabajo::quitarOperario - ' . $e->getMessage());
+            throw new Exception("Error al quitar el operario.");
+        }
     }
 
     /**
-     * Asigna múltiples operarios a una order de trab de una sola vez
+     * Deja la comisión de la orden exactamente igual a la lista recibida:
+     * activa los operarios indicados (creándolos si hace falta) y desactiva el resto.
+     * Debe llamarse dentro de una transacción.
      * @param int $id_odt ID de la orden
-     * @param array $dnis_operarios Array de DNIs
+     * @param array $ids_operarios id_operario que deben quedar asignados
+     */
+    private function sincronizarOperarios($id_odt, $ids_operarios) {
+        $ids = [];
+        foreach ((array)$ids_operarios as $id) {
+            if ((int)$id > 0) {
+                $ids[(int)$id] = true;
+            }
+        }
+        $ids = array_keys($ids);
+
+        $existentes = $this->db->fetchAll(
+            "SELECT id_operario, activo FROM comision WHERE id_odt = :id_odt",
+            ['id_odt' => (int)$id_odt]
+        );
+        $estado = [];
+        foreach ($existentes as $c) {
+            $estado[(int)$c['id_operario']] = (bool)$c['activo'];
+        }
+
+        foreach ($ids as $id) {
+            if (!array_key_exists($id, $estado) || !$estado[$id]) {
+                $this->asignarOperario($id_odt, $id);
+            }
+        }
+        foreach ($estado as $id => $activo) {
+            if ($activo && !in_array($id, $ids, true)) {
+                $this->quitarOperario($id_odt, $id);
+            }
+        }
+    }
+
+    /**
+     * Asigna múltiples operarios a una orden de trabajo de una sola vez.
+     * @param int $id_odt ID de la orden
+     * @param array $ids_operarios Array de id_operario
      * @return int Cantidad de operarios asignados
      */
-    public function asignarMultiplesOperarios($id_odt, $dnis_operarios) {
+    public function asignarMultiplesOperarios($id_odt, $ids_operarios) {
         $this->db->beginTransaction();
         try {
             $asignados = 0;
-            foreach ($dnis_operarios as $dni) {
-                if (!$this->operarioYaAsignado($id_odt, $dni)) {
-                    $this->asignarOperario($id_odt, $dni);
+            foreach ($ids_operarios as $id_operario) {
+                if (!$this->operarioYaAsignado($id_odt, $id_operario)) {
+                    $this->asignarOperario($id_odt, $id_operario);
                     $asignados++;
                 }
             }
             $this->db->commit();
             return $asignados;
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            throw new Exception("Error al asignar operarios: " . $e->getMessage());
+        } catch (Throwable $e) {
+            $this->cerrarConError($e, 'asignar operarios');
         }
     }
 
+    /**
+     * Verifica si un operario ya está activo en la comisión de una orden de trabajo.
+     * @param int $id_odt ID de la orden
+     * @param int $id_operario ID del operario
+     * @return bool
+     */
+    private function operarioYaAsignado($id_odt, $id_operario) {
+        $sql = "SELECT COUNT(*) as total FROM comision
+                WHERE id_odt = :id_odt AND id_operario = :id_operario AND activo = TRUE";
+        $result = $this->db->fetchOne($sql, [
+            'id_odt' => (int)$id_odt,
+            'id_operario' => (int)$id_operario
+        ]);
+        return $result['total'] > 0;
+    }
+
     // =========================================================
-    // 4. VINCULACIÓN CON MOVIMIENTOS
+    // 4. VINCULACIÓN CON MOVIMIENTOS (ambos opcionales)
+    //    id_mov_egreso -> movimiento de tipo Entrega; id_mov_devolucion -> movimiento de tipo Devolución.
     // =========================================================
 
     /**
-     * Vincula un movimiento de egreso (salida de materiales) a la orden de trab
+     * Vincula (o desvincula, con null) el movimiento de entrega de la orden.
      * @param int $id_odt ID de la orden
-     * @param int $id_mov_egreso ID del movimiento de egreso
+     * @param int|null $id_mov_egreso ID del movimiento de tipo Entrega
      * @return bool
      */
     public function vincularMovimientoEgreso($id_odt, $id_mov_egreso) {
+        return $this->vincularEnTransaccion($id_odt, 'id_mov_egreso', 'Entrega', $id_mov_egreso);
+    }
+
+    /**
+     * Vincula (o desvincula, con null) el movimiento de devolución de la orden.
+     * @param int $id_odt ID de la orden
+     * @param int|null $id_mov_devolucion ID del movimiento de tipo Devolución
+     * @return bool
+     */
+    public function vincularMovimientoDevolucion($id_odt, $id_mov_devolucion) {
+        return $this->vincularEnTransaccion($id_odt, 'id_mov_devolucion', 'Devolución', $id_mov_devolucion);
+    }
+
+    private function vincularEnTransaccion($id_odt, $columna, $tipo, $id_mov) {
+        $this->db->beginTransaction();
         try {
-            $data = ['id_mov_egreso' => $id_mov_egreso];
-            return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
-        } catch (PDOException $e) {
-            throw new Exception("Error al vincular el movimiento de egreso: " . $e->getMessage());
+            $this->aplicarVinculo((int)$id_odt, $columna, $tipo, $id_mov);
+            $this->db->commit();
+            return true;
+        } catch (Throwable $e) {
+            $this->cerrarConError($e, 'vincular el movimiento');
         }
     }
 
     /**
-     * Vincula un movimiento de devolución a la orden de trab
+     * Deja el movimiento indicado como el vinculado en la columna dada (null = sin movimiento).
+     * Valida que el movimiento exista, esté activo, sea del tipo correcto y no esté vinculado a otra orden.
+     * Mantiene sincronizado movimiento.id_odt. Debe llamarse dentro de una transacción.
      * @param int $id_odt ID de la orden
-     * @param int $id_mov_devolucion ID del movimiento de devolución
-     * @return bool
+     * @param string $columna 'id_mov_egreso' o 'id_mov_devolucion' (valor interno, nunca viene del usuario)
+     * @param string $tipoEsperado 'Entrega' o 'Devolución'
+     * @param int|null $idNuevo ID del movimiento a vincular
      */
-    public function vincularMovimientoDevolucion($id_odt, $id_mov_devolucion) {
-        try {
-            $data = ['id_mov_devolucion' => $id_mov_devolucion];
-            return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
-        } catch (PDOException $e) {
-            throw new Exception("Error al vincular el movimiento de devolución: " . $e->getMessage());
+    private function aplicarVinculo($id_odt, $columna, $tipoEsperado, $idNuevo) {
+        if (!in_array($columna, ['id_mov_egreso', 'id_mov_devolucion'], true)) {
+            throw new Exception("Vínculo de movimiento inválido.");
+        }
+
+        $actual = $this->db->fetchOne("SELECT {$columna} AS id FROM orden_de_trabajo WHERE id_odt = :id", ['id' => $id_odt]);
+        $idActual = ($actual && !empty($actual['id'])) ? (int)$actual['id'] : null;
+        $idNuevo = !empty($idNuevo) ? (int)$idNuevo : null;
+
+        if ($idActual === $idNuevo) {
+            return;
+        }
+
+        if ($idNuevo !== null) {
+            $mov = $this->db->fetchOne(
+                "SELECT m.activo, tm.tipo FROM movimiento m
+                 INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                 WHERE m.id_movimiento = :id",
+                ['id' => $idNuevo]
+            );
+            if (!$mov || !$mov['activo']) {
+                throw new Exception("El movimiento #{$idNuevo} no existe o está anulado.");
+            }
+            if ($mov['tipo'] !== $tipoEsperado) {
+                throw new Exception("El movimiento #{$idNuevo} es de tipo '{$mov['tipo']}' y debe ser de tipo '{$tipoEsperado}'.");
+            }
+            $usado = $this->db->fetchOne(
+                "SELECT id_odt FROM orden_de_trabajo
+                 WHERE activo = TRUE AND id_odt <> :odt AND (id_mov_egreso = :m1 OR id_mov_devolucion = :m2)",
+                ['odt' => $id_odt, 'm1' => $idNuevo, 'm2' => $idNuevo]
+            );
+            if ($usado) {
+                throw new Exception("El movimiento #{$idNuevo} ya está vinculado a otra Orden de Trabajo.");
+            }
+        }
+
+        if ($idActual !== null) {
+            Database::execute(
+                "UPDATE movimiento SET id_odt = NULL WHERE id_movimiento = :m AND id_odt = :odt",
+                ['m' => $idActual, 'odt' => $id_odt]
+            );
+        }
+        Database::execute("UPDATE orden_de_trabajo SET {$columna} = :m WHERE id_odt = :odt", ['m' => $idNuevo, 'odt' => $id_odt]);
+        if ($idNuevo !== null) {
+            Database::execute("UPDATE movimiento SET id_odt = :odt WHERE id_movimiento = :m", ['m' => $idNuevo, 'odt' => $id_odt]);
         }
     }
 
+    /**
+     * Movimientos que se pueden elegir al vincular: activos, del tipo pedido y no vinculados a otra orden.
+     * Incluye el que ya tiene vinculado la orden indicada (id_odt = 0 al crear una nueva).
+     * @param string $tipo 'Entrega' o 'Devolución'
+     * @param int $id_odt Orden que se está editando (0 si es nueva)
+     * @return array Movimientos con fecha, hora y operario
+     */
+    public function getMovimientosDisponibles($tipo, $id_odt = 0) {
+        $sql = "SELECT m.id_movimiento, m.fecha, m.hora,
+                       o.apellido || ', ' || o.nombre as nombre_operario
+                FROM movimiento m
+                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                LEFT JOIN operario o ON m.id_operario = o.id_operario
+                WHERE m.activo = TRUE AND tm.tipo = ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM orden_de_trabajo x
+                      WHERE x.activo = TRUE AND x.id_odt <> ?
+                        AND (x.id_mov_egreso = m.id_movimiento OR x.id_mov_devolucion = m.id_movimiento)
+                  )
+                ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC";
+
+        return $this->db->fetchAll($sql, [$tipo, (int)$id_odt]);
+    }
     // =========================================================
     // 5. DESHABILITACIÓN Y HABILITACIÓN (SOFT DELETE)
     // =========================================================
@@ -325,7 +522,7 @@ class OrdenDeTrabajo {
             $data = ['activo' => false];
             return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
         } catch (PDOException $e) {
-            throw new Exception("Error al anular la Orden de Trabajo: " . $e->getMessage());
+            throw errorAmigable('Error al anular la Orden de Trabajo', $e);
         }
     }
 
@@ -339,7 +536,7 @@ class OrdenDeTrabajo {
             $data = ['activo' => true];
             return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
         } catch (PDOException $e) {
-            throw new Exception("Error al reactivar la Orden de Trabajo: " . $e->getMessage());
+            throw errorAmigable('Error al reactivar la Orden de Trabajo', $e);
         }
     }
 
@@ -369,7 +566,7 @@ class OrdenDeTrabajo {
      * @return bool
      */
     public function tieneOperariosAsignados($id_odt) {
-        $sql = "SELECT COUNT(*) as total FROM comision WHERE id_odt = :id_odt";
+        $sql = "SELECT COUNT(*) as total FROM comision WHERE id_odt = :id_odt AND activo = TRUE";
         $result = $this->db->fetchOne($sql, ['id_odt' => $id_odt]);
         return $result['total'] > 0;
     }

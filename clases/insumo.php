@@ -52,16 +52,40 @@ class Insumo {
                        t.tipo as nombre_tipo, 
                        r.nombre as nombre_rubro, 
                        u.ubicacion as nombre_ubicacion,
-                       s.stock_actual
+                       s.stock_actual,
+                       eh.estado as nombre_estado_herramienta
                 FROM insumos i
                 LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
                 LEFT JOIN tipo t ON i.id_tipo = t.id_tipo
                 LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
                 LEFT JOIN ubicacion u ON i.id_ubicacion = u.id_ubicacion
                 LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
+                LEFT JOIN estado_herramienta eh ON i.id_estado_herramienta = eh.id_estado_herramienta
                 WHERE i.codigo = :codigo AND i.activo = TRUE";
 
         return $this->db->fetchOne($sql, ['codigo' => $codigo]);
+    }
+
+    /**
+     * Últimos movimientos que involucran a un insumo (pantalla de detalle).
+     * @param string $codigo Código del insumo
+     * @param int $limite Cantidad máxima de filas
+     * @return array Movimientos con cantidad, tipo y operario
+     */
+    public function getMovimientos($codigo, $limite = 20) {
+        $sql = "SELECT m.id_movimiento, m.fecha, m.hora, md.cantidad,
+                       tm.tipo as nombre_tipo_movimiento,
+                       o.apellido || ', ' || o.nombre as nombre_operario
+                FROM movimiento_detalle md
+                INNER JOIN insumos i ON md.id_insumo = i.id_insumo
+                INNER JOIN movimiento m ON md.id_movimiento = m.id_movimiento
+                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                LEFT JOIN operario o ON m.id_operario = o.id_operario
+                WHERE i.codigo = :codigo AND m.activo = TRUE
+                ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC
+                LIMIT " . (int)$limite;
+
+        return $this->db->fetchAll($sql, ['codigo' => $codigo]);
     }
 
     /**
@@ -137,23 +161,47 @@ class Insumo {
             // Evita que campos extra del formulario (ej: csrf_token) rompan el query
             $camposPermitidos = [
                 'codigo', 'nombre', 'id_unidad_medida', 'id_tipo', 'id_rubro',
-                'id_ubicacion', 'id_stock_actual', 'stock_minimo', 'es_perecedero',
+                'id_ubicacion', 'stock_minimo', 'es_perecedero',
                 'fecha_vencimiento', 'serie_modelo', 'fecha_registro', 'activo'
             ];
             $data = array_intersect_key($data, array_flip($camposPermitidos));
 
-            $data['es_perecedero'] = isset($data['es_perecedero']) ? true : false;
-            
-            if (empty($data['fecha_vencimiento'])) {
+            // OJO: el endpoint envía false cuando no es perecedero, por eso se usa !empty y no isset
+            $data['es_perecedero'] = !empty($data['es_perecedero']);
+
+            if (empty($data['fecha_vencimiento']) || !$data['es_perecedero']) {
                 $data['fecha_vencimiento'] = null;
             }
 
             // Aseguramos que al crearse, el insumo nazca activo
             $data['activo'] = true;
 
-            return $this->db->insert('insumos', $data);
+            // El stock vive en su propia tabla: se crea el registro en cero y se vincula al insumo
+            $this->db->beginTransaction();
+            try {
+                $stock = $this->db->insert('stock_actual', ['stock_actual' => 0]);
+                $data['id_stock_actual'] = $stock['id_stock_actual'];
+
+                // Las herramientas nacen "Disponible" (necesario para controlar préstamos)
+                if ((int)($data['id_tipo'] ?? 0) === 2) {
+                    $data['id_estado_herramienta'] = 1;
+                }
+
+                $insumo = $this->db->insert('insumos', $data);
+                $this->db->commit();
+                return $insumo;
+            } catch (Throwable $e) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                throw $e;
+            }
         } catch (PDOException $e) {
-            throw new Exception("Error al crear el insumo: " . $e->getMessage());
+            error_log('Insumo::create - ' . $e->getMessage());
+            if ($e->getCode() == '23505') {
+                throw new Exception("Ya existe un insumo con ese código.");
+            }
+            throw new Exception("Error al crear el insumo. Verifique los datos ingresados.");
         }
     }
 
@@ -174,7 +222,7 @@ class Insumo {
             ];
             $data = array_intersect_key($data, array_flip($camposPermitidos));
 
-            $data['es_perecedero'] = isset($data['es_perecedero']) ? true : false;
+            $data['es_perecedero'] = !empty($data['es_perecedero']);
             
             if (empty($data['fecha_vencimiento'])) {
                 $data['fecha_vencimiento'] = null;
@@ -183,7 +231,7 @@ class Insumo {
             // 'activo' se maneja exclusivamente con deshabilitar() y habilitar()
             return $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
         } catch (PDOException $e) {
-            throw new Exception("Error al actualizar el insumo: " . $e->getMessage());
+            throw errorAmigable('Error al actualizar el insumo', $e);
         }
     }
 
@@ -198,7 +246,7 @@ class Insumo {
             $data = ['activo' => false];
             return $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
         } catch (PDOException $e) {
-            throw new Exception("Error al deshabilitar el insumo: " . $e->getMessage());
+            throw errorAmigable('Error al deshabilitar el insumo', $e);
         }
     }
 
@@ -212,7 +260,7 @@ class Insumo {
             $data = ['activo' => true];
             return $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
         } catch (PDOException $e) {
-            throw new Exception("Error al habilitar el insumo: " . $e->getMessage());
+            throw errorAmigable('Error al habilitar el insumo', $e);
         }
     }
 
