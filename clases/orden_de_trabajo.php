@@ -527,12 +527,41 @@ class OrdenDeTrabajo {
     }
 
     /**
+     * Datos mínimos de una orden por id, esté activa o anulada.
+     * (getById() solo devuelve las activas; esto sirve para reactivar una anulada.)
+     * @param int $id_odt ID de la orden
+     * @return array|null id_odt, numero_ot y activo; null si no existe
+     */
+    public function getEstadoById($id_odt) {
+        return $this->db->fetchOne(
+            "SELECT id_odt, numero_ot, activo FROM orden_de_trabajo WHERE id_odt = :id_odt",
+            ['id_odt' => (int)$id_odt]
+        );
+    }
+
+    /**
      * Reactiva una Orden de Trabajo anulada.
+     * Falla si alguno de sus movimientos vinculados fue tomado mientras tanto por otra orden activa.
      * @param int $id_odt ID de la orden
      * @return bool
      */
     public function reactivar($id_odt) {
         try {
+            $conflicto = $this->db->fetchOne(
+                "SELECT o2.numero_ot
+                 FROM orden_de_trabajo o
+                 INNER JOIN orden_de_trabajo o2
+                    ON o2.activo = TRUE AND o2.id_odt <> o.id_odt
+                   AND (o2.id_mov_egreso IN (o.id_mov_egreso, o.id_mov_devolucion)
+                     OR o2.id_mov_devolucion IN (o.id_mov_egreso, o.id_mov_devolucion))
+                 WHERE o.id_odt = :id_odt
+                 LIMIT 1",
+                ['id_odt' => (int)$id_odt]
+            );
+            if ($conflicto) {
+                throw new Exception("No se puede reactivar: uno de sus movimientos vinculados ya está asignado a la Orden de Trabajo '{$conflicto['numero_ot']}'. Edite esa orden o desvincule el movimiento primero.");
+            }
+
             $data = ['activo' => true];
             return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
         } catch (PDOException $e) {

@@ -1,94 +1,131 @@
+=====================================================================
+ SISTEMA DE CONTROL DE STOCK - TALLER ONABE
+ Estructura del proyecto
+=====================================================================
+ Lo que se baja de Git (clonar) y lo que cada persona crea o se genera
+ solo. Los archivos marcados [LOCAL] NO vienen en el repositorio.
+
 sistema-control-stock/
-├── index.php                          Punto de entrada: redirige al panel o al login
-├── README.md
-├── INSTALACION_LOCAL.txt              Guía para bajar y conectar el sistema en WAMP
-├── estructura.txt
-├── .gitignore                         (config/env.php y uploads/ no se versionan)
+├── index.php                          Punto de entrada: redirige al panel (con sesión) o al login
+├── README.md                          Descripción general, roles, reglas del sistema y pendientes
+├── INSTALACION_LOCAL.txt              Guía de primera instalación (WAMP + PostgreSQL)
+├── estructura.txt                     Este archivo
+├── AUDITORIA_PASO_A_PASO.txt          Guía para agregar la auditoría (accesos, cambios y stock); todavía no aplicada
+├── .gitignore                         Excluye config/env.php y uploads/
 │
-├── assets/
-│   ├── css/                           global.css + un CSS por módulo (panel, insumos, movimientos, ...)
-│   ├── img/                           logo.jpeg
+├── assets/                            Recursos estáticos
+│   ├── css/                           global.css + un CSS por módulo (panel, insumos, movimientos,
+│   │                                  operarios, rubros, usuarios, orden_de_trabajo, reportes, login, ...)
+│   ├── img/
+│   │   └── logo.jpeg                  Logo institucional
 │   └── js/
-│       └── main.js                    Agrega el token CSRF a todos los fetch no-GET
+│       └── main.js                    Modales y token CSRF automático en los fetch no-GET
 │
-├── auth/
-│   ├── login.php                      Inicio de sesión (CSRF + límite de 5 intentos fallidos, incluido en este archivo)
+├── auth/                              Autenticación
+│   ├── login.php                      Inicio de sesión por DNI (CSRF + límite de 5 intentos fallidos)
 │   ├── logout.php                     Cierre de sesión (solo POST con token CSRF)
-│   └── forgot_password.php            (vacío, pendiente)
+│   └── forgot_password.php            Vacío: recuperación de contraseña pendiente
 │
-├── bd/
-│   ├── db_control_stock.sql           Estructura de la base (tablas)
-│   ├── seed_data.sql                  Datos base: roles, tipos, estados, unidades, etc.
-│   ├── test_data.sql                  Datos de prueba (solo desarrollo)
-│   └── migracion_intentos_login.sql   Para bases ya creadas: agrega la tabla intento_login
+├── bd/                                Scripts de la base de datos PostgreSQL (se ejecutan en este orden)
+│   ├── db_control_stock.sql           1) Estructura: tablas y relaciones (borra y recrea las tablas)
+│   ├── seed_data.sql                  2) Datos base obligatorios: roles, tipos, estados, unidades,
+│   │                                     ubicaciones, tipos de movimiento, localidades, rubros
+│   ├── test_data.sql                  3) Datos de prueba y usuarios de ejemplo (solo desarrollo)
+│   └── migracion_stock_herramientas.sql  Solo para bases ya cargadas: stock de herramientas
+│                                         1 si están Disponibles, 0 en otro estado (repetible)
 │
-├── clases/                            Lógica de negocio y acceso a datos
+├── clases/                            Lógica de negocio y acceso a datos (una clase por entidad)
 │   ├── herramienta.php
 │   ├── insumo.php
-│   ├── movimiento.php                 Incluye el efecto sobre el stock y la anulación
+│   ├── movimiento.php                 Efecto sobre el stock, herramientas prestadas y anulación
 │   ├── operario.php
-│   ├── orden_de_trabajo.php           Vínculos con movimientos y comisión de operarios
+│   ├── orden_de_trabajo.php           Comisión de operarios y vínculo con movimientos
 │   ├── panel.php                      Consultas del Panel de Control
 │   ├── rubro.php
-│   └── usuario.php
+│   └── usuario.php                    Login, roles y contraseñas
 │
-├── config/
-│   ├── config.php                     Sesión, BASE_URL, CSRF, roles y helpers
-│   ├── database.php                   Conexión PDO a PostgreSQL
-│   ├── env.example.php                Plantilla de configuración (se versiona)
-│   └── env.php                        Configuración local (NO se versiona, se crea a mano)
+├── config/                            Configuración
+│   ├── config.php                     Sesión, BASE_URL, CSRF, roles y funciones de ayuda
+│   ├── database.php                   Clase Database: conexión PDO a PostgreSQL
+│   ├── env.example.php                Plantilla de configuración (viene en el repositorio)
+│   └── env.php                        [LOCAL] Credenciales propias de la base; se crea copiando
+│                                      env.example.php (ver INSTALACION_LOCAL.txt, paso 5)
 │
-├── layout/
-│   ├── header.php                     Menú lateral, barra superior, meta CSRF
-│   └── footer.php
+├── layout/                            Plantilla común de todas las pantallas internas
+│   ├── header.php                     Exige sesión; menú lateral, barra superior, meta CSRF
+│   └── footer.php                     Cierra la página e incluye main.js
 │
 ├── panel/
 │   └── dashboard.php                  Panel de Control (resumen según el rol)
 │
-├── insumo/
-│   ├── dashboard.php
-│   ├── crear_insumo.php
-│   ├── editar_insumo.php
-│   ├── detalles_insumo.php
-│   └── deshabilitar_insumo.php
+├── insumo/                            Materiales y herramientas (acá se carga y se corrige el stock)
+│   ├── dashboard.php                  Listado, buscador, filtros y modales
+│   ├── crear_insumo.php               Alta con stock inicial (endpoint JSON)
+│   ├── editar_insumo.php              Modificación, incluido el stock actual de materiales (endpoint JSON)
+│   ├── detalles_insumo.php            Ficha del insumo y sus últimos movimientos
+│   └── deshabilitar_insumo.php        Baja lógica (activo = FALSE)
 │
-├── movimiento/
-│   ├── dashboard.php
-│   ├── crear_movimiento.php
-│   ├── editar_movimiento.php          (vacío, pendiente)
-│   ├── detalle_movimiento.php
+├── movimiento/                        Entregas y devoluciones
+│   ├── dashboard.php                  Listado de movimientos
+│   ├── crear_movimiento.php           Formulario y registro de entrega / devolución
+│   ├── editar_movimiento.php          Vacío: pendiente
+│   ├── detalle_movimiento.php         Detalle de un movimiento y sus insumos
 │   └── deshabilitar_movimiento.php    Anula el movimiento y revierte el stock
 │
-├── orden_de_trabajo/
-│   ├── dashboard.php
-│   ├── crear_orden_de_trabajo.php
-│   ├── editar_orden_de_trabajo.php
-│   ├── detalle_orden_de_trabajo.php
-│   ├── deshabilitar_orden_de_trabajo.php
+├── orden_de_trabajo/                  Órdenes de trabajo (OT)
+│   ├── dashboard.php                  Listado, detalle y cambio de estado
+│   ├── crear_orden_de_trabajo.php     Alta con comisión, movimientos vinculados y PDF
+│   ├── editar_orden_de_trabajo.php    Modificación
+│   ├── detalle_orden_de_trabajo.php   Ficha de la OT
+│   ├── deshabilitar_orden_de_trabajo.php  Anulación (baja lógica)
 │   └── pdf_upload.php                 Validación y guardado del PDF adjunto
 │
-├── operario/
+├── operario/                          Personal del taller
 │   ├── dashboard.php
 │   ├── crear_operario.php
 │   ├── editar_operario.php
 │   ├── detalle_operario.php
 │   └── deshabilitar_operario.php
 │
-├── reporte/
-│   └── dashboard.php                  Stock crítico y auditoría de movimientos
-│
-├── rubro/
+├── rubro/                             Rubros (Carpintería, Albañilería, Pintura, Herrería, ...)
 │   ├── dashboard.php
 │   ├── crear_rubro.php
 │   ├── editar_rubro.php
 │   ├── detalle_rubro.php
-│   └── deshabilitar_rubro.php
+│   └── deshabilitar_rubro.php         Deshabilita / vuelve a habilitar
 │
-├── usuario/
+├── usuario/                           Usuarios del sistema (solo administrador)
 │   ├── dashboard.php
 │   ├── crear_usuario.php
 │   ├── editar_usuario.php
 │   ├── detalle_usuario.php
-│   └── deshabilitar_usuario.php
+│   └── deshabilitar_usuario.php       Deshabilita / vuelve a habilitar
 │
-└── uploads/                           PDFs de órdenes de trabajo (se crea sola, no se versiona)
+├── reporte/
+│   └── dashboard.php                  Stock crítico y auditoría de movimientos
+│
+└── uploads/                           [LOCAL] Se crea sola al subir el primer PDF
+    └── pa_pdfs/                       PDF adjuntos de las órdenes de trabajo (no se versiona)
+
+=====================================================================
+ BASE DE DATOS (db_control_stock)
+=====================================================================
+ Catálogos:   rol, tipo, unidad_medida, ubicacion, estado_herramienta,
+              tipo_movimiento, localidad, jurisdiccion, rubro
+ Personas:    operario, usuario
+ Inventario:  insumos, stock_actual, herramienta
+ Trabajo:     orden_de_trabajo, comision (operarios de cada OT)
+ Movimientos: movimiento (cabecera), movimiento_detalle (insumos y cantidades)
+ Seguridad:   intento_login (límite de intentos de inicio de sesión)
+
+ Regla general: nada se borra; los registros se deshabilitan (activo = FALSE).
+
+=====================================================================
+ FLUJO DE UNA PETICIÓN
+=====================================================================
+ Navegador -> pantalla (*/dashboard.php, usa layout/header.php y footer.php)
+           -> acciones por fetch() a los endpoints crear_*, editar_*, deshabilitar_*
+           -> cada endpoint: config/config.php (sesión, CSRF, rol) -> clase en clases/
+           -> clases/ usa config/database.php -> PostgreSQL
+ Respuesta de los endpoints: JSON { success, message | error }
+=====================================================================

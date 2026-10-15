@@ -13,6 +13,15 @@ defined('DB_USER') || define('DB_USER', 'postgres');           // Usuario de la 
 defined('DB_PASS') || define('DB_PASS', '');                   // Contraseña del usuario
 
 // =========================================================
+// ZONA HORARIA
+// =========================================================
+// Sin esto PHP usa la del php.ini (UTC en WAMP) y las fechas/horas de los movimientos quedan
+// 3 horas adelantadas respecto de la hora local y de CURRENT_DATE de PostgreSQL.
+// Se puede cambiar definiendo APP_TIMEZONE en env.php.
+defined('APP_TIMEZONE') || define('APP_TIMEZONE', 'America/Argentina/Buenos_Aires');
+date_default_timezone_set(APP_TIMEZONE);
+
+// =========================================================
 // SESIÓN (cookie endurecida)
 // =========================================================
 $esHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')

@@ -37,8 +37,15 @@ $paginaActual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $busqueda = isset($_GET['busqueda']) ? trim($_GET['busqueda']) : '';
 $filtroTipo = isset($_GET['tipo']) ? trim($_GET['tipo']) : '';
 $filtroRubro = isset($_GET['rubro']) ? trim($_GET['rubro']) : '';
+$estado = isset($_GET['estado']) ? trim($_GET['estado']) : 'activo';
 
-$insumosFiltrados = array_values(array_filter($insumoModel->getAll(), function ($ins) use ($busqueda, $filtroTipo, $filtroRubro) {
+$insumosFiltrados = array_values(array_filter($insumoModel->getAll(true), function ($ins) use ($busqueda, $filtroTipo, $filtroRubro, $estado) {
+    if ($estado === 'activo' && !$ins['activo']) {
+        return false;
+    }
+    if ($estado === 'inactivo' && $ins['activo']) {
+        return false;
+    }
     if ($busqueda !== '' && stripos($ins['codigo'] . ' ' . $ins['nombre'], $busqueda) === false) {
         return false;
     }
@@ -109,6 +116,12 @@ include_once __DIR__ . '/../layout/header.php';
         <?php endforeach; ?>
     </select>
 
+    <select class="filter-select" id="filtro-estado">
+        <option value="activo" <?= ($estado === 'activo') ? 'selected' : '' ?>>Solo Activos</option>
+        <option value="inactivo" <?= ($estado === 'inactivo') ? 'selected' : '' ?>>Solo Deshabilitados</option>
+        <option value="todos" <?= ($estado === 'todos') ? 'selected' : '' ?>>Todos</option>
+    </select>
+
     <?php if (canEdit()): ?>
     <button type="button" class="btn-pill-action" onclick="abrirModalCrear()">Cargar Insumo</button>
     <?php endif; ?>
@@ -135,8 +148,8 @@ include_once __DIR__ . '/../layout/header.php';
                 $esHerramienta = (!empty($ins['nombre_tipo']) && stripos($ins['nombre_tipo'], 'herramienta') !== false);
                 $tipoTxt = $ins['nombre_tipo'] ?? 'Material';
                 $umTxt = $esHerramienta ? '-' : ($ins['unidad_medida'] ?? 'Unidad');
-                $stkTxt = $esHerramienta ? '-' : ($ins['stock_actual'] ?? 0);
-                $estadoVenc = $esHerramienta ? 'Disponible' : (!empty($ins['fecha_vencimiento']) ? htmlspecialchars($ins['fecha_vencimiento']) : 'No perecedero');
+                $stkTxt = $ins['stock_actual'] ?? 0;
+                $estadoVenc = !$ins['activo'] ? 'Deshabilitado' : ($esHerramienta ? ($ins['nombre_estado_herramienta'] ?? 'Disponible') : (!empty($ins['fecha_vencimiento']) ? htmlspecialchars($ins['fecha_vencimiento']) : 'No perecedero'));
             ?>
             <div class="insumo-card-row" onclick='abrirModalDetalles(<?= json_encode($ins, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
                 <div><strong><?= htmlspecialchars($ins['codigo']) ?></strong></div>
@@ -154,15 +167,24 @@ include_once __DIR__ . '/../layout/header.php';
                     </button>
                     
                     <?php if (canEdit()): ?>
-                    <button type="button" class="btn-action-text edit" title="Editar Insumo" 
+                    <?php if ($ins['activo']): ?>
+                    <button type="button" class="btn-action-text edit" title="Editar Insumo"
                             onclick='abrirModalEditar(<?= json_encode($ins, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
                         Editar
                     </button>
 
-                    <button type="button" class="btn-action-text disable" title="Deshabilitar Insumo" 
-                            onclick="abrirModalDeshabilitar('<?= htmlspecialchars($ins['codigo'], ENT_QUOTES) ?>', '<?= htmlspecialchars($ins['nombre'], ENT_QUOTES) ?>')">
+                    <button type="button" class="btn-action-text disable" title="Deshabilitar Insumo"
+                            data-codigo="<?= htmlspecialchars($ins['codigo'], ENT_QUOTES) ?>" data-nombre="<?= htmlspecialchars($ins['nombre'], ENT_QUOTES) ?>"
+                            onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true)">
                         Deshabilitar
                     </button>
+                    <?php else: ?>
+                    <button type="button" class="btn-action-text view" title="Habilitar Insumo"
+                            data-codigo="<?= htmlspecialchars($ins['codigo'], ENT_QUOTES) ?>" data-nombre="<?= htmlspecialchars($ins['nombre'], ENT_QUOTES) ?>"
+                            onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, false)">
+                        Habilitar
+                    </button>
+                    <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
@@ -256,6 +278,16 @@ include_once __DIR__ . '/../layout/header.php';
                         <label>Stock Mínimo de Alerta</label>
                         <input type="number" name="stock_minimo" id="cargar-stock-minimo" class="modal-input" value="5" min="0">
                     </div>
+                </div>
+
+                <div class="modal-grid-2">
+                    <div class="modal-form-group" id="grupo-stock-cargar">
+                        <label>Stock Inicial *</label>
+                        <input type="number" name="stock_inicial" id="cargar-stock-inicial" class="modal-input" placeholder="Cantidad existente (0 si no hay)" min="0" step="any" required>
+                    </div>
+                    <p id="nota-stock-cargar" style="display: none; font-size: 0.85rem; color: #475569; align-self: center;">
+                        Una herramienta es una unidad: se carga con 1 en el pañol. Su stock lo controlan las entregas y devoluciones.
+                    </p>
                 </div>
 
                 <div class="modal-grid-2">
@@ -366,6 +398,13 @@ include_once __DIR__ . '/../layout/header.php';
             </div>
 
             <div class="modal-grid-2">
+                <div class="modal-form-group" id="grupo-stock-edit">
+                    <label>Stock Actual</label>
+                    <input type="number" id="edit-stock-actual" name="stock_actual" class="modal-input" min="0" step="any">
+                </div>
+                <p id="nota-stock-edit" style="display: none; font-size: 0.85rem; color: #475569; align-self: center;">
+                    El stock de una herramienta (1 en el pañol, 0 fuera) lo controlan las entregas y devoluciones.
+                </p>
                 <div class="modal-form-group">
                     <label>Stock Mínimo</label>
                     <input type="number" id="edit-stock-minimo" name="stock_minimo" class="modal-input" min="0">
@@ -419,27 +458,28 @@ include_once __DIR__ . '/../layout/header.php';
     </div>
 </div>
 
-<!-- Modal 4: Confirmar Deshabilitación -->
-<div id="modal-deshabilitar-insumo" class="modal-backdrop">
+<!-- Modal 4: Confirmar Deshabilitación / Habilitación (los textos y colores los pone abrirModalEstado) -->
+<div id="modal-estado-insumo" class="modal-backdrop">
     <div class="modal-card" style="max-width: 460px;">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-deshabilitar-insumo')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-estado-insumo')">Cerrar</button>
         <div class="modal-header-text">
-            <h2 style="color: var(--btn-delete);">Deshabilitar Insumo</h2>
-            <p>¿Está seguro de que desea dar de baja este insumo del catálogo activo?</p>
+            <h2 id="estado-titulo">Deshabilitar Insumo</h2>
+            <p id="estado-subtitulo"></p>
         </div>
 
-        <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.9rem; color: #991b1b;">
-            <p><strong>Insumo:</strong> <span id="deshab-info"></span></p>
-            <p style="margin-top: 0.4rem; font-size: 0.8rem; color: #b91c1c;">El registro permanecerá en el sistema para fines de auditoría pero no estará disponible para nuevos movimientos.</p>
+        <div id="estado-caja" style="border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.9rem;">
+            <p><strong>Insumo:</strong> <span id="estado-info"></span></p>
+            <p id="estado-nota" style="margin-top: 0.4rem; font-size: 0.8rem;"></p>
         </div>
 
-        <form id="form-deshabilitar-insumo" onsubmit="ejecutarDeshabilitarInsumo(event)">
-            <input type="hidden" id="deshab-codigo-val" name="codigo">
+        <form id="form-estado-insumo" onsubmit="ejecutarCambioEstadoInsumo(event)">
+            <input type="hidden" id="estado-codigo-val" name="codigo">
+            <input type="hidden" id="estado-accion-val" name="accion" value="deshabilitar">
             <div style="display: flex; gap: 1rem; justify-content: center;">
-                <button type="button" class="btn-action-text view" style="padding: 0.6rem 1.4rem; font-size: 0.9rem;" onclick="cerrarModal('modal-deshabilitar-insumo')">
+                <button type="button" class="btn-action-text view" style="padding: 0.6rem 1.4rem; font-size: 0.9rem;" onclick="cerrarModal('modal-estado-insumo')">
                     Cancelar
                 </button>
-                <button type="submit" class="btn-action-text disable" style="padding: 0.6rem 1.4rem; font-size: 0.9rem; background-color: var(--btn-delete); color: #ffffff;">
+                <button type="submit" id="btn-submit-estado" class="btn-action-text disable" style="padding: 0.6rem 1.4rem; font-size: 0.9rem; color: #ffffff;">
                     Confirmar Deshabilitación
                 </button>
             </div>
@@ -489,18 +529,23 @@ function alternarPerecedero(activo, prefijo) {
     }
 }
 
+// Muestra el campo de stock (materiales) o la nota (herramientas, cuyo stock es 1 en el pañol / 0 fuera)
+function mostrarCampoStock(prefijo, esHerramienta) {
+    const grupo = document.getElementById('grupo-stock-' + prefijo);
+    const nota = document.getElementById('nota-stock-' + prefijo);
+    if (grupo) grupo.style.display = esHerramienta ? 'none' : '';
+    if (nota) nota.style.display = esHerramienta ? 'block' : 'none';
+    // En el alta el stock inicial es obligatorio, salvo en herramientas (nacen con 1 unidad)
+    const inputInicial = document.getElementById(prefijo + '-stock-inicial');
+    if (inputInicial) inputInicial.required = !esHerramienta;
+}
+
 function alternarCamposInsumo(idTipo, prefijo) {
-    // Si es herramienta, se pueden ajustar campos si es necesario
     const select = document.getElementById(prefijo + '-id-tipo');
     if (!select) return;
     const selectedOption = select.options[select.selectedIndex];
     const tipoNombre = selectedOption ? (selectedOption.dataset.nombre || '') : '';
-    const esHerramienta = tipoNombre.includes('herramienta');
-    
-    const bloqueMat = document.getElementById('bloque-material-' + prefijo);
-    if (bloqueMat) {
-        // En ambos casos mostramos campos relevantes
-    }
+    mostrarCampoStock(prefijo, tipoNombre.includes('herramienta'));
 }
 
 // =========================================================================
@@ -511,8 +556,9 @@ function cargarInsumos(pagina = 1) {
     const busqueda = document.getElementById('buscador-insumo').value.trim();
     const tipo = document.getElementById('filtro-tipo').value;
     const rubro = document.getElementById('filtro-rubro').value;
+    const estado = document.getElementById('filtro-estado').value;
 
-    const url = `dashboard.php?ajax=1&pagina=${pagina}&busqueda=${encodeURIComponent(busqueda)}&tipo=${encodeURIComponent(tipo)}&rubro=${encodeURIComponent(rubro)}`;
+    const url = `dashboard.php?ajax=1&pagina=${pagina}&busqueda=${encodeURIComponent(busqueda)}&tipo=${encodeURIComponent(tipo)}&rubro=${encodeURIComponent(rubro)}&estado=${encodeURIComponent(estado)}`;
 
     fetch(url, { credentials: 'same-origin' })
         .then(response => {
@@ -547,9 +593,22 @@ function renderizarTabla(insumos) {
         const esHerramienta = (ins.nombre_tipo && ins.nombre_tipo.toLowerCase().includes('herramienta'));
         const tipoTxt = ins.nombre_tipo || 'Material';
         const umTxt = esHerramienta ? '-' : (ins.unidad_medida || 'Unidad');
-        const stkTxt = esHerramienta ? '-' : (ins.stock_actual !== null ? ins.stock_actual : 0);
-        const estadoVenc = esHerramienta ? 'Disponible' : (ins.fecha_vencimiento ? ins.fecha_vencimiento : 'No perecedero');
+        const stkTxt = (ins.stock_actual !== null && ins.stock_actual !== undefined) ? ins.stock_actual : 0;
+        const insActivo = (ins.activo === true || ins.activo === 't' || ins.activo === 1 || ins.activo === '1');
+        const estadoVenc = !insActivo ? 'Deshabilitado' : (esHerramienta ? (ins.nombre_estado_herramienta || 'Disponible') : (ins.fecha_vencimiento ? ins.fecha_vencimiento : 'No perecedero'));
         const jsonStr = JSON.stringify(ins).replace(/"/g, '&quot;');
+        // Código y nombre viajan en data-* (escapados) para que un apóstrofo no rompa el onclick
+        const datosEstado = `data-codigo="${escaparHtml(ins.codigo)}" data-nombre="${escaparHtml(ins.nombre)}"`;
+        const botonesEdicion = insActivo ? `
+                <button type="button" class="btn-action-text edit" title="Editar Insumo" onclick="abrirModalEditar(${jsonStr})">
+                    Editar
+                </button>
+                <button type="button" class="btn-action-text disable" title="Deshabilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true)">
+                    Deshabilitar
+                </button>` : `
+                <button type="button" class="btn-action-text view" title="Habilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, false)">
+                    Habilitar
+                </button>`;
 
         html += `
         <div class="insumo-card-row" onclick="abrirModalDetalles(${jsonStr})">
@@ -565,14 +624,7 @@ function renderizarTabla(insumos) {
                 <button type="button" class="btn-action-text view" title="Ver Detalles" onclick="abrirModalDetalles(${jsonStr})">
                     Ver
                 </button>
-                ${APP_PERMISOS.editar ? `
-                <button type="button" class="btn-action-text edit" title="Editar Insumo" onclick="abrirModalEditar(${jsonStr})">
-                    Editar
-                </button>
-                <button type="button" class="btn-action-text disable" title="Deshabilitar Insumo" onclick="abrirModalDeshabilitar('${escaparHtml(ins.codigo)}', '${escaparHtml(ins.nombre)}')">
-                    Deshabilitar
-                </button>
-                `: ''}
+                ${APP_PERMISOS.editar ? botonesEdicion : ''}
             </div>
         </div>
         `;
@@ -630,6 +682,10 @@ document.getElementById('filtro-rubro').addEventListener('change', function() {
     cargarInsumos(1);
 });
 
+document.getElementById('filtro-estado').addEventListener('change', function() {
+    cargarInsumos(1);
+});
+
 // =========================================================================
 // MODAL: CARGAR INSUMO (FETCH POST)
 // =========================================================================
@@ -638,6 +694,7 @@ function abrirModalCrear() {
     if (form) form.reset();
     document.getElementById('msg-error-cargar').style.display = 'none';
     alternarPerecedero(false, 'cargar');
+    mostrarCampoStock('cargar', false);
     abrirModal('modal-cargar-insumo');
 }
 
@@ -688,7 +745,12 @@ function abrirModalEditar(ins) {
     document.getElementById('edit-id-um').value = ins.id_unidad_medida || '';
     document.getElementById('edit-id-ubicacion').value = ins.id_ubicacion || '';
     document.getElementById('edit-stock-minimo').value = ins.stock_minimo !== null ? ins.stock_minimo : 0;
-    
+
+    // Materiales: el stock se edita acá. Herramientas: lo manejan las entregas y devoluciones
+    const esHerramientaEdit = (ins.nombre_tipo && ins.nombre_tipo.toLowerCase().includes('herramienta'));
+    document.getElementById('edit-stock-actual').value = (ins.stock_actual !== null && ins.stock_actual !== undefined) ? ins.stock_actual : 0;
+    mostrarCampoStock('edit', esHerramientaEdit);
+
     const esPerecedero = (ins.es_perecedero === true || ins.es_perecedero === 't' || ins.es_perecedero === 1 || ins.es_perecedero === '1');
     const chkPerecedero = document.getElementById('edit-es-perecedero');
     chkPerecedero.checked = esPerecedero;
@@ -746,7 +808,8 @@ function abrirModalDetalles(ins) {
     
     const esHerramienta = (ins.nombre_tipo && ins.nombre_tipo.toLowerCase().includes('herramienta'));
     document.getElementById('det-um').innerText = esHerramienta ? 'N/A (Herramienta)' : (ins.unidad_medida || 'Unidad');
-    document.getElementById('det-stock').innerText = esHerramienta ? 'Control por Pañol' : (ins.stock_actual !== null ? ins.stock_actual : 0);
+    const stockDet = (ins.stock_actual !== null && ins.stock_actual !== undefined) ? ins.stock_actual : 0;
+    document.getElementById('det-stock').innerText = esHerramienta ? `${stockDet} (1 = en el pañol, 0 = fuera del pañol)` : stockDet;
     document.getElementById('det-stock-min').innerText = ins.stock_minimo !== null ? ins.stock_minimo : '0';
     document.getElementById('det-ubicacion').innerText = ins.nombre_ubicacion || 'No especificada';
     
@@ -761,17 +824,48 @@ function abrirModalDetalles(ins) {
 }
 
 // =========================================================================
-// MODAL: DESHABILITAR INSUMO (FETCH POST)
+// MODAL: DESHABILITAR / HABILITAR INSUMO (FETCH POST)
 // =========================================================================
-function abrirModalDeshabilitar(codigo, nombre) {
-    document.getElementById('deshab-codigo-val').value = codigo;
-    document.getElementById('deshab-info').innerText = codigo + ' - ' + nombre;
-    abrirModal('modal-deshabilitar-insumo');
+function abrirModalEstado(codigo, nombre, deshabilitar) {
+    const caja = document.getElementById('estado-caja');
+    const nota = document.getElementById('estado-nota');
+    const titulo = document.getElementById('estado-titulo');
+    const btn = document.getElementById('btn-submit-estado');
+
+    document.getElementById('estado-codigo-val').value = codigo;
+    document.getElementById('estado-accion-val').value = deshabilitar ? 'deshabilitar' : 'habilitar';
+    document.getElementById('estado-info').innerText = codigo + ' - ' + nombre;
+
+    if (deshabilitar) {
+        titulo.innerText = 'Deshabilitar Insumo';
+        titulo.style.color = 'var(--btn-delete)';
+        document.getElementById('estado-subtitulo').innerText = '¿Está seguro de que desea dar de baja este insumo del catálogo activo?';
+        caja.style.backgroundColor = '#fef2f2';
+        caja.style.border = '1px solid #fecaca';
+        caja.style.color = '#991b1b';
+        nota.style.color = '#b91c1c';
+        nota.innerText = 'El registro permanecerá en el sistema para fines de auditoría pero no estará disponible para nuevos movimientos.';
+        btn.style.backgroundColor = 'var(--btn-delete)';
+        btn.innerText = 'Confirmar Deshabilitación';
+    } else {
+        titulo.innerText = 'Habilitar Insumo';
+        titulo.style.color = '#166534';
+        document.getElementById('estado-subtitulo').innerText = '¿Desea volver a habilitar este insumo en el catálogo activo?';
+        caja.style.backgroundColor = '#f0fdf4';
+        caja.style.border = '1px solid #bbf7d0';
+        caja.style.color = '#166534';
+        nota.style.color = '#15803d';
+        nota.innerText = 'El insumo volverá a estar disponible para nuevos movimientos, con el stock que tenía al deshabilitarse.';
+        btn.style.backgroundColor = '#16a34a';
+        btn.innerText = 'Confirmar Habilitación';
+    }
+    abrirModal('modal-estado-insumo');
 }
 
-function ejecutarDeshabilitarInsumo(e) {
+function ejecutarCambioEstadoInsumo(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const deshabilitar = formData.get('accion') === 'deshabilitar';
 
     fetch('deshabilitar_insumo.php', {
         method: 'POST',
@@ -780,16 +874,16 @@ function ejecutarDeshabilitarInsumo(e) {
     })
     .then(r => r.json())
     .then(res => {
-        cerrarModal('modal-deshabilitar-insumo');
+        cerrarModal('modal-estado-insumo');
         if (res.success) {
-            mostrarAlerta(res.message || 'Insumo deshabilitado exitosamente.', true);
+            mostrarAlerta(res.message || (deshabilitar ? 'Insumo deshabilitado exitosamente.' : 'Insumo habilitado exitosamente.'), true);
             cargarInsumos(paginaActual);
         } else {
-            mostrarAlerta(res.error || 'Error al deshabilitar el insumo.', false);
+            mostrarAlerta(res.error || 'Error al procesar la acción sobre el insumo.', false);
         }
     })
     .catch(err => {
-        cerrarModal('modal-deshabilitar-insumo');
+        cerrarModal('modal-estado-insumo');
         mostrarAlerta('Error de conexión: ' + err.message, false);
     });
 }

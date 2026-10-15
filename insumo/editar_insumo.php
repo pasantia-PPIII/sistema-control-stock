@@ -82,6 +82,16 @@ try {
         $datosActualizar['stock_minimo'] = (float)$input['stock_minimo'];
     }
 
+    // Stock real del material (carga de más stock o corrección). Las herramientas no lo editan a mano:
+    // su stock (1 en el pañol / 0 fuera) lo manejan las entregas y devoluciones.
+    $esHerramienta = (($insumoActual['nombre_tipo'] ?? '') === 'Herramienta');
+    if (!$esHerramienta && isset($input['stock_actual']) && $input['stock_actual'] !== '') {
+        if (!is_numeric($input['stock_actual']) || (float)$input['stock_actual'] < 0) {
+            throw new Exception('El stock debe ser un número igual o mayor a cero.');
+        }
+        $datosActualizar['stock_actual'] = (float)$input['stock_actual'];
+    }
+
     if (isset($input['es_perecedero'])) {
         $datosActualizar['es_perecedero'] = !empty($input['es_perecedero']) && ($input['es_perecedero'] === '1' || $input['es_perecedero'] === true || $input['es_perecedero'] === 'true');
     }

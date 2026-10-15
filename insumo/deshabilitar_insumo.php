@@ -1,7 +1,8 @@
 <?php
 /**
  * insumo/deshabilitar_insumo.php
- * Endpoint AJAX para dar de baja / deshabilitar (soft-delete) un insumo.
+ * Endpoint AJAX para deshabilitar (soft-delete) o volver a habilitar un insumo.
+ * Parámetros POST: codigo, accion ('deshabilitar' por defecto | 'habilitar').
  * Responde exclusivamente en formato JSON.
  */
 
@@ -36,28 +37,45 @@ try {
     }
 
     $codigo = isset($input['codigo']) ? trim((string)$input['codigo']) : '';
+    $accion = isset($input['accion']) ? trim((string)$input['accion']) : 'deshabilitar';
 
     if ($codigo === '') {
-        throw new Exception('El código del insumo es obligatorio para darlo de baja.');
+        throw new Exception('El código del insumo es obligatorio.');
+    }
+    if (!in_array($accion, ['deshabilitar', 'habilitar'], true)) {
+        throw new Exception('Acción no válida.');
     }
 
     $insumoModel = new Insumo();
 
-    $existente = $insumoModel->getByCodigo($codigo);
+    $existente = $insumoModel->getEstadoByCodigo($codigo);
     if (!$existente) {
-        throw new Exception("El insumo con código '{$codigo}' no existe o ya se encuentra deshabilitado.");
+        throw new Exception("El insumo con código '{$codigo}' no existe.");
     }
 
-    $resultado = $insumoModel->deshabilitar($codigo);
+    if ($accion === 'habilitar') {
+        if ($existente['activo']) {
+            throw new Exception("El insumo '{$codigo}' ya se encuentra habilitado.");
+        }
+        $resultado = $insumoModel->habilitar($codigo);
+        $mensaje = "El insumo '{$codigo}' ha sido habilitado correctamente.";
+    } else {
+        if (!$existente['activo']) {
+            throw new Exception("El insumo '{$codigo}' ya se encuentra deshabilitado.");
+        }
+        $resultado = $insumoModel->deshabilitar($codigo);
+        $mensaje = "El insumo '{$codigo}' ha sido deshabilitado correctamente.";
+    }
 
     if ($resultado) {
         echo json_encode([
             'success' => true,
-            'message' => "El insumo '{$codigo}' ha sido deshabilitado correctamente.",
-            'codigo'  => $codigo
+            'message' => $mensaje,
+            'codigo'  => $codigo,
+            'activo'  => ($accion === 'habilitar')
         ]);
     } else {
-        throw new Exception('No se pudo deshabilitar el insumo en la base de datos.');
+        throw new Exception('No se pudo procesar la acción sobre el insumo en la base de datos.');
     }
 } catch (Throwable $e) {
     echo json_encode([

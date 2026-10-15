@@ -64,6 +64,10 @@ try {
     $es_perecedero = !empty($input['es_perecedero']) && ($input['es_perecedero'] === '1' || $input['es_perecedero'] === true || $input['es_perecedero'] === 'true');
     $fecha_vencimiento = (!empty($input['fecha_vencimiento']) && $es_perecedero) ? trim((string)$input['fecha_vencimiento']) : null;
 
+    // Stock inicial: obligatorio para materiales (0 es válido). En herramientas se ignora: nacen con 1 unidad
+    // en el pañol. Insumo::create() valida que exista, sea numérico y no sea negativo.
+    $stock_inicial = (isset($input['stock_inicial']) && $input['stock_inicial'] !== '') ? $input['stock_inicial'] : null;
+
     $datosInsumo = [
         'codigo'            => $codigo,
         'nombre'            => $nombre,
@@ -72,6 +76,7 @@ try {
         'id_unidad_medida'  => $id_unidad_medida,
         'id_ubicacion'      => $id_ubicacion,
         'stock_minimo'      => $stock_minimo,
+        'stock_inicial'     => $stock_inicial,
         'es_perecedero'     => $es_perecedero,
         'fecha_vencimiento' => $fecha_vencimiento
     ];

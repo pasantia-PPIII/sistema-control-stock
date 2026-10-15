@@ -1,7 +1,8 @@
 <?php
 /**
  * operario/deshabilitar_operario.php
- * Endpoint AJAX para dar de baja / deshabilitar (soft delete) a un operario.
+ * Endpoint AJAX para deshabilitar (soft delete) o volver a habilitar a un operario.
+ * Parámetros POST: id_operario, accion ('deshabilitar' por defecto | 'habilitar').
  * Responde exclusivamente en formato JSON.
  */
 
@@ -36,28 +37,45 @@ try {
     }
 
     $idOperario = !empty($input['id_operario']) ? (int)$input['id_operario'] : 0;
+    $accion = isset($input['accion']) ? trim((string)$input['accion']) : 'deshabilitar';
 
     if ($idOperario <= 0) {
-        throw new Exception('El identificador del operario es obligatorio para deshabilitarlo.');
+        throw new Exception('El identificador del operario es obligatorio.');
+    }
+    if (!in_array($accion, ['deshabilitar', 'habilitar'], true)) {
+        throw new Exception('Acción no válida.');
     }
 
     $operarioModel = new Operario();
 
     $operario = $operarioModel->getById($idOperario);
-    if (!$operario || !$operario['activo']) {
-        throw new Exception("El operario indicado no existe o ya está deshabilitado.");
+    if (!$operario) {
+        throw new Exception("El operario indicado no existe.");
     }
 
-    $resultado = $operarioModel->deshabilitar($idOperario);
+    if ($accion === 'habilitar') {
+        if ($operario['activo']) {
+            throw new Exception("El operario indicado ya está habilitado.");
+        }
+        $resultado = $operarioModel->habilitar($idOperario);
+        $mensaje = "El operario {$operario['nombre']} {$operario['apellido']} (DNI: {$operario['dni']}) ha sido habilitado correctamente.";
+    } else {
+        if (!$operario['activo']) {
+            throw new Exception("El operario indicado ya está deshabilitado.");
+        }
+        $resultado = $operarioModel->deshabilitar($idOperario);
+        $mensaje = "El operario {$operario['nombre']} {$operario['apellido']} (DNI: {$operario['dni']}) ha sido deshabilitado correctamente.";
+    }
 
     if ($resultado) {
         echo json_encode([
             'success' => true,
-            'message' => "El operario {$operario['nombre']} {$operario['apellido']} (DNI: {$operario['dni']}) ha sido deshabilitado correctamente.",
-            'id_operario' => $idOperario
+            'message' => $mensaje,
+            'id_operario' => $idOperario,
+            'activo' => ($accion === 'habilitar')
         ]);
     } else {
-        throw new Exception('No se pudo deshabilitar el operario en la base de datos.');
+        throw new Exception('No se pudo procesar la acción sobre el operario en la base de datos.');
     }
 } catch (Throwable $e) {
     echo json_encode([

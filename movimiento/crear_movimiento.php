@@ -85,13 +85,17 @@ if ($esPost) {
             if (!$insumo) {
                 throw new Exception("El insumo '{$codigo}' no existe o está deshabilitado.");
             }
+            $esHerramienta = ((int)$insumo['id_tipo'] === 2);
+
+            // Al entregar, el stock (materiales: cantidad; herramientas: 1 si está en el pañol, 0 si no)
+            // debe alcanzar. El estado de la herramienta lo valida además Movimiento::create().
             if (!$esDevolucion && $cantidad > (float)$insumo['stock_actual']) {
                 throw new Exception("Stock insuficiente para '{$insumo['nombre']}'. Disponible: {$insumo['stock_actual']}.");
             }
 
             // El estado de herramienta solo aplica a herramientas (tipo 2)
             $idEstado = null;
-            if ((int)$insumo['id_tipo'] === 2) {
+            if ($esHerramienta) {
                 // Entrega: 2 = Prestada. Devolución: el estado con el que vuelve (por defecto 1 = Disponible)
                 $idEstado = $esDevolucion
                     ? (!empty($item['id_estado_herramienta']) ? (int)$item['id_estado_herramienta'] : 1)
@@ -138,6 +142,7 @@ $titulo_pagina = ($esDevolucion ? 'Registrar Devolución' : 'Registrar Entrega')
 $operarios = $operarioModel->getParaSelect();
 $insumos = $insumoModel->getAll();
 $estadosHerramienta = $movimientoModel->getEstadosHerramienta();
+$nombresEstadoHerramienta = array_column($estadosHerramienta, 'estado', 'id_estado_herramienta');
 
 $idOperarioPre = !empty($_GET['id_operario']) ? (int)$_GET['id_operario'] : 0;
 
@@ -205,18 +210,28 @@ include_once __DIR__ . '/../layout/header.php';
                 <select id="selector-insumo" class="form-control">
                     <option value="">-- Buscar por código o nombre --</option>
                     <?php foreach ($insumos as $ins):
-                        $stock = (float)($ins['stock_actual'] ?? 0);
                         $esHerramienta = ((int)$ins['id_tipo'] === 2);
                         $tipo = $esHerramienta ? 'Herramienta' : 'Material';
                         $unidad = $ins['unidad_medida'] ?? 'unidades';
+
+                        $stock = (float)($ins['stock_actual'] ?? 0);
+                        if ($esHerramienta) {
+                            // Una herramienta es una unidad: stock 1 = en el pañol, 0 = no está. Se entrega solo si está Disponible
+                            $idEstadoHerr = (int)($ins['id_estado_herramienta'] ?? 0) ?: 1;
+                            $noSeleccionable = !$esDevolucion && ($idEstadoHerr !== 1 || $stock < 1);
+                            $detalleOpcion = 'Estado: ' . ($nombresEstadoHerramienta[$idEstadoHerr] ?? 'Desconocido') . " - Stock: {$stock}";
+                        } else {
+                            $noSeleccionable = !$esDevolucion && $stock <= 0;
+                            $detalleOpcion = "Stock: {$stock} {$unidad}";
+                        }
                     ?>
                         <option value="<?= htmlspecialchars($ins['codigo']) ?>"
                                 data-nombre="<?= htmlspecialchars($ins['nombre']) ?>"
                                 data-tipo="<?= $tipo ?>"
                                 data-unidad="<?= htmlspecialchars($unidad) ?>"
                                 data-stock="<?= $stock ?>"
-                                <?= (!$esDevolucion && $stock <= 0) ? 'disabled' : '' ?>>
-                            <?= htmlspecialchars("{$ins['codigo']} - {$ins['nombre']} ({$tipo}) - Stock: {$stock} {$unidad}") ?>
+                                <?= $noSeleccionable ? 'disabled' : '' ?>>
+                            <?= htmlspecialchars("{$ins['codigo']} - {$ins['nombre']} ({$tipo}) - {$detalleOpcion}") ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -314,6 +329,11 @@ function agregarItem() {
     const indexExistente = itemsMovimiento.findIndex(it => it.id_insumo === codigo);
     const cantidadTotal = (indexExistente >= 0 ? itemsMovimiento[indexExistente].cantidad : 0) + cantidad;
 
+    // Herramientas: siempre de a una unidad. Al entregar, no superar el stock (herramienta: 1 si está en el pañol, 0 si no).
+    if (tipo === 'Herramienta' && cantidadTotal > 1) {
+        alert(`La herramienta "${nombre}" se registra por unidad (cantidad 1).`);
+        return;
+    }
     if (!ES_DEVOLUCION && cantidadTotal > stock) {
         alert(`Stock insuficiente para "${nombre}". Stock disponible: ${stock}, total solicitado: ${cantidadTotal}.`);
         return;
@@ -354,6 +374,11 @@ function actualizarCantidadItem(codigo, valor) {
         return;
     }
 
+    if (item.tipo === 'Herramienta' && cant > 1) {
+        alert(`La herramienta "${item.nombre}" se registra por unidad (cantidad 1).`);
+        renderizarTablaItems();
+        return;
+    }
     if (!ES_DEVOLUCION && cant > item.stock) {
         alert(`Stock insuficiente para "${item.nombre}". Stock disponible: ${item.stock}.`);
         renderizarTablaItems();
@@ -383,7 +408,10 @@ function renderizarTablaItems() {
     let html = '';
     itemsMovimiento.forEach(it => {
         const codigoAttr = escaparHtml(it.id_insumo).replace(/'/g, '&#39;');
-        const maxAttr = ES_DEVOLUCION ? '' : `max="${it.stock}"`;
+        const esHerramienta = (it.tipo === 'Herramienta');
+        // Herramienta: máximo 1 unidad siempre. Material: máximo el stock, solo al entregar
+        const maxAttr = esHerramienta ? 'max="1"' : (ES_DEVOLUCION ? '' : `max="${it.stock}"`);
+        const stockTxt = `${it.stock} ${escaparHtml(it.unidad)}`;
 
         let celdaEstado = '';
         if (ES_DEVOLUCION) {
@@ -402,7 +430,7 @@ function renderizarTablaItems() {
                 <td style="font-weight: 700;">${escaparHtml(it.id_insumo)}</td>
                 <td>${escaparHtml(it.nombre)}</td>
                 <td><span class="badge ${it.tipo === 'Herramienta' ? 'badge-info' : 'badge-neutral'}">${escaparHtml(it.tipo)}</span></td>
-                <td>${it.stock} ${escaparHtml(it.unidad)}</td>
+                <td>${stockTxt}</td>
                 <td>
                     <input type="number" class="form-control" style="padding: 0.35rem 0.5rem;" min="1" ${maxAttr} step="any" value="${it.cantidad}" onchange="actualizarCantidadItem('${codigoAttr}', this.value)">
                 </td>

@@ -93,9 +93,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     exit;
 }
 
-// Stock crítico: stock actual <= stock mínimo. Se sugiere comprar lo necesario para llegar al doble del mínimo.
+// Stock crítico (materiales): stock actual <= stock mínimo. Se sugiere comprar lo necesario para llegar al doble del mínimo.
+// Las herramientas quedan afuera: su stock es 1 (en el pañol) o 0 (prestada), no una cantidad a reponer.
 $itemsStockCritico = array_values(array_filter($insumoModel->getAll(), function ($ins) {
-    return (float)($ins['stock_actual'] ?? 0) <= (float)($ins['stock_minimo'] ?? 0);
+    return ($ins['nombre_tipo'] ?? '') !== 'Herramienta'
+        && (float)($ins['stock_actual'] ?? 0) <= (float)($ins['stock_minimo'] ?? 0);
 }));
 $itemsStockCritico = array_map(function ($ins) {
     $ins['sugerido_comprar'] = max(0, ((float)$ins['stock_minimo'] * 2) - (float)($ins['stock_actual'] ?? 0));
@@ -214,8 +216,8 @@ include_once __DIR__ . '/../layout/header.php';
                             <span class="badge-sugerido">+<?= $sugerido ?></span>
                         </td>
                         <td style="text-align: center;">
-                            <a href="<?= rtrim(BASE_URL, '/') ?>/movimiento/dashboard.php" class="btn-action-comprar" title="Registrar ingreso de stock">
-                                Registrar Ingreso
+                            <a href="<?= rtrim(BASE_URL, '/') ?>/insumo/dashboard.php?busqueda=<?= rawurlencode($item['codigo']) ?>" class="btn-action-comprar" title="Cargar el stock de este insumo desde Insumos (botón Editar)">
+                                Cargar Stock
                             </a>
                         </td>
                     </tr>

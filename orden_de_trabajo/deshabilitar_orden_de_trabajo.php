@@ -1,8 +1,9 @@
 <?php
 /**
  * orden_de_trabajo/deshabilitar_orden_de_trabajo.php
- * Endpoint AJAX para anular (soft-delete) una orden de trabajo. No borra nada: los movimientos
- * vinculados y la comisión se conservan. Solo Administrador y Pañolero.
+ * Endpoint AJAX para anular (soft-delete) o reactivar una orden de trabajo. No borra nada: los
+ * movimientos vinculados y la comisión se conservan. Solo Administrador y Pañolero.
+ * Parámetros POST: id_odt, accion ('deshabilitar' por defecto | 'habilitar').
  * Responde exclusivamente en formato JSON.
  */
 
@@ -29,18 +30,36 @@ try {
         throw new Exception('El identificador de la Orden de Trabajo es obligatorio.');
     }
 
-    $odtModel = new OrdenDeTrabajo();
-    $orden = $odtModel->getById($idOdt);
-    if (!$orden) {
-        throw new Exception("La Orden de Trabajo #{$idOdt} no existe o ya fue anulada.");
+    $accion = isset($_POST['accion']) ? trim((string)$_POST['accion']) : 'deshabilitar';
+    if (!in_array($accion, ['deshabilitar', 'habilitar'], true)) {
+        throw new Exception('Acción no válida.');
     }
 
-    $odtModel->anular($idOdt);
+    $odtModel = new OrdenDeTrabajo();
+    $orden = $odtModel->getEstadoById($idOdt);
+    if (!$orden) {
+        throw new Exception("La Orden de Trabajo #{$idOdt} no existe.");
+    }
+
+    if ($accion === 'habilitar') {
+        if ($orden['activo']) {
+            throw new Exception("La Orden de Trabajo '{$orden['numero_ot']}' ya se encuentra habilitada.");
+        }
+        $odtModel->reactivar($idOdt);
+        $mensaje = "La Orden de Trabajo '{$orden['numero_ot']}' fue habilitada correctamente.";
+    } else {
+        if (!$orden['activo']) {
+            throw new Exception("La Orden de Trabajo '{$orden['numero_ot']}' ya se encuentra deshabilitada.");
+        }
+        $odtModel->anular($idOdt);
+        $mensaje = "La Orden de Trabajo '{$orden['numero_ot']}' fue deshabilitada correctamente.";
+    }
 
     echo json_encode([
         'success' => true,
-        'message' => "La Orden de Trabajo '{$orden['numero_ot']}' fue deshabilitada correctamente.",
-        'id_odt'  => $idOdt
+        'message' => $mensaje,
+        'id_odt'  => $idOdt,
+        'activo'  => ($accion === 'habilitar')
     ]);
 } catch (Throwable $e) {
     echo json_encode(['success' => false, 'error' => safeErrorMessage($e)]);
