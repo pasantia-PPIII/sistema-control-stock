@@ -2,14 +2,10 @@
 // clases/reportes.php
 require_once __DIR__ . '/../config/database.php';
 
-/**
- * 1. KPIs del encabezado
- */
 function obtenerKPISReporte(): array
 {
     $pdo = Database::getConnection();
 
-    // Insumos en estado crítico comparando con la tabla stock_actual
     $stmtCriticos = $pdo->query("
         SELECT COUNT(*) AS total 
         FROM insumos i
@@ -19,7 +15,6 @@ function obtenerKPISReporte(): array
     ");
     $criticos = (int) ($stmtCriticos->fetchColumn() ?: 0);
 
-    // Herramientas prestadas (id_estado_herramienta = 2)
     $stmtHerramientas = $pdo->query("
         SELECT COUNT(*) AS total 
         FROM herramienta 
@@ -27,7 +22,6 @@ function obtenerKPISReporte(): array
     ");
     $herramientasPrestadas = (int) ($stmtHerramientas->fetchColumn() ?: 0);
 
-    // Movimientos del mes en curso
     $stmtMovimientos = $pdo->query("
         SELECT COUNT(*) AS total 
         FROM movimiento 
@@ -36,7 +30,6 @@ function obtenerKPISReporte(): array
     ");
     $movimientosMes = (int) ($stmtMovimientos->fetchColumn() ?: 0);
 
-    // Órdenes de trabajo en proceso
     $stmtOT = $pdo->query("
         SELECT COUNT(*) AS total 
         FROM orden_de_trabajo 
@@ -52,14 +45,10 @@ function obtenerKPISReporte(): array
     ];
 }
 
-/**
- * 2. Insumos Críticos para la Pestaña "Alerta Stock Mínimo (Compras)"
- */
 function obtenerListaStockCritico(): array
 {
     $sql = "
         SELECT 
-            i.id_insumo,
             i.codigo,
             i.nombre,
             r.nombre AS rubro,
@@ -80,10 +69,7 @@ function obtenerListaStockCritico(): array
     return Database::fetchAll($sql);
 }
 
-/**
- * 3. Historial de Auditoría de Movimientos
- */
-function obtenerAuditoriaMovimientos(?string $periodo = 'hoy', ?string $desde = null, ?string $hasta = null, ?string $buscar = null): array
+function obtenerAuditoriaMovimientos(?string $periodo = 'hoy', ?string $desde = null, ?string $hasta = null, ?string $buscar = null, ?string $tipo_mov = null): array
 {
     $sql = "
         SELECT 
@@ -123,6 +109,11 @@ function obtenerAuditoriaMovimientos(?string $periodo = 'hoy', ?string $desde = 
         $params[':fhasta'] = $hasta;
     }
 
+    if (!empty($tipo_mov)) {
+        $sql .= " AND tm.tipo = :tipo_mov";
+        $params[':tipo_mov'] = $tipo_mov;
+    }
+
     if (!empty($buscar)) {
         $sql .= " AND (u.nombre ILIKE :b OR u.apellido ILIKE :b OR o.nombre ILIKE :b OR o.apellido ILIKE :b OR m.observaciones ILIKE :b)";
         $params[':b'] = "%{$buscar}%";
@@ -130,4 +121,54 @@ function obtenerAuditoriaMovimientos(?string $periodo = 'hoy', ?string $desde = 
 
     $sql .= " ORDER BY m.fecha DESC, m.hora DESC LIMIT 50";
     return Database::fetchAll($sql, $params);
+}
+
+/**
+ * Consulta de líneas detalladas de un movimiento para el Modal
+ */
+/**
+ * Consulta de líneas detalladas de un movimiento para el Modal
+ */
+function obtenerDetalleAuditoriaPorId(int $id_movimiento): array
+{
+    $pdo = Database::getConnection();
+
+    $sql = "
+        SELECT 
+            COALESCE(i.codigo, '-') AS codigo,
+            COALESCE(i.nombre, 'Artículo no identificado') AS item_nombre,
+            COALESCE(md.cantidad, 1) AS cantidad,
+            COALESCE(um.unidad_medida, 'Unid.') AS unidad,
+            COALESCE(eh.estado, 'N/A') AS estado_herramienta
+        FROM movimiento_detalle md
+        LEFT JOIN insumos i ON md.id_insumo = i.id_insumo
+        LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
+        LEFT JOIN estado_herramienta eh ON md.id_estado_herramienta = eh.id_estado_herramienta
+        WHERE md.id_movimiento = :id
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':id' => $id_movimiento]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Consulta para la distribución de consumo por rubro
+ */
+function obtenerConsumoPorRubro(): array
+{
+    $sql = "
+        SELECT 
+            COALESCE(r.nombre, 'Sin Rubro') AS rubro,
+            COUNT(DISTINCT md.id_movimiento) AS total_movimientos,
+            COALESCE(SUM(md.cantidad), 0) AS total_despachado
+        FROM movimiento_detalle md
+        INNER JOIN insumos i ON md.id_insumo = i.id_insumo
+        LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
+        INNER JOIN movimiento m ON md.id_movimiento = m.id_movimiento
+        WHERE m.activo = TRUE
+        GROUP BY r.nombre
+        ORDER BY total_despachado DESC
+    ";
+    return Database::fetchAll($sql);
 }

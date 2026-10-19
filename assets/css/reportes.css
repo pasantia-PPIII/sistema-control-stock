@@ -27,9 +27,20 @@
     flex-shrink: 0;
 }
 
-.kpi-icon-danger { background-color: #fee2e2; color: #dc2626; }
-.kpi-icon-tools { background-color: #f1f5f9; color: #475569; }
-.kpi-icon-success { background-color: #dbeafe; color: #2563eb; }
+.kpi-icon-danger {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.kpi-icon-tools {
+    background-color: #f1f5f9;
+    color: #475569;
+}
+
+.kpi-icon-success {
+    background-color: #dbeafe;
+    color: #2563eb;
+}
 
 .kpi-body {
     flex: 1;
@@ -104,13 +115,11 @@
     height: 190px;
     border-radius: 50%;
     /* Representación CSS de la torta: Albañilería 32%, Carpintería 25%, Pintura 25%, Herrería 18% */
-    background: conic-gradient(
-        #2a9d8f 0% 32%,
-        #4f46e5 32% 57%,
-        #38bdf8 57% 82%,
-        #e63946 82% 100%
-    );
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+    background: conic-gradient(#2a9d8f 0% 32%,
+            #4f46e5 32% 57%,
+            #38bdf8 57% 82%,
+            #e63946 82% 100%);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
 }
 
 .chart-legend-list {
@@ -528,7 +537,8 @@
         box-shadow: none !important;
     }
 
-    .report-table th, .report-table td {
+    .report-table th,
+    .report-table td {
         border: 1px solid #cbd5e1 !important;
         font-size: 8pt !important;
         padding: 4px 6px !important;
@@ -543,4 +553,128 @@
 
 .print-only-header {
     display: none;
-}
+}
+
+/* ======================================================
+   ESTILOS DE ACCIONES Y MODAL DE REPORTES
+   ====================================================== */
+.btn-export-csv {
+    background-color: #059669;
+    color: #ffffff;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-decoration: none;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.btn-export-csv:hover {
+    background-color: #047857;
+}
+
+/* Modal de Detalles de Auditoría */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.45);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content-box {
+    background-color: #ffffff;
+    width: 100%;
+    max-width: 600px;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+/* ======================================================
+   REGLAS DE IMPRESIÓN (SOLUCIÓN EXPORTAR / IMPRIMIR)
+   ====================================================== */
+@media print {
+
+    /* 1. Ocultar menús, barras de navegación, botones y filtros */
+    .app-sidebar,
+    .sidebar,
+    .sidebar-menu,
+    .top-bar,
+    header,
+    nav,
+    form,
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-export-csv,
+    .subtabs,
+    .modal-overlay {
+        display: none !important;
+    }
+
+    /* 2. Limpiar fondos y márgenes de pantalla para la hoja de papel */
+    body,
+    .admin-layout,
+    .app-content,
+    .workspace,
+    .main-container,
+    .card,
+    .card-panel {
+        background: #ffffff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        width: 100% !important;
+    }
+
+    /* 3. Encabezado formal del reporte */
+    .content-header,
+    .panel-header {
+        margin-bottom: 20px !important;
+        border-bottom: 2px solid #000000 !important;
+        padding-bottom: 8px !important;
+    }
+
+    .content-header h1,
+    .panel-title {
+        font-size: 16pt !important;
+        color: #000000 !important;
+    }
+
+    /* 4. Tabla formateada para impresión */
+    .table-responsive {
+        border: none !important;
+        overflow: visible !important;
+    }
+
+    .data-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 9pt !important;
+    }
+
+    .data-table th,
+    .data-table td {
+        border: 1px solid #333333 !important;
+        padding: 6px 8px !important;
+        color: #000000 !important;
+    }
+
+    .data-table th {
+        background-color: #f1f5f9 !important;
+        font-weight: bold !important;
+    }
+
+    tr {
+        page-break-inside: avoid;
+    }
+}
