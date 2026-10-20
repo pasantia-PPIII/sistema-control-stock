@@ -126,8 +126,16 @@ $porPagina = 10;
 $paginaActual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $busqueda = isset($_GET['busqueda']) ? trim((string)$_GET['busqueda']) : '';
 $estado = isset($_GET['estado']) ? trim((string)$_GET['estado']) : '';
+// 'estado' es el estado del trabajo (Pendiente, En Progreso...); 'registro' indica si la orden está habilitada o deshabilitada
+$registro = isset($_GET['registro']) ? trim((string)$_GET['registro']) : 'activo';
 
-$ordenesFiltradas = array_values(array_filter($odtModel->getAll(), function ($ot) use ($busqueda, $estado) {
+$ordenesFiltradas = array_values(array_filter($odtModel->getAll(true), function ($ot) use ($busqueda, $estado, $registro) {
+    if ($registro === 'activo' && !$ot['activo']) {
+        return false;
+    }
+    if ($registro === 'inactivo' && $ot['activo']) {
+        return false;
+    }
     if ($estado !== '' && ($ot['estado'] ?? 'Pendiente') !== $estado) {
         return false;
     }
@@ -184,6 +192,12 @@ include_once __DIR__ . '/../layout/header.php';
         <option value="Anulada" <?= ($estado === 'Anulada') ? 'selected' : '' ?>>Anulada</option>
     </select>
 
+    <select class="filter-select" id="filtro-registro">
+        <option value="activo" <?= ($registro === 'activo') ? 'selected' : '' ?>>Solo Habilitadas</option>
+        <option value="inactivo" <?= ($registro === 'inactivo') ? 'selected' : '' ?>>Solo Deshabilitadas</option>
+        <option value="todos" <?= ($registro === 'todos') ? 'selected' : '' ?>>Todas</option>
+    </select>
+
     <?php if (canEdit()): ?>
     <button type="button" class="btn-pill-action" onclick="abrirModalCrear()">Nueva Orden</button>
     <?php endif; ?>
@@ -238,7 +252,10 @@ include_once __DIR__ . '/../layout/header.php';
                     <td title="<?= $trabajo ?>"><?= $trabajoCorto ?></td>
                     <td><?= $ubicacion ?></td>
                     <td><?= $periodo ?></td>
-                    <td><span class="badge <?= $badgeClass ?>"><?= $estadoTexto ?></span></td>
+                    <td>
+                        <span class="badge <?= $badgeClass ?>"><?= $estadoTexto ?></span>
+                        <?php if (!$ot['activo']): ?><span class="badge badge-anulada">Deshabilitada</span><?php endif; ?>
+                    </td>
                     <td>
                         <?php if ($tienePdf): ?>
                             <a href="<?= rtrim(BASE_URL, "/") ?>/uploads/pa_pdfs/<?= $nombrePdf ?>" target="_blank" class="btn-pdf-view">
@@ -250,19 +267,30 @@ include_once __DIR__ . '/../layout/header.php';
                     </td>
                     <td>
                         <div class="actions-cell">
+                            <?php if ($ot['activo']): ?>
                             <button type="button" class="btn-action-text view" onclick="verDetalleModal(<?= $idOdt ?>)">
                                 Ver Detalle
                             </button>
+                            <?php endif; ?>
                             <?php if (canEdit()): ?>
+                            <?php if ($ot['activo']): ?>
                             <button type="button" class="btn-action-text edit" onclick="abrirModalEditar(<?= $idOdt ?>)">
                                 Editar
                             </button>
-                            <button type="button" class="btn-action-text disable" onclick="deshabilitarOdt(<?= $idOdt ?>, '<?= $numeroOt ?>')">
+                            <button type="button" class="btn-action-text disable" data-id="<?= $idOdt ?>" data-numero="<?= $numeroOt ?>"
+                                    onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, true)">
                                 Deshabilitar
                             </button>
-                            <button type="button" class="btn-action-text edit" onclick="abrirModalCambiarEstado(<?= $idOdt ?>, '<?= $numeroOt ?>', '<?= $estadoTexto ?>')">
+                            <button type="button" class="btn-action-text edit" data-numero="<?= $numeroOt ?>" data-estado="<?= $estadoTexto ?>"
+                                    onclick="abrirModalCambiarEstado(<?= $idOdt ?>, this.dataset.numero, this.dataset.estado)">
                                 Cambiar Estado
                             </button>
+                            <?php else: ?>
+                            <button type="button" class="btn-action-text view" data-id="<?= $idOdt ?>" data-numero="<?= $numeroOt ?>"
+                                    onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, false)">
+                                Habilitar
+                            </button>
+                            <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </td>
@@ -507,8 +535,9 @@ function cargarOrdenes(pagina = 1) {
     paginaActual = pagina;
     const busqueda = encodeURIComponent(document.getElementById('buscador-odt').value.trim());
     const estado = encodeURIComponent(document.getElementById('filtro-estado').value);
+    const registro = encodeURIComponent(document.getElementById('filtro-registro').value);
 
-    const url = `dashboard.php?ajax=1&pagina=${pagina}&busqueda=${busqueda}&estado=${estado}`;
+    const url = `dashboard.php?ajax=1&pagina=${pagina}&busqueda=${busqueda}&estado=${estado}&registro=${registro}`;
 
     fetch(url, { credentials: 'same-origin' })
         .then(response => {
@@ -557,6 +586,33 @@ function renderizarTabla(ordenes) {
         const estadoTexto = escaparHtml(ot.estado || 'Pendiente');
         const estadoLower = String(ot.estado || 'pendiente').toLowerCase().replace(/\s+/g, '-');
         const badgeClass = 'badge-' + estadoLower;
+        const otActiva = (ot.activo === true || ot.activo === 't' || ot.activo === 1 || ot.activo === '1');
+        const badgeDeshabilitada = otActiva ? '' : '<span class="badge badge-anulada">Deshabilitada</span>';
+
+        // Número y estado viajan en data-* (escapados) para que un apóstrofo no rompa el onclick
+        let botones = '';
+        if (otActiva) {
+            botones = `
+                    <button type="button" class="btn-action-text view" onclick="verDetalleModal(${idOdt})">
+                        Ver Detalle
+                    </button>
+                    ${APP_PERMISOS.editar ? `
+                    <button type="button" class="btn-action-text edit" onclick="abrirModalEditar(${idOdt})">
+                        Editar
+                    </button>
+                    <button type="button" class="btn-action-text disable" data-id="${idOdt}" data-numero="${numeroOt}" onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, true)">
+                        Deshabilitar
+                    </button>
+                    <button type="button" class="btn-action-text edit" data-numero="${numeroOt}" data-estado="${estadoTexto}" onclick="abrirModalCambiarEstado(${idOdt}, this.dataset.numero, this.dataset.estado)">
+                        Cambiar Estado
+                    </button>
+                    `: ''}`;
+        } else if (APP_PERMISOS.editar) {
+            botones = `
+                    <button type="button" class="btn-action-text view" data-id="${idOdt}" data-numero="${numeroOt}" onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, false)">
+                        Habilitar
+                    </button>`;
+        }
 
         let pdfHtml = '<span class="btn-pdf-none">Sin PDF</span>';
         if (ot.archivo_pdf) {
@@ -571,24 +627,10 @@ function renderizarTabla(ordenes) {
             <td title="${trabajo}">${trabajoCorto}</td>
             <td>${ubicacion}</td>
             <td>${periodo}</td>
-            <td><span class="badge ${badgeClass}">${estadoTexto}</span></td>
+            <td><span class="badge ${badgeClass}">${estadoTexto}</span> ${badgeDeshabilitada}</td>
             <td>${pdfHtml}</td>
             <td>
-                <div class="actions-cell">
-                    <button type="button" class="btn-action-text view" onclick="verDetalleModal(${idOdt})">
-                        Ver Detalle
-                    </button>
-                    ${APP_PERMISOS.editar ? `
-                    <button type="button" class="btn-action-text edit" onclick="abrirModalEditar(${idOdt})">
-                        Editar
-                    </button>
-                    <button type="button" class="btn-action-text disable" onclick="deshabilitarOdt(${idOdt}, '${numeroOt}')">
-                        Deshabilitar
-                    </button>
-                    <button type="button" class="btn-action-text edit" onclick="abrirModalCambiarEstado(${idOdt}, '${numeroOt}', '${estadoTexto}')">
-                        Cambiar Estado
-                    </button>
-                    `: ''}
+                <div class="actions-cell">${botones}
                 </div>
             </td>
         </tr>`;
@@ -627,6 +669,10 @@ document.getElementById('buscador-odt').addEventListener('input', function() {
 });
 
 document.getElementById('filtro-estado').addEventListener('change', function() {
+    cargarOrdenes(1);
+});
+
+document.getElementById('filtro-registro').addEventListener('change', function() {
     cargarOrdenes(1);
 });
 
@@ -731,18 +777,22 @@ function guardarNuevaOdt(e) {
     });
 }
 
-// Deshabilitar (anular) una Orden de Trabajo: no se borra nada
-function deshabilitarOdt(idOdt, numeroOt) {
-    if (!confirm(`¿Deshabilitar la Orden de Trabajo "${numeroOt}"? El registro se conserva en el sistema.`)) {
+// Deshabilitar (anular) o volver a habilitar una Orden de Trabajo: no se borra nada
+function cambiarRegistroOdt(idOdt, numeroOt, deshabilitar) {
+    const pregunta = deshabilitar
+        ? `¿Deshabilitar la Orden de Trabajo "${numeroOt}"? El registro se conserva en el sistema.`
+        : `¿Volver a habilitar la Orden de Trabajo "${numeroOt}"?`;
+    if (!confirm(pregunta)) {
         return;
     }
     const formData = new FormData();
     formData.append('id_odt', idOdt);
+    formData.append('accion', deshabilitar ? 'deshabilitar' : 'habilitar');
 
     fetch('deshabilitar_orden_de_trabajo.php', { method: 'POST', body: formData, credentials: 'same-origin' })
         .then(response => response.json())
         .then(res => {
-            if (!res.success) throw new Error(res.error || 'No se pudo deshabilitar la orden.');
+            if (!res.success) throw new Error(res.error || 'No se pudo procesar la acción sobre la orden.');
             mostrarAlerta(res.message, true);
             cargarOrdenes(paginaActual);
         })

@@ -1,6 +1,11 @@
 <?php
 // reporte/dashboard.php
-session_start();
+// config.php inicia la sesión con la cookie endurecida; la autenticación se valida antes de consultar la BD.
+require_once __DIR__ . '/../config/config.php';
+
+if (!isAuthenticated()) {
+    redirect('auth/login.php');
+}
 
 $seccion = 'reportes';
 

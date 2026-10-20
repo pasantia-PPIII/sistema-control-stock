@@ -25,8 +25,9 @@ class Panel {
     public function totalStockBajo() {
         return $this->contar(
             "SELECT COUNT(*) as total FROM insumos i
+             INNER JOIN tipo t ON i.id_tipo = t.id_tipo
              INNER JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
-             WHERE i.activo = TRUE AND s.stock_actual < i.stock_minimo"
+             WHERE i.activo = TRUE AND t.tipo <> 'Herramienta' AND s.stock_actual < i.stock_minimo"
         );
     }
 
@@ -37,9 +38,10 @@ class Panel {
         return $this->db->fetchAll(
             "SELECT i.codigo, i.nombre, i.stock_minimo, s.stock_actual, um.unidad_medida
              FROM insumos i
+             INNER JOIN tipo t ON i.id_tipo = t.id_tipo
              INNER JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
              LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
-             WHERE i.activo = TRUE AND s.stock_actual < i.stock_minimo
+             WHERE i.activo = TRUE AND t.tipo <> 'Herramienta' AND s.stock_actual < i.stock_minimo
              ORDER BY (s.stock_actual - i.stock_minimo) ASC, i.nombre ASC
              LIMIT " . (int)$limite
         );

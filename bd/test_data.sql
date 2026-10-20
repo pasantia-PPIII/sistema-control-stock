@@ -48,7 +48,7 @@ INSERT INTO stock_actual (id_stock_actual, stock_actual, fecha) VALUES
 (12, 45.00, CURRENT_DATE),
 (13, 8.00, CURRENT_DATE),
 (14, 12.00, CURRENT_DATE),
-(15, 5.00, CURRENT_DATE),
+(15, 1.00, CURRENT_DATE), -- Herramienta (Pistola para pintar): una unidad, 1 = en el pañol
 (16, 60.00, CURRENT_DATE),
 (17, 95.00, CURRENT_DATE),
 (18, 40.00, CURRENT_DATE),

@@ -146,14 +146,17 @@ include_once __DIR__ . '/../layout/header.php';
                                 Editar
                             </button>
 
+                            <?php
+                            $datosEstado = 'data-id="' . $idOp . '" data-dni="' . htmlspecialchars($op['dni'], ENT_QUOTES) . '" data-nombre="' . htmlspecialchars($op['apellido'] . ', ' . $op['nombre'], ENT_QUOTES) . '"';
+                            ?>
                             <?php if ($esActivo): ?>
-                                <button type="button" class="btn-action-text disable" title="Deshabilitar Operario"
-                                    onclick="abrirModalDeshabilitar(<?= $idOp ?>, '<?= htmlspecialchars($op['dni'], ENT_QUOTES) ?>', '<?= htmlspecialchars($nombreCompleto, ENT_QUOTES) ?>')">
+                                <button type="button" class="btn-action-text disable" title="Deshabilitar Operario" <?= $datosEstado ?>
+                                    onclick="abrirModalEstado(this.dataset.id, this.dataset.dni, this.dataset.nombre, true)">
                                     Deshabilitar
                                 </button>
                             <?php else: ?>
-                                <button type="button" class="btn-action-text enable" title="Habilitar Operario"
-                                    onclick="habilitarOperario(<?= $idOp ?>, '<?= htmlspecialchars($nombreCompleto, ENT_QUOTES) ?>')">
+                                <button type="button" class="btn-action-text view" title="Habilitar Operario" <?= $datosEstado ?>
+                                    onclick="abrirModalEstado(this.dataset.id, this.dataset.dni, this.dataset.nombre, false)">
                                     Habilitar
                                 </button>
                             <?php endif; ?>
@@ -300,35 +303,31 @@ include_once __DIR__ . '/../layout/header.php';
     </div>
 </div>
 
-<div id="modal-deshabilitar-operario" class="modal-backdrop">
+<!-- Modal: Deshabilitar / Habilitar operario -->
+<div id="modal-estado-operario" class="modal-backdrop">
     <div class="modal-card" style="max-width: 480px;">
-        <button type="button" class="modal-close-btn"
-            onclick="cerrarModal('modal-deshabilitar-operario')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-estado-operario')">Cerrar</button>
         <div class="modal-header-text">
-            <h2 style="color: #dc2626;">Deshabilitar Operario</h2>
-            <p>¿Está seguro de que desea dar de baja al siguiente operario?</p>
+            <h2 id="estado-titulo">Deshabilitar Operario</h2>
+            <p id="estado-subtitulo"></p>
         </div>
 
-        <div
-            style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 1.1rem; margin-bottom: 1.5rem; font-size: 0.9rem; color: #991b1b;">
-            <p><strong>Operario:</strong> <span id="deshab-info-nombre"></span></p>
-            <p><strong>DNI:</strong> <span id="deshab-info-dni"></span></p>
-            <p style="margin-top: 0.5rem; font-size: 0.82rem; color: #b91c1c;">
-                El registro pasará al estado inactivo. Se conservará todo el historial de movimientos de insumos,
-                auditorías y órdenes de trabajo asociadas.
-            </p>
+        <div id="estado-caja" style="border-radius: 8px; padding: 1.1rem; margin-bottom: 1.5rem; font-size: 0.9rem;">
+            <p><strong>Operario:</strong> <span id="estado-info-nombre"></span></p>
+            <p><strong>DNI:</strong> <span id="estado-info-dni"></span></p>
+            <p id="estado-nota" style="margin-top: 0.5rem; font-size: 0.82rem;"></p>
         </div>
 
-        <form id="form-deshabilitar-operario" onsubmit="ejecutarDeshabilitarOperario(event)">
-            <input type="hidden" id="deshab-id-val" name="id_operario">
-            <input type="hidden" name="accion" value="deshabilitar">
+        <form id="form-estado-operario" onsubmit="ejecutarCambioEstadoOperario(event)">
+            <input type="hidden" id="estado-id-val" name="id_operario">
+            <input type="hidden" id="estado-accion-val" name="accion" value="deshabilitar">
             <div style="display: flex; gap: 1rem; justify-content: center;">
                 <button type="button" class="btn-action-text view" style="padding: 0.6rem 1.4rem; font-size: 0.9rem;"
-                    onclick="cerrarModal('modal-deshabilitar-operario')">
+                    onclick="cerrarModal('modal-estado-operario')">
                     Cancelar
                 </button>
-                <button type="submit" class="btn-action-text disable"
-                    style="padding: 0.6rem 1.4rem; font-size: 0.9rem;">
+                <button type="submit" id="btn-submit-estado" class="btn-action-text disable"
+                    style="padding: 0.6rem 1.4rem; font-size: 0.9rem; color: #ffffff;">
                     Confirmar Deshabilitación
                 </button>
             </div>
@@ -413,13 +412,15 @@ include_once __DIR__ . '/../layout/header.php';
             const idOp = parseInt(op.id_operario, 10);
 
             const jsonStr = JSON.stringify(op).replace(/"/g, '&quot;');
+            // Datos en data-* (escapados) para que un apóstrofo en el nombre no rompa el onclick
+            const datosEstado = `data-id="${idOp}" data-dni="${escaparHtml(op.dni)}" data-nombre="${nombreCompleto}"`;
             const btnAccionEstado = !APP_PERMISOS.admin ? '' : (esActivo ? `
-            <button type="button" class="btn-action-text disable" title="Deshabilitar Operario" 
-                    onclick="abrirModalDeshabilitar(${idOp}, '${escaparHtml(op.dni)}', '${nombreCompleto}')">
+            <button type="button" class="btn-action-text disable" title="Deshabilitar Operario" ${datosEstado}
+                    onclick="abrirModalEstado(this.dataset.id, this.dataset.dni, this.dataset.nombre, true)">
                 Deshabilitar
             </button>` : `
-            <button type="button" class="btn-action-text enable" title="Habilitar Operario" 
-                    onclick="habilitarOperario(${idOp}, '${nombreCompleto}')">
+            <button type="button" class="btn-action-text view" title="Habilitar Operario" ${datosEstado}
+                    onclick="abrirModalEstado(this.dataset.id, this.dataset.dni, this.dataset.nombre, false)">
                 Habilitar
             </button>`);
 
@@ -583,16 +584,47 @@ include_once __DIR__ . '/../layout/header.php';
             });
     }
 
-    function abrirModalDeshabilitar(idOperario, dni, nombre) {
-        document.getElementById('deshab-id-val').value = idOperario;
-        document.getElementById('deshab-info-nombre').innerText = nombre;
-        document.getElementById('deshab-info-dni').innerText = dni;
-        abrirModal('modal-deshabilitar-operario');
+    function abrirModalEstado(idOperario, dni, nombre, deshabilitar) {
+        const caja = document.getElementById('estado-caja');
+        const nota = document.getElementById('estado-nota');
+        const titulo = document.getElementById('estado-titulo');
+        const btn = document.getElementById('btn-submit-estado');
+
+        document.getElementById('estado-id-val').value = idOperario;
+        document.getElementById('estado-accion-val').value = deshabilitar ? 'deshabilitar' : 'habilitar';
+        document.getElementById('estado-info-nombre').innerText = nombre;
+        document.getElementById('estado-info-dni').innerText = dni;
+
+        if (deshabilitar) {
+            titulo.innerText = 'Deshabilitar Operario';
+            titulo.style.color = '#dc2626';
+            document.getElementById('estado-subtitulo').innerText = '¿Está seguro de que desea dar de baja al siguiente operario?';
+            caja.style.backgroundColor = '#fef2f2';
+            caja.style.border = '1px solid #fecaca';
+            caja.style.color = '#991b1b';
+            nota.style.color = '#b91c1c';
+            nota.innerText = 'El registro pasará al estado inactivo. Se conservará todo el historial de movimientos de insumos, auditorías y órdenes de trabajo asociadas.';
+            btn.style.backgroundColor = '#dc2626';
+            btn.innerText = 'Confirmar Deshabilitación';
+        } else {
+            titulo.innerText = 'Habilitar Operario';
+            titulo.style.color = '#166534';
+            document.getElementById('estado-subtitulo').innerText = '¿Desea volver a habilitar al siguiente operario?';
+            caja.style.backgroundColor = '#f0fdf4';
+            caja.style.border = '1px solid #bbf7d0';
+            caja.style.color = '#166534';
+            nota.style.color = '#15803d';
+            nota.innerText = 'El operario volverá a estar disponible para movimientos y órdenes de trabajo. Su usuario del sistema (si tiene) no se modifica.';
+            btn.style.backgroundColor = '#16a34a';
+            btn.innerText = 'Confirmar Habilitación';
+        }
+        abrirModal('modal-estado-operario');
     }
 
-    function ejecutarDeshabilitarOperario(e) {
+    function ejecutarCambioEstadoOperario(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
+        const deshabilitar = formData.get('accion') === 'deshabilitar';
 
         fetch('deshabilitar_operario.php', {
             method: 'POST',
@@ -601,42 +633,16 @@ include_once __DIR__ . '/../layout/header.php';
         })
             .then(r => r.json())
             .then(res => {
-                cerrarModal('modal-deshabilitar-operario');
+                cerrarModal('modal-estado-operario');
                 if (res.success) {
-                    mostrarAlerta(res.message || 'Operario deshabilitado exitosamente.', true);
+                    mostrarAlerta(res.message || (deshabilitar ? 'Operario deshabilitado exitosamente.' : 'Operario habilitado exitosamente.'), true);
                     cargarOperarios(paginaActual);
                 } else {
-                    mostrarAlerta(res.error || 'Error al deshabilitar el operario.', false);
+                    mostrarAlerta(res.error || 'Error al procesar la acción sobre el operario.', false);
                 }
             })
             .catch(err => {
-                cerrarModal('modal-deshabilitar-operario');
-                mostrarAlerta('Error de conexión: ' + err.message, false);
-            });
-    }
-
-    function habilitarOperario(idOperario, nombre) {
-        if (!confirm(`¿Desea reactivar y habilitar al operario "${nombre}"?`)) return;
-
-        const formData = new FormData();
-        formData.append('id_operario', idOperario);
-        formData.append('accion', 'habilitar');
-
-        fetch('deshabilitar_operario.php', {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin'
-        })
-            .then(r => r.json())
-            .then(res => {
-                if (res.success) {
-                    mostrarAlerta(res.message || 'Operario habilitado exitosamente.', true);
-                    cargarOperarios(paginaActual);
-                } else {
-                    mostrarAlerta(res.error || 'Error al habilitar el operario.', false);
-                }
-            })
-            .catch(err => {
+                cerrarModal('modal-estado-operario');
                 mostrarAlerta('Error de conexión: ' + err.message, false);
             });
     }

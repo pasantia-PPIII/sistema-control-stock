@@ -1,6 +1,6 @@
 # Sistema de Control de Stock – Taller ONABE
 
-Sistema web para controlar el stock de insumos y herramientas del taller: movimientos de entrega, devolución, ingreso y ajuste, órdenes de trabajo con su comisión de operarios, rubros, operarios, usuarios y reportes.
+Sistema web para controlar el stock de insumos y herramientas del taller: movimientos de entrega y devolución, órdenes de trabajo con su comisión de operarios, rubros, operarios, usuarios y reportes.
 
 Desarrollado en **PHP** (páginas procedurales + clases en `clases/`) con **PostgreSQL** (PDO).
 
@@ -46,8 +46,10 @@ Este archivo es **personal y no se sube al repositorio**. Se crea copiando `conf
 ## Reglas del sistema
 
 - **Nada se borra de la base de datos.** Operarios, usuarios, insumos, rubros, movimientos y órdenes se *deshabilitan* (`activo = FALSE`). La aplicación no tiene métodos `DELETE`.
-- **Stock:** una Entrega descuenta, una Devolución y un Ingreso suman. Un **Ajuste de Inventario** fija el stock en la cantidad contada físicamente (solo materiales; no se anula, se corrige con otro ajuste). El stock nunca queda negativo.
-- **Herramientas:** no tienen cantidad de stock; cambian de estado (Disponible ↔ Prestada). La cantidad del movimiento debe ser 1.
+- **Stock de materiales:** una Entrega descuenta y una Devolución suma. El stock nunca queda negativo.
+- **Cargar o corregir stock** se hace desde el módulo **Insumos**, no con movimientos: al **crear** un insumo se indica el *Stock Inicial* (obligatorio en los materiales; si no hay existencias se carga 0; las herramientas nacen con 1) y al **editarlo** se cambia el *Stock Actual* (carga de mercadería, recuento físico o corrección). El valor ingresado pasa a ser el stock del insumo. Hoy ese cambio no deja registro del valor anterior.
+- **Herramientas:** son unidades enteras. Stock **1** = está en el pañol (estado Disponible); stock **0** = no está (Prestada, En Reparación o Dada de baja). Al crearla nace con stock 1. Una Entrega exige que esté Disponible con stock 1 y pasa el stock a 0; una Devolución lo vuelve a 1 solo si regresa Disponible. La cantidad del movimiento debe ser 1 y el stock de una herramienta no se edita a mano. Las herramientas no se cuentan en el "stock bajo" del Panel ni de Reportes.
+- Si tu base se cargó antes de este cambio, ejecutá una vez `bd/migracion_stock_herramientas.sql` para dejar el stock de las herramientas según su estado.
 - **Anular un movimiento** revierte su efecto sobre el stock.
 - **Orden de trabajo:** puede vincularse a un movimiento de entrega y a uno de devolución (ambos opcionales) y a una comisión de operarios.
 
@@ -76,6 +78,5 @@ Ver [estructura.txt](estructura.txt).
 ## Pendientes conocidos
 
 - Recuperación de contraseña (`auth/forgot_password.php`) y edición de movimientos (`movimiento/editar_movimiento.php`): archivos vacíos.
-- Pantallas para registrar **Ingreso** de stock y **Ajuste de Inventario** (el backend ya los soporta).
-- Auditoría de cambios (se implementará más adelante).
+- **Auditoría completa** (accesos al sistema, cambios en registros y cambios de stock, visible en Reportes solo para los roles Administrador y Vista): diseño ya definido y verificado en [AUDITORIA_PASO_A_PASO.txt](AUDITORIA_PASO_A_PASO.txt); falta aplicarlo al proyecto.
 - Al deshabilitar un operario no se deshabilita su usuario vinculado.

@@ -221,7 +221,8 @@ class Movimiento {
             throw new Exception("El insumo '{$insumo['nombre']}' está deshabilitado.");
         }
 
-        // ---- Herramientas: solo cambian de estado ----
+        // ---- Herramientas: unidad entera. Cambian de estado y su stock acompaña al estado ----
+        // Stock 1 = está en el pañol (Disponible). Stock 0 = no está (prestada, en reparación o dada de baja).
         if ($insumo['nombre_tipo'] === 'Herramienta') {
             if ($esAjuste) {
                 throw new Exception("El ajuste de inventario aplica solo a materiales; '{$insumo['nombre']}' es una herramienta.");
@@ -229,6 +230,7 @@ class Movimiento {
             if ($signo > 0 && abs($cantidad - 1.0) > 0.0001) {
                 throw new Exception("La herramienta '{$insumo['nombre']}' se registra por unidad (cantidad 1).");
             }
+            [$idStock, $stockActual] = $this->bloquearStock($insumo);
             $estadoActual = (int)$insumo['id_estado_herramienta'] ?: self::ESTADO_DISPONIBLE;
 
             $entrega = ($tipoMov === self::TIPO_ENTREGA);
@@ -239,6 +241,9 @@ class Movimiento {
             if ($entrega) {
                 if ($signo > 0 && $estadoActual !== self::ESTADO_DISPONIBLE) {
                     throw new Exception("La herramienta '{$insumo['nombre']}' no está disponible para entregar (ya prestada, en reparación o dada de baja).");
+                }
+                if ($signo > 0 && $stockActual < 1) {
+                    throw new Exception("La herramienta '{$insumo['nombre']}' no tiene stock en el pañol (stock {$stockActual}): no se puede entregar.");
                 }
                 $nuevoEstado = self::ESTADO_PRESTADA;
             } else {
@@ -252,22 +257,16 @@ class Movimiento {
                 "UPDATE insumos SET id_estado_herramienta = :estado WHERE id_insumo = :id",
                 ['estado' => $nuevoEstado, 'id' => $id_insumo]
             );
+            // Vuelve al pañol solo si queda Disponible; en cualquier otro estado no hay unidad en el pañol
+            Database::execute(
+                "UPDATE stock_actual SET stock_actual = :stock, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
+                ['stock' => ($nuevoEstado === self::ESTADO_DISPONIBLE) ? 1 : 0, 'id' => $idStock]
+            );
             return $signo > 0 ? $nuevoEstado : null;
         }
 
         // ---- Materiales: modifican stock_actual ----
-        $idStock = $insumo['id_stock_actual'];
-        if (empty($idStock)) {
-            // Insumo sin registro de stock: se crea en cero y se vincula
-            $nuevo = $this->db->insert('stock_actual', ['stock_actual' => 0]);
-            $idStock = $nuevo['id_stock_actual'];
-            Database::execute("UPDATE insumos SET id_stock_actual = :s WHERE id_insumo = :id", ['s' => $idStock, 'id' => $id_insumo]);
-        }
-        $stock = $this->db->fetchOne(
-            "SELECT stock_actual FROM stock_actual WHERE id_stock_actual = :id FOR UPDATE",
-            ['id' => $idStock]
-        );
-        $stockActual = (float)$stock['stock_actual'];
+        [$idStock, $stockActual] = $this->bloquearStock($insumo);
 
         if ($esAjuste) {
             Database::execute(
@@ -292,6 +291,26 @@ class Movimiento {
             ['delta' => (string)$delta, 'id' => $idStock]
         );
         return null;
+    }
+
+    /**
+     * Devuelve el registro de stock del insumo bloqueado para la transacción (FOR UPDATE).
+     * Si el insumo no tenía registro de stock, se crea en cero y se vincula.
+     * @param array $insumo Fila del insumo (id_insumo, id_stock_actual)
+     * @return array [id_stock_actual, stock actual como float]
+     */
+    private function bloquearStock($insumo) {
+        $idStock = $insumo['id_stock_actual'];
+        if (empty($idStock)) {
+            $nuevo = $this->db->insert('stock_actual', ['stock_actual' => 0]);
+            $idStock = $nuevo['id_stock_actual'];
+            Database::execute("UPDATE insumos SET id_stock_actual = :s WHERE id_insumo = :id", ['s' => $idStock, 'id' => $insumo['id_insumo']]);
+        }
+        $stock = $this->db->fetchOne(
+            "SELECT stock_actual FROM stock_actual WHERE id_stock_actual = :id FOR UPDATE",
+            ['id' => $idStock]
+        );
+        return [$idStock, (float)$stock['stock_actual']];
     }
 
     // =========================================================

@@ -24,14 +24,16 @@ class Insumo {
                        t.tipo as nombre_tipo, 
                        r.nombre as nombre_rubro, 
                        u.ubicacion as nombre_ubicacion,
-                       s.stock_actual
+                       s.stock_actual,
+                       eh.estado as nombre_estado_herramienta
                 FROM insumos i
                 LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
                 LEFT JOIN tipo t ON i.id_tipo = t.id_tipo
                 LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
                 LEFT JOIN ubicacion u ON i.id_ubicacion = u.id_ubicacion
-                LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual";
-        
+                LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
+                LEFT JOIN estado_herramienta eh ON i.id_estado_herramienta = eh.id_estado_herramienta";
+
         if (!$incluir_inactivos) {
             $sql .= " WHERE i.activo = TRUE";
         }
@@ -64,6 +66,19 @@ class Insumo {
                 WHERE i.codigo = :codigo AND i.activo = TRUE";
 
         return $this->db->fetchOne($sql, ['codigo' => $codigo]);
+    }
+
+    /**
+     * Datos mínimos de un insumo por código, esté activo o deshabilitado.
+     * (getByCodigo() solo devuelve los activos; esto sirve para habilitar uno deshabilitado.)
+     * @param string $codigo Código del insumo
+     * @return array|null codigo, nombre y activo; null si no existe
+     */
+    public function getEstadoByCodigo($codigo) {
+        return $this->db->fetchOne(
+            "SELECT codigo, nombre, activo FROM insumos WHERE codigo = :codigo",
+            ['codigo' => $codigo]
+        );
     }
 
     /**
@@ -114,14 +129,17 @@ class Insumo {
     }
 
     /**
-     * Obtiene insumos con stock bajo (menor al stock_minimo).
+     * Obtiene materiales con stock bajo (menor al stock_minimo).
+     * Las herramientas no se incluyen: su stock es 1 (en el pañol) o 0 (prestada), no una cantidad a reponer.
      * @return array Insumos con stock crítico
      */
     public function getStockBajo() {
         $sql = "SELECT i.codigo, i.nombre, i.stock_minimo, s.stock_actual
                 FROM insumos i
+                INNER JOIN tipo t ON i.id_tipo = t.id_tipo
                 LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
-                WHERE s.stock_actual < i.stock_minimo 
+                WHERE s.stock_actual < i.stock_minimo
+                AND t.tipo <> 'Herramienta'
                 AND i.activo = TRUE";
         
         return $this->db->fetchAll($sql);
@@ -152,11 +170,27 @@ class Insumo {
 
     /**
      * Crea un nuevo insumo en la base de datos.
+     * El stock inicial es OBLIGATORIO para los materiales y viaja en $data['stock_inicial'] (no es una
+     * columna de insumos; 0 es válido). Una herramienta es una unidad entera: siempre nace con stock 1
+     * (en el pañol) y se ignora el valor enviado.
      * @param array $data Datos del insumo
      * @return array El registro insertado completo
      */
     public function create($data) {
         try {
+            $esHerramienta = ((int)($data['id_tipo'] ?? 0) === 2);
+
+            $stockInicial = null;
+            if (isset($data['stock_inicial']) && $data['stock_inicial'] !== '') {
+                if (!is_numeric($data['stock_inicial']) || (float)$data['stock_inicial'] < 0) {
+                    throw new Exception("El stock inicial debe ser un número igual o mayor a cero.");
+                }
+                $stockInicial = (float)$data['stock_inicial'];
+            }
+            if (!$esHerramienta && $stockInicial === null) {
+                throw new Exception("El stock inicial es obligatorio (si no hay existencias, cargue 0).");
+            }
+
             // Whitelist de campos permitidos para el INSERT
             // Evita que campos extra del formulario (ej: csrf_token) rompan el query
             $camposPermitidos = [
@@ -176,16 +210,16 @@ class Insumo {
             // Aseguramos que al crearse, el insumo nazca activo
             $data['activo'] = true;
 
-            // El stock vive en su propia tabla: se crea el registro en cero y se vincula al insumo
+            // Las herramientas nacen "Disponible" y con 1 unidad en el pañol (necesario para controlar préstamos)
+            if ($esHerramienta) {
+                $data['id_estado_herramienta'] = 1;
+            }
+
+            // El stock vive en su propia tabla: se crea el registro con el stock inicial y se vincula al insumo
             $this->db->beginTransaction();
             try {
-                $stock = $this->db->insert('stock_actual', ['stock_actual' => 0]);
+                $stock = $this->db->insert('stock_actual', ['stock_actual' => $esHerramienta ? 1 : $stockInicial]);
                 $data['id_stock_actual'] = $stock['id_stock_actual'];
-
-                // Las herramientas nacen "Disponible" (necesario para controlar préstamos)
-                if ((int)($data['id_tipo'] ?? 0) === 2) {
-                    $data['id_estado_herramienta'] = 1;
-                }
 
                 $insumo = $this->db->insert('insumos', $data);
                 $this->db->commit();
@@ -207,12 +241,22 @@ class Insumo {
 
     /**
      * Actualiza los datos de un insumo existente.
+     * Si $data trae 'stock_actual', el stock del material pasa a valer exactamente ese número
+     * (carga de más stock o corrección). No aplica a herramientas: su stock lo manejan las entregas y devoluciones.
      * @param string $codigo Código del insumo a actualizar
      * @param array $data Nuevos datos
      * @return bool true si se actualizó correctamente
      */
     public function update($codigo, $data) {
         try {
+            $nuevoStock = null;
+            if (isset($data['stock_actual']) && $data['stock_actual'] !== '') {
+                $nuevoStock = (float)$data['stock_actual'];
+                if ($nuevoStock < 0) {
+                    throw new Exception("El stock no puede ser negativo.");
+                }
+            }
+
             // Whitelist de campos permitidos para el UPDATE
             // Excluye 'activo' (solo por deshabilitar/habilitar) y 'codigo' (PK inmutable)
             $camposPermitidos = [
@@ -229,10 +273,57 @@ class Insumo {
             }
 
             // 'activo' se maneja exclusivamente con deshabilitar() y habilitar()
-            return $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
+            // Datos y stock se guardan juntos: si uno falla, no se aplica ninguno
+            $this->db->beginTransaction();
+            try {
+                $resultado = $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
+                if ($nuevoStock !== null) {
+                    $this->fijarStock($codigo, $nuevoStock);
+                }
+                $this->db->commit();
+                return $resultado;
+            } catch (Throwable $e) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                throw $e;
+            }
         } catch (PDOException $e) {
             throw errorAmigable('Error al actualizar el insumo', $e);
         }
+    }
+
+    /**
+     * Deja el stock de un material exactamente en $nuevoStock. Debe llamarse dentro de una transacción.
+     * @param string $codigo Código del insumo
+     * @param float $nuevoStock Stock real (0 o más)
+     */
+    private function fijarStock($codigo, $nuevoStock) {
+        $insumo = $this->db->fetchOne(
+            "SELECT i.id_insumo, i.id_stock_actual, t.tipo
+             FROM insumos i INNER JOIN tipo t ON i.id_tipo = t.id_tipo
+             WHERE i.codigo = :codigo FOR UPDATE OF i",
+            ['codigo' => $codigo]
+        );
+        if (!$insumo) {
+            throw new Exception("No se encontró el insumo '{$codigo}'.");
+        }
+        if ($insumo['tipo'] === 'Herramienta') {
+            throw new Exception("El stock de una herramienta lo controlan sus entregas y devoluciones, no se edita a mano.");
+        }
+
+        if (empty($insumo['id_stock_actual'])) {
+            $nuevo = $this->db->insert('stock_actual', ['stock_actual' => $nuevoStock]);
+            Database::execute(
+                "UPDATE insumos SET id_stock_actual = :s WHERE id_insumo = :id",
+                ['s' => $nuevo['id_stock_actual'], 'id' => $insumo['id_insumo']]
+            );
+            return;
+        }
+        Database::execute(
+            "UPDATE stock_actual SET stock_actual = :stock, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
+            ['stock' => (string)$nuevoStock, 'id' => $insumo['id_stock_actual']]
+        );
     }
 
     /**

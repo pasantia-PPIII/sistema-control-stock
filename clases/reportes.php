@@ -9,8 +9,10 @@ function obtenerKPISReporte(): array
     $stmtCriticos = $pdo->query("
         SELECT COUNT(*) AS total 
         FROM insumos i
+        LEFT JOIN tipo t ON i.id_tipo = t.id_tipo
         LEFT JOIN stock_actual sa ON i.id_stock_actual = sa.id_stock_actual
-        WHERE i.activo = TRUE 
+        WHERE i.activo = TRUE
+          AND COALESCE(t.tipo, '') <> 'Herramienta'
           AND COALESCE(sa.stock_actual, 0) <= i.stock_minimo
     ");
     $criticos = (int) ($stmtCriticos->fetchColumn() ?: 0);
@@ -62,7 +64,9 @@ function obtenerListaStockCritico(): array
         LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
         LEFT JOIN ubicacion u ON i.id_ubicacion = u.id_ubicacion
         LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
-        WHERE i.activo = TRUE 
+        LEFT JOIN tipo t ON i.id_tipo = t.id_tipo
+        WHERE i.activo = TRUE
+          AND COALESCE(t.tipo, '') <> 'Herramienta'
           AND COALESCE(sa.stock_actual, 0) <= i.stock_minimo
         ORDER BY (i.stock_minimo - COALESCE(sa.stock_actual, 0)) DESC
     ";
