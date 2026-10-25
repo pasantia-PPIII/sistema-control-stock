@@ -14,7 +14,7 @@ if (!isAuthenticated()) {
     exit;
 }
 
-require_once __DIR__ . '/../clases/reportes.php';
+require_once __DIR__ . '/../clases/auditoria.php';
 
 $id_movimiento = (int) ($_GET['id'] ?? 0);
 
