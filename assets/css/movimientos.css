@@ -525,3 +525,28 @@
     margin-bottom: 1.5rem;
     line-height: 1.45;
 }
+/* Autocompletado unificado */
+.autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    margin-top: 0.25rem;
+}
+.autocomplete-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #1e293b;
+}
+.autocomplete-item:hover {
+    background: #eff6ff;
+    color: #1d4ed8;
+}

@@ -166,17 +166,11 @@ include_once __DIR__ . '/../layout/header.php';
 
         <!-- Cabecera del Movimiento -->
         <div class="form-grid-3">
-            <div class="form-group">
-                <label for="id_operario">Operario <?= $esDevolucion ? 'que Devuelve' : 'Responsable' ?> *</label>
-                <input type="text" id="buscar-operario" class="form-control" placeholder="Escriba DNI, apellido o nombre..." style="margin-bottom: 0.5rem;">
-<select id="id_operario" name="id_operario" class="form-control" required>
-                    <option value="">-- Seleccionar Operario --</option>
-                    <?php foreach ($operarios as $op): ?>
-                        <option value="<?= (int)$op['id_operario'] ?>" <?= ($idOperarioPre === (int)$op['id_operario']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($op['apellido'] . ', ' . $op['nombre'] . ' - DNI: ' . $op['dni']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="form-group" style="position: relative;">
+                <label for="buscar-operario">Operario <?= $esDevolucion ? 'que Devuelve' : 'Responsable' ?> *</label>
+                <input type="text" id="buscar-operario" class="form-control" placeholder="Escriba DNI, apellido o nombre..." autocomplete="off" value="<?= $idOperarioPre ? htmlspecialchars(($opSel = array_filter($operarios, fn($o) => (int)$o['id_operario'] === $idOperarioPre)) ? reset($opSel)['apellido'] . ', ' . reset($opSel)['nombre'] . ' - DNI: ' . reset($opSel)['dni'] : '') : '' ?>">
+                <input type="hidden" id="id_operario" name="id_operario" value="<?= $idOperarioPre ?: '' ?>">
+                <div id="lista-operarios" class="autocomplete-list" style="display:none;"></div>
             </div>
 
             <div class="form-group">
@@ -201,27 +195,11 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
 
         <div class="form-grid-3" style="background-color: #f8fafc; padding: 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; align-items: flex-end;">
-            <div class="form-group" style="flex: 2;">
-                <label for="selector-insumo">Buscar Insumo o Herramienta</label>
-                <input type="text" id="buscar-insumo" class="form-control" placeholder="Escriba código o nombre para filtrar..." style="margin-bottom: 0.5rem;">
-                <select id="selector-insumo" class="form-control">
-                    <option value="">-- Buscar por código o nombre --</option>
-                    <?php foreach ($insumos as $ins):
-                        $stock = (float)($ins['stock_actual'] ?? 0);
-                        $esHerramienta = ((int)$ins['id_tipo'] === 2);
-                        $tipo = $esHerramienta ? 'Herramienta' : 'Material';
-                        $unidad = $ins['unidad_medida'] ?? 'unidades';
-                    ?>
-                        <option value="<?= htmlspecialchars($ins['codigo']) ?>"
-                                data-nombre="<?= htmlspecialchars($ins['nombre']) ?>"
-                                data-tipo="<?= $tipo ?>"
-                                data-unidad="<?= htmlspecialchars($unidad) ?>"
-                                data-stock="<?= $stock ?>"
-                                <?= (!$esDevolucion && $stock <= 0) ? 'disabled' : '' ?>>
-                            <?= htmlspecialchars("{$ins['codigo']} - {$ins['nombre']} ({$tipo}) - Stock: {$stock} {$unidad}") ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="form-group" style="flex: 2; position: relative;">
+                <label for="buscar-insumo">Buscar Insumo o Herramienta</label>
+                <input type="text" id="buscar-insumo" class="form-control" placeholder="Escriba código o nombre..." autocomplete="off">
+                <input type="hidden" id="selector-insumo" value="">
+                <div id="lista-insumos" class="autocomplete-list" style="display:none;"></div>
             </div>
 
             <div class="form-group" style="flex: 1;">
@@ -269,6 +247,26 @@ const ES_DEVOLUCION = <?= $esDevolucion ? 'true' : 'false' ?>;
 const ESTADOS_HERRAMIENTA = <?= json_encode($estadosHerramienta, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 const COLUMNAS_TABLA = ES_DEVOLUCION ? 7 : 6;
 
+const OPERARIOS = <?= json_encode(array_map(function ($op) {
+    return [
+        'id' => (int)$op['id_operario'],
+        'text' => $op['apellido'] . ', ' . $op['nombre'] . ' - DNI: ' . $op['dni']
+    ];
+}, $operarios), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+const INSUMOS = <?= json_encode(array_map(function ($ins) {
+    $stock = (float)($ins['stock_actual'] ?? 0);
+    $esHerramienta = ((int)$ins['id_tipo'] === 2);
+    return [
+        'codigo' => $ins['codigo'],
+        'nombre' => $ins['nombre'],
+        'tipo' => $esHerramienta ? 'Herramienta' : 'Material',
+        'unidad' => $esHerramienta ? '-' : ($ins['unidad_medida'] ?? 'unidades'),
+        'stock' => $stock,
+        'texto' => $ins['codigo'] . ' - ' . $ins['nombre'] . ' (' . ($esHerramienta ? 'Herramienta' : 'Material') . ') - Stock: ' . $stock . ' ' . ($esHerramienta ? '' : ($ins['unidad_medida'] ?? 'unidades'))
+    ];
+}, $insumos), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
 // Ítems agregados en memoria (id_insumo = código del insumo)
 let itemsMovimiento = [];
 
@@ -290,28 +288,28 @@ function escaparHtml(texto) {
     return div.innerHTML;
 }
 
+let insumoSeleccionado = null;
+
 function agregarItem() {
-    const select = document.getElementById('selector-insumo');
     const inputCant = document.getElementById('input-cantidad');
 
-    const codigo = select.value;
-    const cantidad = parseFloat(inputCant.value);
-
-    if (!codigo) {
+    if (!insumoSeleccionado) {
         alert('Por favor, seleccione un insumo o herramienta de la lista.');
         return;
     }
+
+    const codigo = insumoSeleccionado.codigo;
+    const cantidad = parseFloat(inputCant.value);
 
     if (isNaN(cantidad) || cantidad <= 0) {
         alert('Ingrese una cantidad válida mayor a cero.');
         return;
     }
 
-    const opt = select.options[select.selectedIndex];
-    const nombre = opt.getAttribute('data-nombre');
-    const tipo = opt.getAttribute('data-tipo');
-    const unidad = opt.getAttribute('data-unidad');
-    const stock = parseFloat(opt.getAttribute('data-stock'));
+    const nombre = insumoSeleccionado.nombre;
+    const tipo = insumoSeleccionado.tipo;
+    const unidad = insumoSeleccionado.unidad;
+    const stock = insumoSeleccionado.stock;
 
     const indexExistente = itemsMovimiento.findIndex(it => it.id_insumo === codigo);
     const cantidadTotal = (indexExistente >= 0 ? itemsMovimiento[indexExistente].cantidad : 0) + cantidad;
@@ -336,7 +334,8 @@ function agregarItem() {
     }
 
     renderizarTablaItems();
-    select.value = '';
+    insumoSeleccionado = null;
+    document.getElementById('buscar-insumo').value = '';
     inputCant.value = '1';
 }
 
@@ -418,33 +417,97 @@ function renderizarTablaItems() {
     tbody.innerHTML = html;
 }
 
-// Filtros de búsqueda para selects
+// Autocompletado unificado para operario
 (function () {
-    const buscarOperario = document.getElementById('buscar-operario');
-    const selectOperario = document.getElementById('id_operario');
-    if (buscarOperario && selectOperario) {
-        buscarOperario.addEventListener('input', function () {
-            const term = this.value.toLowerCase();
-            Array.from(selectOperario.options).forEach(opt => {
-                if (opt.value === '') { opt.style.display = ''; return; }
-                opt.style.display = opt.text.toLowerCase().includes(term) ? '' : 'none';
-            });
-        });
+    const input = document.getElementById('buscar-operario');
+    const hidden = document.getElementById('id_operario');
+    const lista = document.getElementById('lista-operarios');
+    if (!input || !hidden || !lista) return;
+
+    function render(term) {
+        const t = term.toLowerCase();
+        const filtrados = OPERARIOS.filter(o => o.text.toLowerCase().includes(t)).slice(0, 15);
+        if (filtrados.length === 0 || term === '') {
+            lista.style.display = 'none';
+            lista.innerHTML = '';
+            return;
+        }
+        lista.innerHTML = filtrados.map(o =>
+            '<div class="autocomplete-item" data-id="' + o.id + '">' + escaparHtml(o.text) + '</div>'
+        ).join('');
+        lista.style.display = 'block';
     }
-    const buscarInsumo = document.getElementById('buscar-insumo');
-    const selectInsumo = document.getElementById('selector-insumo');
-    if (buscarInsumo && selectInsumo) {
-        buscarInsumo.addEventListener('input', function () {
-            const term = this.value.toLowerCase();
-            Array.from(selectInsumo.options).forEach(opt => {
-                if (opt.value === '') { opt.style.display = ''; return; }
-                opt.style.display = opt.text.toLowerCase().includes(term) ? '' : 'none';
-            });
-        });
-    }
+
+    input.addEventListener('input', function () {
+        hidden.value = '';
+        render(this.value);
+    });
+
+    lista.addEventListener('click', function (e) {
+        const item = e.target.closest('.autocomplete-item');
+        if (!item) return;
+        const id = item.getAttribute('data-id');
+        const op = OPERARIOS.find(o => String(o.id) === String(id));
+        if (op) {
+            input.value = op.text;
+            hidden.value = op.id;
+        }
+        lista.style.display = 'none';
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!input.contains(e.target) && !lista.contains(e.target)) {
+            lista.style.display = 'none';
+        }
+    });
 })();
 
-function enviarMovimiento(e) {
+// Autocompletado unificado para insumo
+(function () {
+    const input = document.getElementById('buscar-insumo');
+    const lista = document.getElementById('lista-insumos');
+    if (!input || !lista) return;
+
+    function render(term) {
+        const t = term.toLowerCase();
+        const filtrados = INSUMOS.filter(i => i.texto.toLowerCase().includes(t)).slice(0, 15);
+        if (filtrados.length === 0 || term === '') {
+            lista.style.display = 'none';
+            lista.innerHTML = '';
+            return;
+        }
+        lista.innerHTML = filtrados.map(i =>
+            '<div class="autocomplete-item" data-codigo="' + escaparHtml(i.codigo) + '">' + escaparHtml(i.texto) + '</div>'
+        ).join('');
+        lista.style.display = 'block';
+    }
+
+    input.addEventListener('input', function () {
+        insumoSeleccionado = null;
+        render(this.value);
+    });
+
+    lista.addEventListener('click', function (e) {
+        const item = e.target.closest('.autocomplete-item');
+        if (!item) return;
+        const codigo = item.getAttribute('data-codigo');
+        const ins = INSUMOS.find(i => i.codigo === codigo);
+        if (ins) {
+            input.value = ins.texto;
+            insumoSeleccionado = ins;
+        }
+        lista.style.display = 'none';
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!input.contains(e.target) && !lista.contains(e.target)) {
+            lista.style.display = 'none';
+        }
+    });
+})();
+
+
+
     e.preventDefault();
 
     if (!document.getElementById('id_operario').value) {
