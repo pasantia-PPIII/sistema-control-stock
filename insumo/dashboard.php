@@ -177,7 +177,12 @@ include_once __DIR__ . '/../layout/header.php';
         <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= max(1, $paginaActual - 1) ?>)" <?= ($paginaActual <= 1) ? 'disabled' : '' ?>>
             Anterior
         </button>
-        <?php for ($p = 1; $p <= $totalPaginas; $p++): ?>
+        <?php
+$ventanaPag = 10;
+$inicioPag = max(1, min($paginaActual - 4, $totalPaginas - $ventanaPag + 1));
+$finPag = min($totalPaginas, $inicioPag + $ventanaPag - 1);
+for ($p = $inicioPag; $p <= $finPag; $p++):
+?>
             <button type="button" class="pagination-btn <?= ($p === $paginaActual) ? 'active' : '' ?>" onclick="cambiarPagina(<?= $p ?>)">
                 <?= $p ?>
             </button>

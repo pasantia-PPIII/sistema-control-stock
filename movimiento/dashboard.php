@@ -340,7 +340,10 @@ function renderizarPaginacion(totalPaginas, pagina) {
     let html = '';
     html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.max(1, pagina - 1)})" ${pagina <= 1 ? 'disabled' : ''}>Anterior</button>`;
 
-    for (let p = 1; p <= totalPaginas; p++) {
+    const ventanaPag = 10;
+        let inicioPag = Math.max(1, Math.min(paginaActual - 4, totalPaginas - ventanaPag + 1));
+        let finPag = Math.min(totalPaginas, inicioPag + ventanaPag - 1);
+        for (let p = inicioPag; p <= finPag; p++) {
         html += `<button type="button" class="pagination-btn ${p === pagina ? 'active' : ''}" onclick="cambiarPagina(${p})">${p}</button>`;
     }
 
