@@ -489,11 +489,11 @@ include_once __DIR__ . '/../layout/header.php';
             <div class="form-grid-2">
                 <div>
                     <label class="modal-label" for="crear-fecha-inicio">Fecha de Inicio Estimada</label>
-                    <input type="date" id="crear-fecha-inicio" name="fecha_inicio" class="modal-input">
+                    <input type="date" id="crear-fecha-inicio" name="fecha_inicio" class="modal-input" min="<?= date('Y-m-d') ?>">
                 </div>
                 <div>
                     <label class="modal-label" for="crear-fecha-final">Fecha de Finalización Estimada</label>
-                    <input type="date" id="crear-fecha-final" name="fecha_final" class="modal-input">
+                    <input type="date" id="crear-fecha-final" name="fecha_final" class="modal-input" min="<?= date('Y-m-d') ?>">
                 </div>
             </div>
 
@@ -574,7 +574,7 @@ include_once __DIR__ . '/../layout/header.php';
                 <div class="grid-2-col">
                     <div>
                         <label class="modal-label">Fecha de Inicio *</label>
-                        <input type="date" name="fecha_inicio" id="papel-fecha-inicio" class="modal-input" required>
+                        <input type="date" name="fecha_inicio" id="papel-fecha-inicio" class="modal-input" required min="<?= date('Y-m-d') ?>">
                     </div>
                     <div>
                         <label class="modal-label">Hora Inicio</label>
@@ -584,7 +584,7 @@ include_once __DIR__ . '/../layout/header.php';
                 <div class="grid-2-col">
                     <div>
                         <label class="modal-label">Fecha Terminación</label>
-                        <input type="date" name="fecha_final" id="papel-fecha-final" class="modal-input">
+                        <input type="date" name="fecha_final" id="papel-fecha-final" class="modal-input" min="<?= date('Y-m-d') ?>">
                     </div>
                     <div>
                         <label class="modal-label">Hora Terminación</label>

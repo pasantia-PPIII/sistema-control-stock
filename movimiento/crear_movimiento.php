@@ -168,7 +168,8 @@ include_once __DIR__ . '/../layout/header.php';
         <div class="form-grid-3">
             <div class="form-group">
                 <label for="id_operario">Operario <?= $esDevolucion ? 'que Devuelve' : 'Responsable' ?> *</label>
-                <select id="id_operario" name="id_operario" class="form-control" required>
+                <input type="text" id="buscar-operario" class="form-control" placeholder="Escriba DNI, apellido o nombre..." style="margin-bottom: 0.5rem;">
+<select id="id_operario" name="id_operario" class="form-control" required>
                     <option value="">-- Seleccionar Operario --</option>
                     <?php foreach ($operarios as $op): ?>
                         <option value="<?= (int)$op['id_operario'] ?>" <?= ($idOperarioPre === (int)$op['id_operario']) ? 'selected' : '' ?>>
@@ -180,7 +181,7 @@ include_once __DIR__ . '/../layout/header.php';
 
             <div class="form-group">
                 <label for="fecha">Fecha de <?= $esDevolucion ? 'Devolución' : 'Entrega' ?> *</label>
-                <input type="date" id="fecha" name="fecha" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                <input type="date" id="fecha" name="fecha" class="form-control" value="<?= date('Y-m-d') ?>" min="<?= date('Y-m-d') ?>" required>
             </div>
 
             <div class="form-group">
@@ -201,7 +202,8 @@ include_once __DIR__ . '/../layout/header.php';
 
         <div class="form-grid-3" style="background-color: #f8fafc; padding: 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; align-items: flex-end;">
             <div class="form-group" style="flex: 2;">
-                <label for="selector-insumo">Seleccionar Insumo o Herramienta</label>
+                <label for="selector-insumo">Buscar Insumo o Herramienta</label>
+                <input type="text" id="buscar-insumo" class="form-control" placeholder="Escriba código o nombre para filtrar..." style="margin-bottom: 0.5rem;">
                 <select id="selector-insumo" class="form-control">
                     <option value="">-- Buscar por código o nombre --</option>
                     <?php foreach ($insumos as $ins):
@@ -415,6 +417,32 @@ function renderizarTablaItems() {
 
     tbody.innerHTML = html;
 }
+
+// Filtros de búsqueda para selects
+(function () {
+    const buscarOperario = document.getElementById('buscar-operario');
+    const selectOperario = document.getElementById('id_operario');
+    if (buscarOperario && selectOperario) {
+        buscarOperario.addEventListener('input', function () {
+            const term = this.value.toLowerCase();
+            Array.from(selectOperario.options).forEach(opt => {
+                if (opt.value === '') { opt.style.display = ''; return; }
+                opt.style.display = opt.text.toLowerCase().includes(term) ? '' : 'none';
+            });
+        });
+    }
+    const buscarInsumo = document.getElementById('buscar-insumo');
+    const selectInsumo = document.getElementById('selector-insumo');
+    if (buscarInsumo && selectInsumo) {
+        buscarInsumo.addEventListener('input', function () {
+            const term = this.value.toLowerCase();
+            Array.from(selectInsumo.options).forEach(opt => {
+                if (opt.value === '') { opt.style.display = ''; return; }
+                opt.style.display = opt.text.toLowerCase().includes(term) ? '' : 'none';
+            });
+        });
+    }
+})();
 
 function enviarMovimiento(e) {
     e.preventDefault();

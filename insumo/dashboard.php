@@ -267,7 +267,7 @@ include_once __DIR__ . '/../layout/header.php';
                     </div>
                     <div class="modal-form-group" id="grupo-vencimiento-cargar" style="display: none;">
                         <label>Fecha de Vencimiento</label>
-                        <input type="date" name="fecha_vencimiento" id="cargar-fecha-vencimiento" class="modal-input">
+                        <input type="date" name="fecha_vencimiento" id="cargar-fecha-vencimiento" class="modal-input" min="<?= date('Y-m-d') ?>">
                     </div>
                 </div>
             </div>
@@ -381,7 +381,7 @@ include_once __DIR__ . '/../layout/header.php';
             <div class="modal-grid-2" id="grupo-vencimiento-edit" style="display: none;">
                 <div class="modal-form-group">
                     <label>Fecha de Vencimiento</label>
-                    <input type="date" id="edit-fecha-vencimiento" name="fecha_vencimiento" class="modal-input">
+                    <input type="date" id="edit-fecha-vencimiento" name="fecha_vencimiento" class="modal-input" min="<?= date('Y-m-d') ?>">
                 </div>
             </div>
 
