@@ -179,9 +179,10 @@ $h = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
                             </td>
                             <td style="padding:0.65rem 0.5rem; text-align:right;">
                                 <a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($i['codigo']) ?>"
-                                    class="btn-action-text view"
-                                    style="text-decoration:none; font-size:0.75rem; padding:0.3rem 0.6rem;">
-                                    Ver Ficha
+                                    class="btn-action-icon view"
+                                    title="Ver Ficha de Insumo"
+                                    style="display:inline-flex;">
+                                    <?= iconoAccion('view') ?>
                                 </a>
                             </td>
                         </tr>

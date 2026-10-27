@@ -35,18 +35,80 @@ class OrdenDeTrabajo {
     }
 
     /**
-     * Obtiene una Orden de Trabajo específica por su id
-     * @param int $id_odt ID de la orden
-     * @return array|false Datos de la Orden de trabajo
+     * Obtiene órdenes de trabajo filtradas con soporte para activas o deshabilitadas
+     * @param string $busqueda Término de búsqueda
+     * @param string $estado Filtro por estado ('Pendiente', 'En Proceso', 'Pausada', 'Finalizada', 'Anulada', 'Deshabilitadas')
+     * @param bool $mostrar_inactivas Si es true o estado === 'Deshabilitadas', filtra activo = FALSE
+     * @return array
      */
-    public function getById($id_odt) {
+    public function getFiltrados(string $busqueda = '', string $estado = '', bool $mostrar_inactivas = false): array {
         $sql = "SELECT o.*, 
                        l.localidad as nombre_localidad,
                        j.jurisdiccion as nombre_jurisdiccion
                 FROM orden_de_trabajo o
                 LEFT JOIN localidad l ON o.id_localidad = l.id_localidad
                 LEFT JOIN jurisdiccion j ON o.id_jurisdiccion = j.id_jurisdiccion
-                WHERE o.id_odt = :id_odt AND o.activo = TRUE";
+                WHERE 1=1";
+        
+        $params = [];
+        if ($mostrar_inactivas || $estado === 'Deshabilitadas') {
+            $sql .= " AND o.activo = FALSE";
+        } else {
+            $sql .= " AND o.activo = TRUE";
+            if ($estado !== '') {
+                $sql .= " AND o.estado = :estado";
+                $params[':estado'] = $estado;
+            }
+        }
+        if ($busqueda !== '') {
+            $sql .= " AND (CAST(o.id_odt AS TEXT) ILIKE :busq OR o.numero_ot ILIKE :busq OR o.pa ILIKE :busq OR o.trabajo_a_realizar ILIKE :busq)";
+            $params[':busq'] = '%' . $busqueda . '%';
+        }
+
+        $sql .= " ORDER BY o.fecha_inicio DESC, o.id_odt DESC";
+        return Database::fetchAll($sql, $params);
+    }
+
+    /**
+     * Cuenta la cantidad de órdenes filtradas
+     */
+    public function contarFiltrados(string $busqueda = '', string $estado = '', bool $mostrar_inactivas = false): int {
+        $sql = "SELECT COUNT(*) as total FROM orden_de_trabajo o WHERE 1=1";
+        $params = [];
+        if ($mostrar_inactivas || $estado === 'Deshabilitadas') {
+            $sql .= " AND o.activo = FALSE";
+        } else {
+            $sql .= " AND o.activo = TRUE";
+            if ($estado !== '') {
+                $sql .= " AND o.estado = :estado";
+                $params[':estado'] = $estado;
+            }
+        }
+        if ($busqueda !== '') {
+            $sql .= " AND (CAST(o.id_odt AS TEXT) ILIKE :busq OR o.numero_ot ILIKE :busq OR o.pa ILIKE :busq OR o.trabajo_a_realizar ILIKE :busq)";
+            $params[':busq'] = '%' . $busqueda . '%';
+        }
+        $res = Database::fetch($sql, $params);
+        return (int)($res['total'] ?? 0);
+    }
+
+    /**
+     * Obtiene una Orden de Trabajo específica por su id
+     * @param int $id_odt ID de la orden
+     * @param bool $incluir_inactivas Si es true, busca aunque esté deshabilitada
+     * @return array|false Datos de la Orden de trabajo
+     */
+    public function getById($id_odt, bool $incluir_inactivas = false) {
+        $sql = "SELECT o.*, 
+                       l.localidad as nombre_localidad,
+                       j.jurisdiccion as nombre_jurisdiccion
+                FROM orden_de_trabajo o
+                LEFT JOIN localidad l ON o.id_localidad = l.id_localidad
+                LEFT JOIN jurisdiccion j ON o.id_jurisdiccion = j.id_jurisdiccion
+                WHERE o.id_odt = :id_odt";
+        if (!$incluir_inactivas) {
+            $sql .= " AND o.activo = TRUE";
+        }
 
         return $this->db->fetchOne($sql, ['id_odt' => $id_odt]);
     }
@@ -513,31 +575,39 @@ class OrdenDeTrabajo {
     // =========================================================
 
     /**
-     * Anula una Orden de Trabajo.
+     * Deshabilita una Orden de Trabajo (baja lógica estricta, jamás DELETE).
+     * @param int $id ID de la orden
+     * @return bool
+     */
+    public function deshabilitar(int $id): bool {
+        return Database::execute("UPDATE orden_de_trabajo SET activo = FALSE WHERE id_odt = :id", [':id' => $id]);
+    }
+
+    /**
+     * Reintegra / habilita una Orden de Trabajo deshabilitada.
+     * @param int $id ID de la orden
+     * @return bool
+     */
+    public function habilitar(int $id): bool {
+        return Database::execute("UPDATE orden_de_trabajo SET activo = TRUE WHERE id_odt = :id", [':id' => $id]);
+    }
+
+    /**
+     * Anula una Orden de Trabajo (alias de deshabilitar).
      * @param int $id_odt ID de la orden
      * @return bool
      */
     public function anular($id_odt) {
-        try {
-            $data = ['activo' => false];
-            return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
-        } catch (PDOException $e) {
-            throw errorAmigable('Error al anular la Orden de Trabajo', $e);
-        }
+        return $this->deshabilitar((int)$id_odt);
     }
 
     /**
-     * Reactiva una Orden de Trabajo anulada.
+     * Reactiva una Orden de Trabajo anulada (alias de habilitar).
      * @param int $id_odt ID de la orden
      * @return bool
      */
     public function reactivar($id_odt) {
-        try {
-            $data = ['activo' => true];
-            return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
-        } catch (PDOException $e) {
-            throw errorAmigable('Error al reactivar la Orden de Trabajo', $e);
-        }
+        return $this->habilitar((int)$id_odt);
     }
 
     // =========================================================

@@ -29,19 +29,40 @@ try {
         throw new Exception('El identificador de la Orden de Trabajo es obligatorio.');
     }
 
+    $accion = isset($_POST['accion']) ? trim((string)$_POST['accion']) : 'deshabilitar';
+
     $odtModel = new OrdenDeTrabajo();
-    $orden = $odtModel->getById($idOdt);
+    $orden = $odtModel->getById($idOdt, true);
     if (!$orden) {
-        throw new Exception("La Orden de Trabajo #{$idOdt} no existe o ya fue anulada.");
+        throw new Exception("La Orden de Trabajo #{$idOdt} no existe.");
     }
 
-    $odtModel->anular($idOdt);
+    $numeroOt = $orden['numero_ot'] ?? "#{$idOdt}";
 
-    echo json_encode([
-        'success' => true,
-        'message' => "La Orden de Trabajo '{$orden['numero_ot']}' fue deshabilitada correctamente.",
-        'id_odt'  => $idOdt
-    ]);
+    if ($accion === 'habilitar') {
+        $ok = $odtModel->habilitar($idOdt);
+        if (!$ok) {
+            throw new Exception("No se pudo reintegrar la Orden de Trabajo '{$numeroOt}'.");
+        }
+        echo json_encode([
+            'success' => true,
+            'message' => "La Orden de Trabajo '{$numeroOt}' fue reintegrada con éxito.",
+            'id_odt'  => $idOdt,
+            'accion'  => 'habilitar'
+        ]);
+    } else {
+        // Ejecutar baja lógica (UPDATE activo = FALSE, NUNCA DELETE)
+        $ok = $odtModel->deshabilitar($idOdt);
+        if (!$ok) {
+            throw new Exception("No se pudo deshabilitar la Orden de Trabajo '{$numeroOt}'.");
+        }
+        echo json_encode([
+            'success' => true,
+            'message' => "La Orden de Trabajo '{$numeroOt}' fue deshabilitada.",
+            'id_odt'  => $idOdt,
+            'accion'  => 'deshabilitar'
+        ]);
+    }
 } catch (Throwable $e) {
     echo json_encode(['success' => false, 'error' => safeErrorMessage($e)]);
 }

@@ -148,20 +148,20 @@ include_once __DIR__ . '/../layout/header.php';
                 <div><?= htmlspecialchars($estadoVenc) ?></div>
                 
                 <div class="actions-cell" onclick="event.stopPropagation()">
-                    <button type="button" class="btn-action-text view" title="Ver Detalles" 
+                    <button type="button" class="btn-action-icon view" title="Ver Detalles" 
                             onclick='abrirModalDetalles(<?= json_encode($ins, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
-                        Ver
+                        <?= iconoAccion('view') ?>
                     </button>
                     
                     <?php if (canEdit()): ?>
-                    <button type="button" class="btn-action-text edit" title="Editar Insumo" 
+                    <button type="button" class="btn-action-icon edit" title="Editar Insumo" 
                             onclick='abrirModalEditar(<?= json_encode($ins, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
-                        Editar
+                        <?= iconoAccion('edit') ?>
                     </button>
 
-                    <button type="button" class="btn-action-text disable" title="Deshabilitar Insumo" 
+                    <button type="button" class="btn-action-icon disable" title="Deshabilitar Insumo" 
                             onclick="abrirModalDeshabilitar('<?= htmlspecialchars($ins['codigo'], ENT_QUOTES) ?>', '<?= htmlspecialchars($ins['nombre'], ENT_QUOTES) ?>')">
-                        Deshabilitar
+                        <?= iconoAccion('disable') ?>
                     </button>
                     <?php endif; ?>
                 </div>
@@ -562,15 +562,15 @@ function renderizarTabla(insumos) {
             <div>${escaparHtml(estadoVenc)}</div>
             
             <div class="actions-cell" onclick="event.stopPropagation()">
-                <button type="button" class="btn-action-text view" title="Ver Detalles" onclick="abrirModalDetalles(${jsonStr})">
-                    Ver
+                <button type="button" class="btn-action-icon view" title="Ver Detalles" onclick="abrirModalDetalles(${jsonStr})">
+                    ${window.APP_ICONS.view}
                 </button>
                 ${APP_PERMISOS.editar ? `
-                <button type="button" class="btn-action-text edit" title="Editar Insumo" onclick="abrirModalEditar(${jsonStr})">
-                    Editar
+                <button type="button" class="btn-action-icon edit" title="Editar Insumo" onclick="abrirModalEditar(${jsonStr})">
+                    ${window.APP_ICONS.edit}
                 </button>
-                <button type="button" class="btn-action-text disable" title="Deshabilitar Insumo" onclick="abrirModalDeshabilitar('${escaparHtml(ins.codigo)}', '${escaparHtml(ins.nombre)}')">
-                    Deshabilitar
+                <button type="button" class="btn-action-icon disable" title="Deshabilitar Insumo" onclick="abrirModalDeshabilitar('${escaparHtml(ins.codigo)}', '${escaparHtml(ins.nombre)}')">
+                    ${window.APP_ICONS.disable}
                 </button>
                 `: ''}
             </div>

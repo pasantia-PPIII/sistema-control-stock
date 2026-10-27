@@ -138,23 +138,24 @@ include_once __DIR__ . '/../layout/header.php';
                     <div><?= $rubroTxt ?></div>
 
                     <div class="actions-cell" onclick="event.stopPropagation()">
-                        <a href="detalle_operario.php?id=<?= $idOp ?>" class="btn-action-text view" title="Ver Ficha">Ver
-                            Ficha</a>
+                        <a href="detalle_operario.php?id=<?= $idOp ?>" class="btn-action-icon view" title="Ver Ficha">
+                            <?= iconoAccion('view') ?>
+                        </a>
                         <?php if (isAdmin()): ?>
-                            <button type="button" class="btn-action-text edit" title="Editar Operario"
+                            <button type="button" class="btn-action-icon edit" title="Editar Operario"
                                 onclick='abrirModalEditar(<?= json_encode($op, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
-                                Editar
+                                <?= iconoAccion('edit') ?>
                             </button>
 
                             <?php if ($esActivo): ?>
-                                <button type="button" class="btn-action-text disable" title="Deshabilitar Operario"
+                                <button type="button" class="btn-action-icon disable" title="Deshabilitar Operario"
                                     onclick="abrirModalDeshabilitar(<?= $idOp ?>, '<?= htmlspecialchars($op['dni'], ENT_QUOTES) ?>', '<?= htmlspecialchars($nombreCompleto, ENT_QUOTES) ?>')">
-                                    Deshabilitar
+                                    <?= iconoAccion('disable') ?>
                                 </button>
                             <?php else: ?>
-                                <button type="button" class="btn-action-text enable" title="Habilitar Operario"
+                                <button type="button" class="btn-action-icon enable" title="Habilitar Operario"
                                     onclick="habilitarOperario(<?= $idOp ?>, '<?= htmlspecialchars($nombreCompleto, ENT_QUOTES) ?>')">
-                                    Habilitar
+                                    <?= iconoAccion('enable') ?>
                                 </button>
                             <?php endif; ?>
                         <?php endif; ?>
@@ -414,13 +415,13 @@ include_once __DIR__ . '/../layout/header.php';
 
             const jsonStr = JSON.stringify(op).replace(/"/g, '&quot;');
             const btnAccionEstado = !APP_PERMISOS.admin ? '' : (esActivo ? `
-            <button type="button" class="btn-action-text disable" title="Deshabilitar Operario" 
+            <button type="button" class="btn-action-icon disable" title="Deshabilitar Operario" 
                     onclick="abrirModalDeshabilitar(${idOp}, '${escaparHtml(op.dni)}', '${nombreCompleto}')">
-                Deshabilitar
+                ${window.APP_ICONS.disable}
             </button>` : `
-            <button type="button" class="btn-action-text enable" title="Habilitar Operario" 
+            <button type="button" class="btn-action-icon enable" title="Habilitar Operario" 
                     onclick="habilitarOperario(${idOp}, '${nombreCompleto}')">
-                Habilitar
+                ${window.APP_ICONS.enable}
             </button>`);
 
             html += `
@@ -431,10 +432,10 @@ include_once __DIR__ . '/../layout/header.php';
             <div>${rubroTxt}</div>
             
             <div class="actions-cell" onclick="event.stopPropagation()">
-                <a href="detalle_operario.php?id=${idOp}" class="btn-action-text view" title="Ver Ficha">Ver Ficha</a>
+                <a href="detalle_operario.php?id=${idOp}" class="btn-action-icon view" title="Ver Ficha">${window.APP_ICONS.view}</a>
                 ${APP_PERMISOS.admin ? `
-                <button type="button" class="btn-action-text edit" title="Editar Operario" onclick="abrirModalEditar(${jsonStr})">
-                    Editar
+                <button type="button" class="btn-action-icon edit" title="Editar Operario" onclick="abrirModalEditar(${jsonStr})">
+                    ${window.APP_ICONS.edit}
                 </button>
                 `: ''}
                 ${btnAccionEstado}

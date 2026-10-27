@@ -36,7 +36,17 @@ $alerta_flash = getAlert();
     <?php if (isset($css_modulo)): ?>
         <link rel="stylesheet" href="<?= $baseUrl ?>/assets/css/<?= htmlspecialchars($css_modulo) ?>.css">
     <?php endif; ?>
-    <script>window.APP_PERMISOS = <?= json_encode(permisosActuales(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+    <script>
+        window.APP_PERMISOS = <?= json_encode(permisosActuales(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+        window.APP_ICONS = {
+            view: <?= json_encode(iconoAccion('view')) ?>,
+            edit: <?= json_encode(iconoAccion('edit')) ?>,
+            disable: <?= json_encode(iconoAccion('disable')) ?>,
+            delete: <?= json_encode(iconoAccion('delete')) ?>,
+            enable: <?= json_encode(iconoAccion('enable')) ?>,
+            dispatch: <?= json_encode(iconoAccion('dispatch')) ?>
+        };
+    </script>
 </head>
 <body class="admin-layout">
 

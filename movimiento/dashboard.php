@@ -161,12 +161,12 @@ include_once __DIR__ . '/../layout/header.php';
                 <div><span class="badge badge-neutral"><?= $cantItems ?> ítem(s)</span></div>
                 
                 <div class="actions-cell">
-                    <button type="button" class="btn-action-text view" title="Ver Detalle del Movimiento" onclick="abrirModalDetalle(<?= $m['id_movimiento'] ?>)">
-                        Ver Detalle
+                    <button type="button" class="btn-action-icon view" title="Ver Detalle del Movimiento" onclick="abrirModalDetalle(<?= $m['id_movimiento'] ?>)">
+                        <?= iconoAccion('view') ?>
                     </button>
                     <?php if (canEdit() && !empty($m['activo']) && $m['activo'] !== 'f'): ?>
-                    <button type="button" class="btn-action-text disable" title="Anular Movimiento" onclick="anularMovimiento(<?= (int)$m['id_movimiento'] ?>)">
-                        Anular
+                    <button type="button" class="btn-action-icon disable" title="Anular Movimiento" onclick="anularMovimiento(<?= (int)$m['id_movimiento'] ?>)">
+                        <?= iconoAccion('disable') ?>
                     </button>
                     <?php endif; ?>
                 </div>
@@ -312,12 +312,12 @@ function renderizarTabla(movimientos) {
             <div><span class="badge badge-neutral">${cantItems} ítem(s)</span></div>
             
             <div class="actions-cell">
-                <button type="button" class="btn-action-text view" title="Ver Detalle del Movimiento" onclick="abrirModalDetalle(${m.id_movimiento})">
-                    Ver Detalle
+                <button type="button" class="btn-action-icon view" title="Ver Detalle del Movimiento" onclick="abrirModalDetalle(${m.id_movimiento})">
+                    ${window.APP_ICONS.view}
                 </button>
                 ${(APP_PERMISOS.editar && (m.activo === true || m.activo === 't' || m.activo == 1)) ? `
-                <button type="button" class="btn-action-text disable" title="Anular Movimiento" onclick="anularMovimiento(${m.id_movimiento})">
-                    Anular
+                <button type="button" class="btn-action-icon disable" title="Anular Movimiento" onclick="anularMovimiento(${m.id_movimiento})">
+                    ${window.APP_ICONS.disable}
                 </button>` : ''}
             </div>
         </div>`;

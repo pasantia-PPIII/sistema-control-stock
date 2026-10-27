@@ -275,4 +275,110 @@ button.btn-logout {
 .btn-action-text.delete:hover,
 .btn-action-text.disable:hover {
     background-color: #fee2e2;
-}
+}
+
+/* =========================================================
+   ICONOS Y CELDAS DE ACCIONES GLOBALES (Orden de Trabajo, Insumos, Rubros, etc.)
+   ========================================================= */
+.actions-cell {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.btn-action-icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background-color: #f8fafc;
+    color: #475569;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+    text-decoration: none;
+    box-sizing: border-box;
+    line-height: 1;
+}
+
+.btn-action-icon:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.btn-action-icon:active {
+    transform: translateY(0);
+}
+
+.btn-action-icon svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+    pointer-events: none;
+    stroke: currentColor;
+    flex-shrink: 0;
+}
+
+.btn-action-icon.view {
+    background-color: #f1f5f9;
+    color: #0b1536;
+    border-color: #cbd5e1;
+}
+
+.btn-action-icon.view:hover {
+    background-color: #e2e8f0;
+    color: #002b66;
+}
+
+.btn-action-icon.dispatch {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border-color: #bae6fd;
+}
+
+.btn-action-icon.dispatch:hover {
+    background-color: #bae6fd;
+    color: #0284c7;
+}
+
+.btn-action-icon.edit {
+    background-color: #eff6ff;
+    color: #2563eb;
+    border-color: #bfdbfe;
+}
+
+.btn-action-icon.edit:hover {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+}
+
+.btn-action-icon.disable,
+.btn-action-icon.delete {
+    background-color: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+.btn-action-icon.disable:hover,
+.btn-action-icon.delete:hover {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+.btn-action-icon.enable {
+    background-color: #f0fdf4;
+    color: #166534;
+    border-color: #bbf7d0;
+}
+
+.btn-action-icon.enable:hover {
+    background-color: #dcfce7;
+    color: #14532d;
+}
+
