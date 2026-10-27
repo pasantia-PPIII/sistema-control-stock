@@ -887,6 +887,23 @@ function ejecutarCambioEstadoInsumo(e) {
         mostrarAlerta('Error de conexión: ' + err.message, false);
     });
 }
+
+<?php
+// Enlace directo desde Reportes (?editar=ID): abre el modal de edición de ese insumo.
+$insumoAEditar = null;
+if (canEdit() && isset($_GET['editar'])) {
+    foreach ($insumoModel->getAll(true) as $ins) {
+        if ((int)$ins['id_insumo'] === (int)$_GET['editar'] && $ins['activo']) {
+            $insumoAEditar = $ins;
+            break;
+        }
+    }
+}
+if ($insumoAEditar): ?>
+document.addEventListener('DOMContentLoaded', function () {
+    abrirModalEditar(<?= json_encode($insumoAEditar, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>);
+});
+<?php endif; ?>
 </script>
 
 <?php

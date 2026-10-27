@@ -1,460 +1,437 @@
 <?php
-/**
- * reporte/dashboard.php
- * Módulo de Reportes: alerta de stock crítico (compras) y auditoría histórica de movimientos.
- *
- * - Stock crítico: Insumo::getAll(), filtrando los insumos con stock actual <= stock mínimo.
- * - Auditoría: Movimiento::getByFecha() según el período elegido, con filtro de texto en PHP.
- */
-
+// reporte/dashboard.php
+// Reportes y métricas del sistema de control de stock.
+// Las definiciones de cada métrica están en clases/reportes.php (las mismas que usa el Panel de Control).
+// config.php inicia la sesión con la cookie endurecida; la autenticación se valida antes de consultar la BD.
 require_once __DIR__ . '/../config/config.php';
+
 if (!isAuthenticated()) {
-    if (isset($_GET['ajax'])) {
-        http_response_code(401);
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['success' => false, 'error' => 'Sesión no iniciada. Inicie sesión nuevamente.']);
-        exit;
-    }
     redirect('auth/login.php');
 }
 
 $seccion = 'reportes';
 $css_modulo = 'reportes';
-$titulo_vista = 'Reportes y Auditoría';
+$titulo_vista = 'Reportes';
 $titulo_pagina = 'Reportes - Sistema de Control de Stock';
 
-require_once __DIR__ . '/../clases/insumo.php';
-require_once __DIR__ . '/../clases/movimiento.php';
+require_once __DIR__ . '/../clases/reportes.php';
+require_once __DIR__ . '/../clases/auditoria.php';
 
-$insumoModel = new Insumo();
-$movimientoModel = new Movimiento();
+// ---------------------------------------------------------------------------------------------
+// Pestañas (los nombres anteriores 'compras' y 'rubros' siguen funcionando)
+// ---------------------------------------------------------------------------------------------
+$pestanias = [
+    'stock' => 'Stock',
+    'movimientos' => 'Movimientos',
+    'herramientas' => 'Herramientas',
+    'ordenes' => 'Órdenes de trabajo',
+    'consumo' => 'Consumo',
+    'auditoria' => 'Historial',
+];
+$alias = ['compras' => 'stock', 'rubros' => 'consumo'];
+$tab_reporte = $_GET['tab'] ?? 'stock';
+$tab_reporte = $alias[$tab_reporte] ?? $tab_reporte;
+if (!isset($pestanias[$tab_reporte])) {
+    $tab_reporte = 'stock';
+}
 
-// Pestaña activa ('stock' o 'auditoria')
-$tabActiva = isset($_GET['tab']) && $_GET['tab'] === 'auditoria' ? 'auditoria' : 'stock';
+// ---------------------------------------------------------------------------------------------
+// Utilidades de presentación
+// ---------------------------------------------------------------------------------------------
+$h = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 
-// Filtros para la pestaña de auditoría
-$periodo = isset($_GET['periodo']) ? trim((string)$_GET['periodo']) : 'hoy';
-$fechaDesde = !empty($_GET['fecha_desde']) ? trim((string)$_GET['fecha_desde']) : null;
-$fechaHasta = !empty($_GET['fecha_hasta']) ? trim((string)$_GET['fecha_hasta']) : null;
-$busqueda = isset($_GET['busqueda']) ? trim((string)$_GET['busqueda']) : null;
-
-/**
- * Movimientos del período (o del rango manual) filtrados por texto.
- */
-function obtenerAuditoria(Movimiento $movimientoModel, string $periodo, ?string $desde, ?string $hasta, ?string $busqueda): array
+/** Número al estilo local (1.234,5), sin ceros decimales sobrantes. */
+function rp_num($valor, int $decimales = 2): string
 {
-    $hoy = date('Y-m-d');
-
-    if ($desde !== null || $hasta !== null) {
-        $desde = $desde ?? '1900-01-01';
-        $hasta = $hasta ?? $hoy;
-    } else {
-        switch ($periodo) {
-            case 'semana':
-                $desde = date('Y-m-d', strtotime('monday this week'));
-                break;
-            case 'mes':
-                $desde = date('Y-m-01');
-                break;
-            case 'anio':
-                $desde = date('Y-01-01');
-                break;
-            default: // 'hoy'
-                $desde = $hoy;
-        }
-        $hasta = $hoy;
+    $txt = number_format((float) $valor, $decimales, ',', '.');
+    if ($decimales > 0) {
+        $txt = rtrim(rtrim($txt, '0'), ',');
     }
-
-    $registros = $movimientoModel->getByFecha($desde, $hasta);
-
-    if ($busqueda !== null && $busqueda !== '') {
-        $registros = array_values(array_filter($registros, function ($r) use ($busqueda) {
-            $texto = ($r['nombre_operario'] ?? '') . ' ' . $r['dni_usuario'] . ' ' . ($r['observaciones'] ?? '') . ' ' . $r['nombre_tipo_movimiento'];
-            return stripos($texto, $busqueda) !== false;
-        }));
-    }
-
-    return $registros;
+    return $txt;
 }
 
-// =========================================================================
-// RESPUESTA AJAX PARA LA TABLA DE AUDITORÍA DINÁMICA
-// =========================================================================
-if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
-    header('Content-Type: application/json; charset=utf-8');
-
-    $registrosAuditoria = obtenerAuditoria($movimientoModel, $periodo, $fechaDesde, $fechaHasta, $busqueda);
-
-    echo json_encode([
-        'success' => true,
-        'data'    => $registrosAuditoria,
-        'total'   => count($registrosAuditoria)
-    ]);
-    exit;
+function rp_fecha($fecha): string
+{
+    return $fecha ? date('d/m/Y', strtotime((string) $fecha)) : '-';
 }
 
-// Stock crítico (materiales): stock actual <= stock mínimo. Se sugiere comprar lo necesario para llegar al doble del mínimo.
-// Las herramientas quedan afuera: su stock es 1 (en el pañol) o 0 (prestada), no una cantidad a reponer.
-$itemsStockCritico = array_values(array_filter($insumoModel->getAll(), function ($ins) {
-    return ($ins['nombre_tipo'] ?? '') !== 'Herramienta'
-        && (float)($ins['stock_actual'] ?? 0) <= (float)($ins['stock_minimo'] ?? 0);
-}));
-$itemsStockCritico = array_map(function ($ins) {
-    $ins['sugerido_comprar'] = max(0, ((float)$ins['stock_minimo'] * 2) - (float)($ins['stock_actual'] ?? 0));
-    return $ins;
-}, $itemsStockCritico);
-
-$registrosAuditoria = obtenerAuditoria($movimientoModel, $periodo, $fechaDesde, $fechaHasta, $busqueda);
-
-include_once __DIR__ . '/../layout/header.php';
-?>
-
-<!-- Encabezado de Impresión Institucional (Exclusivo para window.print) -->
-<div class="print-only-header">
-    <h2 style="margin: 0; font-size: 16pt;">Poder Judicial de Corrientes - DAM</h2>
-    <h3 style="margin: 5px 0; font-size: 13pt;">Sistema de Control de Stock - Reporte Oficial</h3>
-    <p style="margin: 0; font-size: 9pt; color: #555;">Fecha de Emisión: <?= date('d/m/Y H:i:s') ?></p>
-    <hr style="border: 1px solid #000; margin: 15px 0;">
-</div>
-
-<!-- Barra Superior con Botón de Impresión / Exportación -->
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-    <div>
-        <p style="color: #64748b; font-size: 0.9rem; margin: 0;">
-            Monitoreo preventivo de existencias para compras y trazabilidad histórica de auditoría.
-        </p>
-    </div>
-    <button type="button" class="btn-print-report" onclick="window.print()">
-        Imprimir / Exportar
-    </button>
-</div>
-
-<!-- Navegación de Sub-pestañas Principales -->
-<div class="report-nav-tabs">
-    <button type="button" id="tab-btn-stock" class="report-nav-tab <?= ($tabActiva === 'stock') ? 'active' : '' ?>" onclick="cambiarPestana('stock')">
-        Alerta Stock Mínimo (Compras) (<?= count($itemsStockCritico) ?>)
-    </button>
-    <button type="button" id="tab-btn-auditoria" class="report-nav-tab <?= ($tabActiva === 'auditoria') ? 'active' : '' ?>" onclick="cambiarPestana('auditoria')">
-        Historial de Auditoría
-    </button>
-</div>
-
-<!-- ========================================================================= -->
-<!-- PESTAÑA 1: ALERTA STOCK MÍNIMO (COMPRAS) -->
-<!-- ========================================================================= -->
-<div id="seccion-stock-critico" style="display: <?= ($tabActiva === 'stock') ? 'block' : 'none' ?>;">
-
-    <!-- Métricas Clave de Compras -->
-    <div class="kpi-cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
-        <div class="kpi-card">
-            <div class="kpi-body">
-                <div class="kpi-label">Insumos en Estado Crítico</div>
-                <div class="kpi-value" style="color: #dc2626;"><?= count($itemsStockCritico) ?></div>
-            </div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-body">
-                <div class="kpi-label">Criterio de Alerta</div>
-                <div class="kpi-value" style="font-size: 1rem; color: #475569; font-weight: 600;">Stock Actual &le; Stock Mínimo</div>
-            </div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-body">
-                <div class="kpi-label">Acción Operativa Sugerida</div>
-                <div class="kpi-value" style="font-size: 1rem; color: #166534; font-weight: 600;">Emisión de Pedido de Compra</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tabla de Insumos Críticos -->
-    <div class="report-table-responsive">
-        <table class="report-table">
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Nombre del Insumo</th>
-                    <th>Rubro</th>
-                    <th>Ubicación</th>
-                    <th>Unidad</th>
-                    <th style="text-align: right;">Stock Actual</th>
-                    <th style="text-align: right;">Stock Mínimo</th>
-                    <th style="text-align: right;">Sugerido a Comprar</th>
-                    <th style="text-align: center;">Acción</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($itemsStockCritico)): ?>
-                    <tr>
-                        <td colspan="9" class="empty-state">
-                            No hay insumos en nivel crítico. Todas las existencias se encuentran por encima del stock de seguridad.
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($itemsStockCritico as $item): 
-                        $codigo = htmlspecialchars($item['codigo'], ENT_QUOTES, 'UTF-8');
-                        $nombre = htmlspecialchars($item['nombre'], ENT_QUOTES, 'UTF-8');
-                        $rubro = !empty($item['nombre_rubro']) ? htmlspecialchars($item['nombre_rubro'], ENT_QUOTES, 'UTF-8') : '-';
-                        $ubicacion = !empty($item['nombre_ubicacion']) ? htmlspecialchars($item['nombre_ubicacion'], ENT_QUOTES, 'UTF-8') : '-';
-                        $unidad = !empty($item['unidad_medida']) ? htmlspecialchars($item['unidad_medida'], ENT_QUOTES, 'UTF-8') : '-';
-                        $stockActual = (float)$item['stock_actual'];
-                        $stockMinimo = (float)$item['stock_minimo'];
-                        $sugerido = (float)$item['sugerido_comprar'];
-                    ?>
-                    <tr>
-                        <td><strong><?= $codigo ?></strong></td>
-                        <td><?= $nombre ?></td>
-                        <td><?= $rubro ?></td>
-                        <td><?= $ubicacion ?></td>
-                        <td><?= $unidad ?></td>
-                        <td style="text-align: right;">
-                            <span class="badge-critico"><?= $stockActual ?></span>
-                        </td>
-                        <td style="text-align: right; font-weight: 700; color: #475569;">
-                            <?= $stockMinimo ?>
-                        </td>
-                        <td style="text-align: right;">
-                            <span class="badge-sugerido">+<?= $sugerido ?></span>
-                        </td>
-                        <td style="text-align: center;">
-                            <a href="<?= rtrim(BASE_URL, '/') ?>/insumo/dashboard.php?busqueda=<?= rawurlencode($item['codigo']) ?>" class="btn-action-comprar" title="Cargar el stock de este insumo desde Insumos (botón Editar)">
-                                Cargar Stock
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- ========================================================================= -->
-<!-- PESTAÑA 2: HISTORIAL DE AUDITORÍA -->
-<!-- ========================================================================= -->
-<div id="seccion-auditoria" style="display: <?= ($tabActiva === 'auditoria') ? 'block' : 'none' ?>;">
-
-    <!-- Barra de Filtros de Auditoría -->
-    <form id="form-filtros-auditoria" onsubmit="aplicarFiltrosAuditoria(event)" class="audit-filter-bar">
-        <!-- Selector Rápido de Período -->
-        <div class="period-buttons-group">
-            <button type="button" class="btn-periodo <?= ($periodo === 'hoy' && empty($fechaDesde)) ? 'active' : '' ?>" onclick="seleccionarPeriodo('hoy')">
-                Diario
-            </button>
-            <button type="button" class="btn-periodo <?= ($periodo === 'semana' && empty($fechaDesde)) ? 'active' : '' ?>" onclick="seleccionarPeriodo('semana')">
-                Semanal
-            </button>
-            <button type="button" class="btn-periodo <?= ($periodo === 'mes' && empty($fechaDesde)) ? 'active' : '' ?>" onclick="seleccionarPeriodo('mes')">
-                Mensual
-            </button>
-            <button type="button" class="btn-periodo <?= ($periodo === 'anio' && empty($fechaDesde)) ? 'active' : '' ?>" onclick="seleccionarPeriodo('anio')">
-                Anual
-            </button>
-        </div>
-
-        <input type="hidden" id="filtro-periodo" name="periodo" value="<?= htmlspecialchars($periodo, ENT_QUOTES, 'UTF-8') ?>">
-
-        <!-- Rango de Fechas Manual -->
-        <div class="date-filter-group">
-            <label style="font-size: 0.8rem; font-weight: 600; color: #64748b;">Desde:</label>
-            <input type="date" id="filtro-fecha-desde" name="fecha_desde" class="date-filter-input" value="<?= htmlspecialchars($fechaDesde ?? '', ENT_QUOTES, 'UTF-8') ?>">
-            
-            <label style="font-size: 0.8rem; font-weight: 600; color: #64748b;">Hasta:</label>
-            <input type="date" id="filtro-fecha-hasta" name="fecha_hasta" class="date-filter-input" value="<?= htmlspecialchars($fechaHasta ?? '', ENT_QUOTES, 'UTF-8') ?>">
-        </div>
-
-        <!-- Buscador por Texto -->
-        <input type="text" id="filtro-busqueda" name="busqueda" class="audit-search-input" placeholder="Buscar por usuario, operario u observación..." value="<?= htmlspecialchars($busqueda ?? '', ENT_QUOTES, 'UTF-8') ?>">
-
-        <!-- Botones de Acción -->
-        <button type="submit" class="btn-filter-action">Filtrar</button>
-        <button type="button" class="btn-filter-clear" onclick="limpiarFiltrosAuditoria()">Limpiar</button>
-    </form>
-
-    <!-- Tabla de Registros de Auditoría -->
-    <div class="report-table-responsive">
-        <table class="report-table">
-            <thead>
-                <tr>
-                    <th>Fecha y Hora</th>
-                    <th>Operación</th>
-                    <th>Operario Responsable</th>
-                    <th>Usuario del Sistema</th>
-                    <th>Observaciones</th>
-                </tr>
-            </thead>
-            <tbody id="tabla-auditoria-body">
-                <?php if (empty($registrosAuditoria)): ?>
-                    <tr>
-                        <td colspan="5" class="empty-state">
-                            No se encontraron registros de auditoría para el período y criterios seleccionados.
-                        </td>
-                    </tr>
-                <?php else: ?>
-                    <?php foreach ($registrosAuditoria as $aud): 
-                        $fechaHora = htmlspecialchars($aud['fecha'] . ' ' . substr($aud['hora'], 0, 5), ENT_QUOTES, 'UTF-8');
-                        $tipoMov = htmlspecialchars($aud['nombre_tipo_movimiento'], ENT_QUOTES, 'UTF-8');
-
-                        $operario = !empty($aud['nombre_operario'])
-                            ? htmlspecialchars($aud['nombre_operario'], ENT_QUOTES, 'UTF-8')
-                            : 'No aplica';
-
-                        $usuarioInfo = htmlspecialchars($aud['dni_usuario'], ENT_QUOTES, 'UTF-8');
-
-                        $observaciones = !empty($aud['observaciones']) ? htmlspecialchars($aud['observaciones'], ENT_QUOTES, 'UTF-8') : 'Sin observaciones';
-                    ?>
-                    <tr>
-                        <td style="white-space: nowrap; font-weight: 600;"><?= $fechaHora ?></td>
-                        <td><strong><?= $tipoMov ?></strong></td>
-                        <td><?= $operario ?></td>
-                        <td><?= $usuarioInfo ?></td>
-                        <td><?= $observaciones ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- ========================================================================= -->
-<!-- LÓGICA JAVASCRIPT / AJAX -->
-<!-- ========================================================================= -->
-<script>
-function escaparHtml(texto) {
-    if (texto === null || texto === undefined) return '';
-    return String(texto)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+function rp_dias(int $dias): string
+{
+    return $dias === 1 ? '1 día' : $dias . ' días';
 }
 
-function cambiarPestana(nombreTab) {
-    const tabStockBtn = document.getElementById('tab-btn-stock');
-    const tabAuditoriaBtn = document.getElementById('tab-btn-auditoria');
-    const seccionStock = document.getElementById('seccion-stock-critico');
-    const seccionAuditoria = document.getElementById('seccion-auditoria');
+// ---------------------------------------------------------------------------------------------
+// Paginación: cada listado tiene su propio parámetro p_<clave>, así que paginar una sección no
+// mueve las demás. Se conservan el resto de los parámetros de la URL (pestaña, período, etc.).
+// ---------------------------------------------------------------------------------------------
+const RP_POR_PAGINA = 10;
 
-    if (nombreTab === 'auditoria') {
-        tabStockBtn.classList.remove('active');
-        tabAuditoriaBtn.classList.add('active');
-        seccionStock.style.display = 'none';
-        seccionAuditoria.style.display = 'block';
-    } else {
-        tabAuditoriaBtn.classList.remove('active');
-        tabStockBtn.classList.add('active');
-        seccionAuditoria.style.display = 'none';
-        seccionStock.style.display = 'block';
-    }
-
-    // Actualiza la URL sin recargar la página para permitir compartir/recargar en la misma pestaña
-    const url = new URL(window.location);
-    url.searchParams.set('tab', nombreTab);
-    window.history.replaceState({}, '', url);
+/** URL de esta página con los parámetros actuales y los $cambios indicados (null o '' los quita). */
+function rp_url(array $cambios, string $ancla = ''): string
+{
+    $params = array_filter(array_merge($_GET, $cambios), fn($v) => $v !== null && $v !== '');
+    return 'dashboard.php?' . http_build_query($params) . ($ancla !== '' ? '#' . $ancla : '');
 }
 
-function seleccionarPeriodo(periodo) {
-    document.getElementById('filtro-periodo').value = periodo;
-    document.getElementById('filtro-fecha-desde').value = '';
-    document.getElementById('filtro-fecha-hasta').value = '';
-
-    document.querySelectorAll('.btn-periodo').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    const botones = document.querySelectorAll('.btn-periodo');
-    if (periodo === 'hoy') botones[0].classList.add('active');
-    else if (periodo === 'semana') botones[1].classList.add('active');
-    else if (periodo === 'mes') botones[2].classList.add('active');
-    else if (periodo === 'anio') botones[3].classList.add('active');
-
-    cargarAuditoriaAjax();
+/** Recorta $filas a la página pedida en $_GET['p_<clave>'] (por defecto la 1). */
+function rp_paginar(array $filas, string $clave, int $porPagina = RP_POR_PAGINA): array
+{
+    $total = count($filas);
+    $paginas = max(1, (int) ceil($total / $porPagina));
+    $pagina = min(max(1, (int) ($_GET['p_' . $clave] ?? 1)), $paginas);
+    $desde = ($pagina - 1) * $porPagina;
+    return [
+        'clave' => $clave,
+        'filas' => array_slice($filas, $desde, $porPagina),
+        'pagina' => $pagina,
+        'paginas' => $paginas,
+        'total' => $total,
+        'desde' => $total > 0 ? $desde + 1 : 0,
+        'hasta' => min($total, $desde + $porPagina),
+    ];
 }
 
-function aplicarFiltrosAuditoria(e) {
-    if (e) e.preventDefault();
-    const fDesde = document.getElementById('filtro-fecha-desde').value;
-    const fHasta = document.getElementById('filtro-fecha-hasta').value;
-
-    // Si se especifican fechas manuales, deseleccionamos el período rápido
-    if (fDesde || fHasta) {
-        document.querySelectorAll('.btn-periodo').forEach(btn => btn.classList.remove('active'));
-        document.getElementById('filtro-periodo').value = '';
-    }
-
-    cargarAuditoriaAjax();
-}
-
-function limpiarFiltrosAuditoria() {
-    document.getElementById('filtro-fecha-desde').value = '';
-    document.getElementById('filtro-fecha-hasta').value = '';
-    document.getElementById('filtro-busqueda').value = '';
-    seleccionarPeriodo('hoy');
-}
-
-function cargarAuditoriaAjax() {
-    const periodo = encodeURIComponent(document.getElementById('filtro-periodo').value);
-    const fDesde = encodeURIComponent(document.getElementById('filtro-fecha-desde').value);
-    const fHasta = encodeURIComponent(document.getElementById('filtro-fecha-hasta').value);
-    const busqueda = encodeURIComponent(document.getElementById('filtro-busqueda').value.trim());
-
-    const tbody = document.getElementById('tabla-auditoria-body');
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; color:#64748b;">Cargando registros de auditoría...</td></tr>';
-
-    const url = `dashboard.php?ajax=1&periodo=${periodo}&fecha_desde=${fDesde}&fecha_hasta=${fHasta}&busqueda=${busqueda}`;
-
-    fetch(url, { credentials: 'same-origin' })
-        .then(response => {
-            if (!response.ok) throw new Error('Error al conectar con el servidor.');
-            return response.json();
-        })
-        .then(res => {
-            if (!res.success) throw new Error(res.error || 'No se pudieron obtener los datos de auditoría.');
-            renderizarTablaAuditoria(res.data);
-        })
-        .catch(err => {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:2rem; color:#dc2626;">Error: ${escaparHtml(err.message)}</td></tr>`;
-        });
-}
-
-function renderizarTablaAuditoria(registros) {
-    const tbody = document.getElementById('tabla-auditoria-body');
-    if (!tbody) return;
-
-    if (!registros || registros.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No se encontraron registros de auditoría para el período y criterios seleccionados.</td></tr>';
+/** Navegación entre páginas de un listado. No muestra nada si todo entra en una sola página. */
+function rp_paginador(array $p): void
+{
+    if ($p['paginas'] <= 1) {
         return;
     }
+    $e = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+    $ancla = 'sec-' . $p['clave'];
+    $enlace = fn(int $n) => $e(rp_url(['p_' . $p['clave'] => $n > 1 ? $n : null], $ancla));
 
-    let html = '';
-    registros.forEach(r => {
-        const horaCorta = r.hora ? r.hora.substring(0, 5) : '';
-        const fechaHora = escaparHtml(`${r.fecha} ${horaCorta}`);
-        const tipoMov = escaparHtml(r.nombre_tipo_movimiento || '-');
+    $visibles = array_unique(array_merge([1, $p['paginas']], range(max(1, $p['pagina'] - 1), min($p['paginas'], $p['pagina'] + 1))));
+    sort($visibles);
 
-        const operario = r.nombre_operario ? escaparHtml(r.nombre_operario) : 'No aplica';
-
-        const usuarioInfo = escaparHtml(r.dni_usuario || '-');
-
-        const observaciones = r.observaciones ? escaparHtml(r.observaciones) : 'Sin observaciones';
-
-        html += `
-        <tr>
-            <td style="white-space: nowrap; font-weight: 600;">${fechaHora}</td>
-            <td><strong>${tipoMov}</strong></td>
-            <td>${operario}</td>
-            <td>${usuarioInfo}</td>
-            <td>${observaciones}</td>
-        </tr>`;
-    });
-
-    tbody.innerHTML = html;
+    echo '<nav class="rp-paginacion" aria-label="Paginación del listado">';
+    echo '<span class="rp-paginacion__info">Mostrando ' . $p['desde'] . '-' . $p['hasta'] . ' de ' . $p['total'] . '</span>';
+    echo '<span class="rp-paginacion__botones">';
+    echo $p['pagina'] > 1
+        ? '<a class="rp-pag" href="' . $enlace($p['pagina'] - 1) . '">Anterior</a>'
+        : '<span class="rp-pag rp-pag--off">Anterior</span>';
+    $previa = 0;
+    foreach ($visibles as $n) {
+        if ($n - $previa > 1) {
+            echo '<span class="rp-pag rp-pag--puntos" aria-hidden="true">…</span>';
+        }
+        echo $n === $p['pagina']
+            ? '<span class="rp-pag rp-pag--actual" aria-current="page">' . $n . '</span>'
+            : '<a class="rp-pag" href="' . $enlace($n) . '" aria-label="Página ' . $n . '">' . $n . '</a>';
+        $previa = $n;
+    }
+    echo $p['pagina'] < $p['paginas']
+        ? '<a class="rp-pag" href="' . $enlace($p['pagina'] + 1) . '">Siguiente</a>'
+        : '<span class="rp-pag rp-pag--off">Siguiente</span>';
+    echo '</span></nav>';
 }
+
+/** Porcentaje (0-100) de $valor respecto de $maximo, para el ancho de las barras. */
+function rp_pct($valor, $maximo): int
+{
+    return $maximo > 0 ? (int) max(0, min(100, round(((float) $valor / (float) $maximo) * 100))) : 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Datos: los KPIs se calculan siempre; el detalle, solo de la pestaña activa
+// ---------------------------------------------------------------------------------------------
+$vencimientosTotales = Reportes::totalVencimientos(30);
+$ordenesPorEstado = Reportes::ordenesPorEstado();
+$kpis = [
+    'criticos' => Reportes::totalStockCritico(),
+    'vencidos' => $vencimientosTotales['vencidos'],
+    'por_vencer' => $vencimientosTotales['por_vencer'],
+    'htas_prestadas' => Reportes::totalHerramientasPrestadas(),
+    'htas_reparacion' => Reportes::totalHerramientasEnReparacion(),
+    'ot_en_curso' => Reportes::totalOrdenesEnCurso(),
+    'ot_activas' => array_sum($ordenesPorEstado),
+    'ot_vencidas' => Reportes::totalOrdenesVencidas(),
+    'mov_mes' => Reportes::totalMovimientosMes(),
+    'mov_hoy' => Reportes::totalMovimientosHoy(),
+];
+
+$rango = Reportes::rangoValido($_GET['rango'] ?? null);
+
+switch ($tab_reporte) {
+    case 'stock':
+        $stockCritico = Reportes::stockCritico();
+        $stockInmovil = Reportes::stockInmovil(90);
+        $vencimientos = Reportes::vencimientos(30);
+        $higiene = Reportes::higieneDatos();
+        break;
+    case 'movimientos':
+        $movPorTipo = Reportes::movimientosPorTipo($rango);
+        $actividadDiaria = Reportes::movimientosPorDia(30);
+        $evolucion = Reportes::evolucionMensual(6);
+        $ultimosMov = Reportes::ultimosMovimientos(50);
+        break;
+    case 'herramientas':
+        $htasPorEstado = Reportes::herramientasPorEstado();
+        $htasPrestadas = Reportes::herramientasPrestadas();
+        $htasPorOperario = Reportes::herramientasPrestadasPorOperario();
+        break;
+    case 'ordenes':
+        $otVencidas = Reportes::ordenesVencidas();
+        $htasSinDevolver = Reportes::herramientasSinDevolverEnOrdenesCerradas();
+        $rangoOt = Reportes::rangoOrdenesValido($_GET['rango_ot'] ?? null);
+        $ordenesPeriodo = Reportes::ordenesPorEstado($rangoOt);
+        break;
+    case 'consumo':
+        $topInsumos = Reportes::topInsumosConsumidos($rango, 200);
+        $porRubro = Reportes::consumoPorRubro($rango);
+        $porOperario = Reportes::consumoPorOperario($rango, 200);
+        $porOrden = Reportes::consumoPorOrden($rango, 200);
+        $porJurisdiccion = Reportes::consumoPorJurisdiccion($rango);
+        $ajustes = Reportes::ajustesPorInsumo($rango, 200);
+        break;
+    case 'auditoria':
+        $periodo = $_GET['periodo'] ?? 'hoy';
+        $buscar = trim($_GET['buscar'] ?? '');
+        $desde = trim($_GET['desde'] ?? '');
+        $hasta = trim($_GET['hasta'] ?? '');
+        $tipo_mov = trim($_GET['tipo_mov'] ?? '');
+        $auditoria = obtenerAuditoriaMovimientos($periodo, $desde ?: null, $hasta ?: null, $buscar ?: null, $tipo_mov ?: null);
+        $pgAud = rp_paginar($auditoria, 'aud');
+        break;
+}
+
+require_once __DIR__ . '/../layout/header.php';
+?>
+
+<!-- INDICADORES -->
+<div class="rp-kpis">
+    <a class="rp-kpi <?= $kpis['criticos'] > 0 ? 'rp-kpi--alerta' : 'rp-kpi--ok' ?>" href="dashboard.php?tab=stock">
+        <span class="rp-kpi__titulo">Stock crítico</span>
+        <span class="rp-kpi__valor"><?= $kpis['criticos'] ?></span>
+        <span class="rp-kpi__detalle">materiales en o bajo el mínimo</span>
+    </a>
+    <a class="rp-kpi <?= $kpis['vencidos'] > 0 ? 'rp-kpi--alerta' : ($kpis['por_vencer'] > 0 ? 'rp-kpi--aviso' : 'rp-kpi--ok') ?>"
+        href="dashboard.php?tab=stock#sec-venc">
+        <span class="rp-kpi__titulo">Vencidos con stock</span>
+        <span class="rp-kpi__valor"><?= $kpis['vencidos'] ?></span>
+        <span class="rp-kpi__detalle"><?= $kpis['por_vencer'] ?> por vencer en 30 días</span>
+    </a>
+    <a class="rp-kpi <?= $kpis['htas_prestadas'] > 0 ? 'rp-kpi--aviso' : 'rp-kpi--ok' ?>" href="dashboard.php?tab=herramientas">
+        <span class="rp-kpi__titulo">Herramientas prestadas</span>
+        <span class="rp-kpi__valor"><?= $kpis['htas_prestadas'] ?></span>
+        <span class="rp-kpi__detalle"><?= $kpis['htas_reparacion'] ?> en reparación</span>
+    </a>
+    <a class="rp-kpi rp-kpi--info" href="dashboard.php?tab=ordenes">
+        <span class="rp-kpi__titulo">Órdenes en curso</span>
+        <span class="rp-kpi__valor"><?= $kpis['ot_en_curso'] ?></span>
+        <span class="rp-kpi__detalle">de <?= $kpis['ot_activas'] ?> órdenes activas</span>
+    </a>
+    <a class="rp-kpi rp-kpi--info" href="dashboard.php?tab=movimientos">
+        <span class="rp-kpi__titulo">Movimientos del mes</span>
+        <span class="rp-kpi__valor"><?= $kpis['mov_mes'] ?></span>
+        <span class="rp-kpi__detalle"><?= $kpis['mov_hoy'] ?> hoy</span>
+    </a>
+</div>
+
+<!-- PESTAÑAS -->
+<nav class="rp-tabs" aria-label="Secciones de reportes">
+    <?php foreach ($pestanias as $clave => $titulo): ?>
+        <a href="dashboard.php?tab=<?= $h($clave) ?>" class="rp-tab <?= $tab_reporte === $clave ? 'rp-tab--activa' : '' ?>"
+            <?= $tab_reporte === $clave ? 'aria-current="page"' : '' ?>><?= $h($titulo) ?></a>
+    <?php endforeach; ?>
+</nav>
+
+<?php if ($tab_reporte === 'stock'): ?>
+    <?php include __DIR__ . '/tabs/stock.php'; ?>
+<?php elseif ($tab_reporte === 'movimientos'): ?>
+    <?php include __DIR__ . '/tabs/movimientos.php'; ?>
+<?php elseif ($tab_reporte === 'herramientas'): ?>
+    <?php include __DIR__ . '/tabs/herramientas.php'; ?>
+<?php elseif ($tab_reporte === 'ordenes'): ?>
+    <?php include __DIR__ . '/tabs/ordenes.php'; ?>
+<?php elseif ($tab_reporte === 'consumo'): ?>
+    <?php include __DIR__ . '/tabs/consumo.php'; ?>
+<?php else: ?>
+    <!-- TABLA DE AUDITORÍA -->
+    <div class="card" id="sec-aud"
+        style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: #475569; margin-right: 0.5rem;">Período:</span>
+            <a href="<?= $h(rp_url(['periodo' => 'hoy', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>"
+                style="text-decoration: none; padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 4px; font-weight: 600; background: <?= ($periodo === 'hoy' && !$desde && !$hasta) ? '#0b1536; color:#fff;' : '#f1f5f9; color:#475569;' ?>">Diario
+                (Hoy)</a>
+            <a href="<?= $h(rp_url(['periodo' => 'semana', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>"
+                style="text-decoration: none; padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 4px; font-weight: 600; background: <?= ($periodo === 'semana' && !$desde && !$hasta) ? '#0b1536; color:#fff;' : '#f1f5f9; color:#475569;' ?>">Semanal</a>
+            <a href="<?= $h(rp_url(['periodo' => 'mes', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>"
+                style="text-decoration: none; padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 4px; font-weight: 600; background: <?= ($periodo === 'mes' && !$desde && !$hasta) ? '#0b1536; color:#fff;' : '#f1f5f9; color:#475569;' ?>">Mensual</a>
+            <a href="<?= $h(rp_url(['periodo' => 'anio', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>"
+                style="text-decoration: none; padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 4px; font-weight: 600; background: <?= ($periodo === 'anio' && !$desde && !$hasta) ? '#0b1536; color:#fff;' : '#f1f5f9; color:#475569;' ?>">Anual</a>
+        </div>
+
+        <form method="GET" action="dashboard.php"
+            style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap;">
+            <input type="hidden" name="tab" value="auditoria">
+            <input type="hidden" name="periodo" value="<?= $h($periodo) ?>">
+            <input type="text" name="buscar" value="<?= htmlspecialchars($buscar) ?>"
+                placeholder="Buscar por responsable, operario o nota..." class="form-input"
+                style="flex: 2; min-width: 200px; padding: 0.45rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+
+            <select name="tipo_mov" class="form-input"
+                style="padding: 0.45rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+                <option value="">Todos los Tipos</option>
+                <option value="Entrega" <?= $tipo_mov === 'Entrega' ? 'selected' : '' ?>>Entrega</option>
+                <option value="Devolución" <?= $tipo_mov === 'Devolución' ? 'selected' : '' ?>>Devolución</option>
+                <option value="Ingreso" <?= $tipo_mov === 'Ingreso' ? 'selected' : '' ?>>Ingreso</option>
+                <option value="Ajuste de Inventario" <?= $tipo_mov === 'Ajuste de Inventario' ? 'selected' : '' ?>>Ajuste</option>
+            </select>
+
+            <input type="date" name="desde" value="<?= htmlspecialchars($desde) ?>" class="form-input"
+                style="padding: 0.45rem 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+            <input type="date" name="hasta" value="<?= htmlspecialchars($hasta) ?>" class="form-input"
+                style="padding: 0.45rem 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+
+            <button type="submit" class="btn btn-primary"
+                style="padding: 0.45rem 0.9rem; font-size: 0.85rem; font-weight: 600;">Filtrar</button>
+            <a href="dashboard.php?tab=auditoria" class="btn btn-secondary"
+                style="padding: 0.45rem 0.8rem; font-size: 0.85rem; text-decoration: none;">Limpiar</a>
+        </form>
+
+        <div class="table-responsive">
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
+                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Fecha y Hora</th>
+                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Operación</th>
+                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Operario Destinatario</th>
+                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Usuario Responsable</th>
+                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Observaciones</th>
+                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536; text-align: right;">Acción
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($auditoria)): ?>
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 2.5rem; color: #64748b; font-size: 0.9rem;">
+                                No se encontraron registros de auditoría para los filtros aplicados.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($pgAud['filas'] as $a): ?>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 0.75rem 0.5rem;"><?= date('d/m/Y', strtotime($a['fecha'])) ?>
+                                    <?= htmlspecialchars($a['hora']) ?></td>
+                                <td style="padding: 0.75rem 0.5rem;">
+                                    <span
+                                        style="background: #e0f2fe; color: #0369a1; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 9999px; font-size: 0.8rem;">
+                                        <?= htmlspecialchars($a['tipo_movimiento']) ?>
+                                    </span>
+                                </td>
+                                <td style="padding: 0.75rem 0.5rem;"><strong><?= htmlspecialchars($a['operario']) ?></strong></td>
+                                <td style="padding: 0.75rem 0.5rem;"><?= htmlspecialchars($a['usuario_responsable']) ?></td>
+                                <td style="padding: 0.75rem 0.5rem; color: #64748b;">
+                                    <?= htmlspecialchars($a['observaciones'] ?: '-') ?></td>
+                                <td style="padding: 0.75rem 0.5rem; text-align: right;">
+                                    <button type="button" class="btn btn-secondary"
+                                        style="padding: 0.35rem 0.7rem; font-size: 0.78rem; font-weight: 700; cursor: pointer;"
+                                        onclick="abrirDetallesMovimiento(<?= $a['id_movimiento'] ?>)">
+                                        Ver Ítems
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php rp_paginador($pgAud); ?>
+    </div>
+<?php endif; ?>
+
+<?php if ($tab_reporte === 'auditoria'): ?>
+<!-- MODAL VER DETALLE DE AUDITORÍA -->
+<div id="modal-auditoria"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 9999; justify-content: center; align-items: center;">
+    <div
+        style="background: #fff; width: 100%; max-width: 600px; border-radius: 8px; padding: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.6rem; margin-bottom: 1rem;">
+            <h3 style="margin: 0; font-size: 1.15rem; color: #0b1536; font-weight: 800;">
+                Desglose de Ítems (Movimiento #<span id="txt-modal-id"></span>)
+            </h3>
+            <button type="button" onclick="cerrarModalAuditoria()"
+                style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #64748b;">&times;</button>
+        </div>
+
+        <div id="modal-estado-carga" style="text-align: center; padding: 1.5rem; color: #64748b;">Cargando...</div>
+
+        <div id="modal-tabla-items" style="display: none;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
+                        <th style="padding: 0.5rem;">Código</th>
+                        <th style="padding: 0.5rem;">Artículo / Insumo</th>
+                        <th style="padding: 0.5rem;">Cantidad</th>
+                        <th style="padding: 0.5rem;">Estado Hta.</th>
+                    </tr>
+                </thead>
+                <tbody id="modal-filas"></tbody>
+            </table>
+        </div>
+
+        <div style="text-align: right; margin-top: 1.25rem;">
+            <button type="button" class="btn btn-secondary" onclick="cerrarModalAuditoria()"
+                style="padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                Cerrar
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function abrirDetallesMovimiento(id) {
+        document.getElementById('txt-modal-id').innerText = id;
+        document.getElementById('modal-estado-carga').innerText = 'Cargando ítems...';
+        document.getElementById('modal-estado-carga').style.display = 'block';
+        document.getElementById('modal-tabla-items').style.display = 'none';
+        document.getElementById('modal-auditoria').style.display = 'flex';
+
+        fetch('detalle_auditoria.php?id=' + id)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success && data.detalles && data.detalles.length > 0) {
+                    document.getElementById('modal-estado-carga').style.display = 'none';
+                    let tbody = document.getElementById('modal-filas');
+                    tbody.innerHTML = '';
+                    data.detalles.forEach(it => {
+                        tbody.innerHTML += `
+                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 0.5rem;"><strong>${it.codigo}</strong></td>
+                            <td style="padding: 0.5rem;">${it.item_nombre}</td>
+                            <td style="padding: 0.5rem;">${it.cantidad} ${it.unidad}</td>
+                            <td style="padding: 0.5rem;">${it.estado_herramienta}</td>
+                        </tr>
+                    `;
+                    });
+                    document.getElementById('modal-tabla-items').style.display = 'block';
+                } else if (data.success) {
+                    document.getElementById('modal-estado-carga').innerText = 'No hay ítems registrados en este movimiento.';
+                } else {
+                    document.getElementById('modal-estado-carga').innerText = 'Error: ' + (data.error || 'No se pudieron recuperar los registros.');
+                }
+            })
+            .catch(err => {
+                document.getElementById('modal-estado-carga').innerText = 'Fallo en la consulta: ' + err.message;
+            });
+    }
+
+    function cerrarModalAuditoria() {
+        document.getElementById('modal-auditoria').style.display = 'none';
+    }
 </script>
+<?php endif; ?>
 
 <?php
-include_once __DIR__ . '/../layout/footer.php';
+require_once __DIR__ . '/../layout/footer.php';
 ?>
+

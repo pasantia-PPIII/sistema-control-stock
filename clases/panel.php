@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/reportes.php';
 
 /**
  * Consultas de resumen para el Panel de Control (solo lectura).
@@ -22,61 +23,36 @@ class Panel {
         return $this->contar("SELECT COUNT(*) as total FROM insumos WHERE activo = TRUE");
     }
 
+    /**
+     * Materiales en stock crítico (stock actual <= stock mínimo, sin herramientas).
+     * Misma definición que Reportes: ver Reportes::stockCritico().
+     */
     public function totalStockBajo() {
-        return $this->contar(
-            "SELECT COUNT(*) as total FROM insumos i
-             INNER JOIN tipo t ON i.id_tipo = t.id_tipo
-             INNER JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
-             WHERE i.activo = TRUE AND t.tipo <> 'Herramienta' AND s.stock_actual < i.stock_minimo"
-        );
+        return Reportes::totalStockCritico();
     }
 
     /**
-     * Materiales por debajo del stock mínimo, los más críticos primero.
+     * Materiales en stock crítico, los más críticos primero.
      */
     public function stockBajo($limite = 5) {
-        return $this->db->fetchAll(
-            "SELECT i.codigo, i.nombre, i.stock_minimo, s.stock_actual, um.unidad_medida
-             FROM insumos i
-             INNER JOIN tipo t ON i.id_tipo = t.id_tipo
-             INNER JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
-             LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
-             WHERE i.activo = TRUE AND t.tipo <> 'Herramienta' AND s.stock_actual < i.stock_minimo
-             ORDER BY (s.stock_actual - i.stock_minimo) ASC, i.nombre ASC
-             LIMIT " . (int)$limite
-        );
+        return Reportes::stockCritico((int)$limite);
     }
 
     /**
-     * Materiales perecederos que vencen dentro de los próximos días (o ya vencidos).
+     * Materiales perecederos con stock que vencen dentro de los próximos días (o ya vencidos).
      */
     public function proximosVencimientos($dias = 30, $limite = 5) {
-        return $this->db->fetchAll(
-            "SELECT codigo, nombre, fecha_vencimiento
-             FROM insumos
-             WHERE activo = TRUE AND es_perecedero = TRUE AND fecha_vencimiento IS NOT NULL
-               AND fecha_vencimiento <= CURRENT_DATE + " . (int)$dias . "
-             ORDER BY fecha_vencimiento ASC
-             LIMIT " . (int)$limite
-        );
+        return Reportes::vencimientos((int)$dias, (int)$limite);
     }
 
     // ---------------- Herramientas ----------------
 
     public function totalHerramientasPrestadas() {
-        return $this->contar(
-            "SELECT COUNT(*) as total FROM insumos i
-             INNER JOIN tipo t ON i.id_tipo = t.id_tipo
-             WHERE i.activo = TRUE AND t.tipo = 'Herramienta' AND i.id_estado_herramienta = 2"
-        );
+        return Reportes::totalHerramientasPrestadas();
     }
 
     public function totalHerramientasEnReparacion() {
-        return $this->contar(
-            "SELECT COUNT(*) as total FROM insumos i
-             INNER JOIN tipo t ON i.id_tipo = t.id_tipo
-             WHERE i.activo = TRUE AND t.tipo = 'Herramienta' AND i.id_estado_herramienta = 3"
-        );
+        return Reportes::totalHerramientasEnReparacion();
     }
 
     // ---------------- Movimientos ----------------
@@ -105,15 +81,7 @@ class Panel {
      * Cantidad de órdenes activas agrupadas por estado: ['Pendiente' => 3, ...]
      */
     public function ordenesPorEstado() {
-        $filas = $this->db->fetchAll(
-            "SELECT COALESCE(estado, 'Pendiente') as estado, COUNT(*) as total
-             FROM orden_de_trabajo WHERE activo = TRUE GROUP BY 1 ORDER BY total DESC"
-        );
-        $out = [];
-        foreach ($filas as $f) {
-            $out[$f['estado']] = (int)$f['total'];
-        }
-        return $out;
+        return Reportes::ordenesPorEstado();
     }
 
     /**
