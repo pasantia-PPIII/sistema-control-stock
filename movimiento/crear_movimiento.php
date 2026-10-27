@@ -168,13 +168,9 @@ include_once __DIR__ . '/../layout/header.php';
         <div class="form-grid-3">
             <div class="form-group">
                 <label for="buscar-operario">Operario <?php echo $esDevolucion ? 'que Devuelve' : 'Responsable'; ?> *</label>
-                <input type="text" id="buscar-operario" name="buscar_operario" class="form-control" list="lista-operarios" placeholder="Escriba DNI, apellido o nombre..." autocomplete="off" value="<?= $idOperarioPre ? htmlspecialchars(($opSel = array_filter($operarios, fn($o) => (int)$o['id_operario'] === $idOperarioPre)) ? reset($opSel)['apellido'] . ', ' . reset($opSel)['nombre'] . ' - DNI: ' . reset($opSel)['dni'] : '') : '' ?>">
-                <datalist id="lista-operarios">
-                    <?php foreach ($operarios as $op): ?>
-                        <option value="<?php echo htmlspecialchars($op['apellido'] . ', ' . $op['nombre'] . ' - DNI: ' . $op['dni']); ?>"></option>
-                    <?php endforeach; ?>
-                </datalist>
+                <input type="text" id="buscar-operario" class="form-control" placeholder="Escriba DNI, apellido o nombre..." autocomplete="off" value="<?php echo $idOperarioPre ? htmlspecialchars(($opSel = array_filter($operarios, fn($o) => (int)$o['id_operario'] === $idOperarioPre)) ? reset($opSel)['apellido'] . ', ' . reset($opSel)['nombre'] . ' - DNI: ' . reset($opSel)['dni'] : '') : ''; ?>">
                 <input type="hidden" id="id_operario" name="id_operario" value="">
+                <div id="lista-operarios" class="autocomplete-list" style="display:none;"></div>
             </div>
             </div>
 
@@ -202,18 +198,9 @@ include_once __DIR__ . '/../layout/header.php';
         <div class="form-grid-3" style="background-color: #f8fafc; padding: 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; align-items: flex-end;">
             <div class="form-group" style="flex: 2;">
                 <label for="buscar-insumo">Buscar Insumo o Herramienta</label>
-                <input type="text" id="buscar-insumo" class="form-control" list="lista-insumos" placeholder="Escriba código o nombre..." autocomplete="off">
-                <datalist id="lista-insumos">
-                    <?php foreach ($insumos as $ins):
-                        $stock = (float)($ins['stock_actual'] ?? 0);
-                        $esHerramienta = ((int)$ins['id_tipo'] === 2);
-                        $tipo = $esHerramienta ? 'Herramienta' : 'Material';
-                        $unidad = $esHerramienta ? '' : ($ins['unidad_medida'] ?? 'unidades');
-                    ?>
-                        <option value="<?php echo htmlspecialchars($ins['codigo'] . ' - ' . $ins['nombre'] . ' (' . $tipo . ') - Stock: ' . $stock . ' ' . $unidad); ?>"></option>
-                    <?php endforeach; ?>
-                </datalist>
+                <input type="text" id="buscar-insumo" class="form-control" placeholder="Escriba código o nombre..." autocomplete="off">
                 <input type="hidden" id="selector-insumo" value="">
+                <div id="lista-insumos" class="autocomplete-list" style="display:none;"></div>
             </div>
 
             <div class="form-group" style="flex: 1;">
@@ -431,120 +418,88 @@ function renderizarTablaItems() {
     tbody.innerHTML = html;
 }
 
-// Autocompletado unificado para operario
-(function () {
-    const input = document.getElementById('buscar-operario');
-    const hidden = document.getElementById('id_operario');
-    const lista = document.getElementById('lista-operarios');
-    if (!input || !hidden || !lista) return;
-    input.value = 'INIT ' + OPERARIOS.length;
 
-    function render(term) {
-        const t = (term || '').toLowerCase();
-        const base = t === '' ? OPERARIOS : OPERARIOS.filter(o => o.text.toLowerCase().includes(t));
-        const filtrados = base.slice(0, 15);
-        if (filtrados.length === 0) {
-            lista.style.display = 'none';
+// Autocompletado paginado (10 por vez)
+(function () {
+    const PAGE = 10;
+
+    function setup(inputId, listId, data, getText, onSelect) {
+        const input = document.getElementById(inputId);
+        const lista = document.getElementById(listId);
+        if (!input || !lista) return;
+        let offset = 0;
+        let term = '';
+        let loadingMore = false;
+
+        function filtrar() {
+            term = input.value.toLowerCase();
+            offset = 0;
             lista.innerHTML = '';
-            return;
+            renderMore();
         }
-        lista.innerHTML = filtrados.map(o =>
-            '<div class="autocomplete-item" data-id="' + o.id + '">' + escaparHtml(o.text) + '</div>'
-        ).join('');
-        lista.style.display = 'block';
-    }
 
-    input.addEventListener('focus', function () { render(this.value); });
-    input.addEventListener('input', function () {
-        hidden.value = '';
-        render(this.value);
-    });
-
-    lista.addEventListener('click', function (e) {
-        const item = e.target.closest('.autocomplete-item');
-        if (!item) return;
-        const id = item.getAttribute('data-id');
-        const op = OPERARIOS.find(o => String(o.id) === String(id));
-        if (op) {
-            input.value = op.text;
-            hidden.value = op.id;
+        function renderMore() {
+            const base = term === '' ? data : data.filter(d => getText(d).toLowerCase().includes(term));
+            const slice = base.slice(offset, offset + PAGE);
+            slice.forEach(d => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.textContent = getText(d);
+                div.addEventListener('click', function () {
+                    input.value = getText(d);
+                    onSelect(d);
+                    lista.style.display = 'none';
+                });
+                lista.appendChild(div);
+            });
+            offset += slice.length;
+            if (base.length > offset) {
+                if (!lista.querySelector('.autocomplete-more')) {
+                    const more = document.createElement('div');
+                    more.className = 'autocomplete-item autocomplete-more';
+                    more.textContent = 'Cargar más...';
+                    more.style.fontStyle = 'italic';
+                    more.style.color = '#2563eb';
+                    more.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        more.remove();
+                        renderMore();
+                    });
+                    lista.appendChild(more);
+                }
+            } else {
+                const more = lista.querySelector('.autocomplete-more');
+                if (more) more.remove();
+            }
+            lista.style.display = lista.children.length ? 'block' : 'none';
         }
-        lista.style.display = 'none';
-    });
 
-    document.addEventListener('click', function (e) {
-        if (!input.contains(e.target) && !lista.contains(e.target)) {
-            lista.style.display = 'none';
-        }
-    });
-})();
+        input.addEventListener('focus', function () {
+            if (lista.style.display !== 'block') filtrar();
+        });
+        input.addEventListener('input', function () {
+            filtrar();
+        });
 
-// Autocompletado unificado para insumo
-(function () {
-    const input = document.getElementById('buscar-insumo');
-    const lista = document.getElementById('lista-insumos');
-    if (!input || !lista) return;
-    input.value = 'INIT ' + INSUMOS.length;
-
-    function render(term) {
-        const t = (term || '').toLowerCase();
-        const base = t === '' ? INSUMOS : INSUMOS.filter(i => i.texto.toLowerCase().includes(t));
-        const filtrados = base.slice(0, 15);
-        if (filtrados.length === 0) {
-            lista.style.display = 'none';
-            lista.innerHTML = '';
-            return;
-        }
-        lista.innerHTML = filtrados.map(i =>
-            '<div class="autocomplete-item" data-codigo="' + escaparHtml(i.codigo) + '">' + escaparHtml(i.texto) + '</div>'
-        ).join('');
-        lista.style.display = 'block';
-    }
-
-    input.addEventListener('focus', function () { render(this.value); });
-    input.addEventListener('input', function () {
-        insumoSeleccionado = null;
-        render(this.value);
-    });
-
-    lista.addEventListener('click', function (e) {
-        const item = e.target.closest('.autocomplete-item');
-        if (!item) return;
-        const codigo = item.getAttribute('data-codigo');
-        const ins = INSUMOS.find(i => i.codigo === codigo);
-        if (ins) {
-            input.value = ins.texto;
-            insumoSeleccionado = ins;
-        }
-        lista.style.display = 'none';
-    });
-
-    document.addEventListener('click', function (e) {
-        if (!input.contains(e.target) && !lista.contains(e.target)) {
-            lista.style.display = 'none';
-        }
-    });
-})();
-
-
-
-// Sincronizar campos ocultos con el autocompletado nativo (datalist)
-(function () {
-    const inputOp = document.getElementById('buscar-operario');
-    const hiddenOp = document.getElementById('id_operario');
-    if (inputOp && hiddenOp) {
-        inputOp.addEventListener('input', function () {
-            const op = OPERARIOS.find(o => o.text === this.value);
-            hiddenOp.value = op ? op.id : '';
+        document.addEventListener('click', function (e) {
+            if (!input.contains(e.target) && !lista.contains(e.target)) {
+                lista.style.display = 'none';
+            }
         });
     }
-    const inputIns = document.getElementById('buscar-insumo');
-    if (inputIns) {
-        inputIns.addEventListener('input', function () {
-            insumoSeleccionado = INSUMOS.find(i => i.texto === this.value) || null;
-        });
-    }
+
+    setup('buscar-operario', 'lista-operarios', OPERARIOS,
+        d => d.text,
+        d => { document.getElementById('id_operario').value = d.id; }
+    );
+
+    setup('buscar-insumo', 'lista-insumos', INSUMOS,
+        d => d.texto,
+        d => { insumoSeleccionado = d; }
+    );
 })();
+
+
 
 function enviarMovimiento(e) {
     e.preventDefault();
