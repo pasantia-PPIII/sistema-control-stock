@@ -68,12 +68,7 @@ try {
     $pdo = Database::getConnection();
     $pdo->beginTransaction();
 
-    // 4. Insertar en 'orden_trabajo_operarios' ignorando duplicados (ON CONFLICT DO NOTHING)
-    $stmtOp = $pdo->prepare("
-        INSERT INTO orden_trabajo_operarios (id_odt, id_operario) 
-        VALUES (:odt, :op) 
-        ON CONFLICT (id_odt, id_operario) DO NOTHING
-    ");
+    // 4. Asignar operarios a la comisión (tabla comision)
     $stmtCom = $pdo->prepare("
         INSERT INTO comision (id_odt, id_operario, activo) 
         SELECT :odt, :op, TRUE 
@@ -84,7 +79,6 @@ try {
     ");
 
     foreach ($operariosIds as $idOp) {
-        $stmtOp->execute([':odt' => $idOdt, ':op' => $idOp]);
         $stmtCom->execute([':odt' => $idOdt, ':op' => $idOp]);
         $stmtComUpd->execute([':odt' => $idOdt, ':op' => $idOp]);
     }

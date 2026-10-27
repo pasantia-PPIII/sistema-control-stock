@@ -17,8 +17,9 @@ function obtenerKPISReporte(): array
 
     $stmtHerramientas = $pdo->query("
         SELECT COUNT(*) AS total 
-        FROM herramienta 
-        WHERE activo = TRUE AND id_estado_herramienta = 2
+        FROM insumos i
+        INNER JOIN tipo t ON i.id_tipo = t.id_tipo
+        WHERE i.activo = TRUE AND t.tipo = 'Herramienta' AND i.id_estado_herramienta = 2
     ");
     $herramientasPrestadas = (int) ($stmtHerramientas->fetchColumn() ?: 0);
 

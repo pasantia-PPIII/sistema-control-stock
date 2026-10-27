@@ -75,13 +75,48 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
 
 <p class="panel-rol">Resumen para el perfil <strong><?= $h($etiquetaRol) ?></strong></p>
 
+<?php if ($esAdmin || $esPanolero): ?>
+<div class="panel-accesos">
+    <a href="../movimiento/crear_movimiento.php?tipo=entrega" class="panel-acceso panel-acceso--blue">
+        <span class="panel-acceso-icono">＋</span>
+        <span>Nueva entrega</span>
+    </a>
+    <a href="../movimiento/crear_movimiento.php?tipo=devolucion" class="panel-acceso panel-acceso--green">
+        <span class="panel-acceso-icono">↩</span>
+        <span>Nueva devolución</span>
+    </a>
+    <a href="../insumo/dashboard.php" class="panel-acceso panel-acceso--amber">
+        <span class="panel-acceso-icono">📦</span>
+        <span>Gestionar insumos</span>
+    </a>
+    <a href="../orden_de_trabajo/dashboard.php" class="panel-acceso panel-acceso--indigo">
+        <span class="panel-acceso-icono">📋</span>
+        <span>Órdenes de trabajo</span>
+    </a>
+</div>
+<?php endif; ?>
+
 <?php if ($errorPanel): ?>
     <div class="panel-error"><?= $h($errorPanel) ?></div>
 <?php endif; ?>
 
+<?php
+$colorKpi = [
+    'Insumos activos'              => 'blue',
+    'Con stock bajo'               => 'red',
+    'Herramientas prestadas'       => 'amber',
+    'Movimientos de hoy'           => 'indigo',
+    'Órdenes de trabajo abiertas'  => 'green',
+    'Operarios activos'            => 'blue',
+    'Rubros activos'               => 'green',
+    'Usuarios inactivos'           => 'red',
+    'Herramientas en reparación'   => 'amber',
+];
+?>
 <div class="panel-kpis">
     <?php foreach ($kpis as [$titulo, $valor, $enlace, $clase]): ?>
-        <a class="panel-kpi <?= $h($clase) ?><?= ($clase === 'alerta' && $valor > 0) ? ' activo' : '' ?>" href="<?= $h($enlace) ?>">
+        <?php $color = $colorKpi[$titulo] ?? 'blue'; ?>
+        <a class="panel-kpi panel-kpi--<?= $h($color) ?> <?= $h($clase) ?><?= ($clase === 'alerta' && $valor > 0) ? ' activo' : '' ?>" href="<?= $h($enlace) ?>">
             <span class="panel-kpi-valor"><?= (int)$valor ?></span>
             <span class="panel-kpi-titulo"><?= $h($titulo) ?></span>
         </a>
@@ -114,9 +149,42 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
     <section class="panel-card">
         <h2>Órdenes de trabajo</h2>
         <?php if (!empty($ordenesPorEstado)): ?>
+            <?php
+                $totalOrdenes = array_sum($ordenesPorEstado);
+                $colorEstado = [
+                    'Pendiente' => '#2563eb', 'En Proceso' => '#d97706', 'En Progreso' => '#d97706',
+                    'Pausada' => '#6b7280', 'Finalizada' => '#16a34a', 'Anulada' => '#dc2626',
+                ];
+            ?>
+            <div class="panel-barras">
+                <?php foreach ($ordenesPorEstado as $estado => $cantidad):
+                    $porc = $totalOrdenes > 0 ? round(($cantidad / $totalOrdenes) * 100) : 0;
+                    $color = $colorEstado[$estado] ?? '#475569';
+                ?>
+                    <div class="panel-barra-fila">
+                        <span class="panel-barra-label"><?= $h($estado) ?></span>
+                        <div class="panel-barra-track">
+                            <div class="panel-barra-fill" style="width: <?= $porc ?>%; background: <?= $color ?>;"></div>
+                        </div>
+                        <span class="panel-barra-valor"><?= (int)$cantidad ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
             <div class="panel-chips">
-                <?php foreach ($ordenesPorEstado as $estado => $cantidad): ?>
-                    <span class="panel-chip"><?= $h($estado) ?>: <strong><?= (int)$cantidad ?></strong></span>
+                <?php foreach ($ordenesPorEstado as $estado => $cantidad):
+                    $colorChip = match ($estado) {
+                        'Pendiente'    => '#2563eb',
+                        'En Proceso'   => '#d97706',
+                        'En Progreso'  => '#d97706',
+                        'Pausada'      => '#6b7280',
+                        'Finalizada'   => '#16a34a',
+                        'Anulada'      => '#dc2626',
+                        default        => '#475569',
+                    };
+                ?>
+                    <span class="panel-chip" style="border-color: <?= $colorChip ?>; color: <?= $colorChip ?>; background: <?= $colorChip ?>15;">
+                        <?= $h($estado) ?>: <strong><?= (int)$cantidad ?></strong>
+                    </span>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
@@ -151,7 +219,16 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
                     <tr>
                         <td><a href="../movimiento/detalle_movimiento.php?id=<?= (int)$m['id_movimiento'] ?>">#<?= (int)$m['id_movimiento'] ?></a></td>
                         <td><?= $h($fecha($m['fecha'])) ?> <?= $h(substr($m['hora'], 0, 5)) ?></td>
-                        <td><?= $h($m['nombre_tipo_movimiento']) ?></td>
+                        <?php
+                            $colorMov = match ($m['nombre_tipo_movimiento']) {
+                                'Entrega'   => '#dc2626',
+                                'Devolución'=> '#16a34a',
+                                'Ingreso'   => '#2563eb',
+                                'Ajuste de Inventario' => '#d97706',
+                                default     => '#475569',
+                            };
+                        ?>
+                        <td><span class="panel-badge-mov" style="background: <?= $colorMov ?>18; color: <?= $colorMov ?>; border: 1px solid <?= $colorMov ?>40;"><?= $h($m['nombre_tipo_movimiento']) ?></span></td>
                         <td><?= !empty($m['nombre_operario']) ? $h($m['nombre_operario']) : '-' ?></td>
                         <td class="num"><?= (int)$m['total_items'] ?></td>
                     </tr>
@@ -173,7 +250,7 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
                 <?php foreach ($vencimientos as $v):
                     $vencido = strtotime($v['fecha_vencimiento']) < strtotime('today');
                 ?>
-                    <tr>
+                    <tr class="<?= $vencido ? 'panel-fila-vencida' : '' ?>">
                         <td><a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($v['codigo']) ?>"><?= $h($v['codigo']) ?></a></td>
                         <td><?= $h($v['nombre']) ?></td>
                         <td><?= $h($fecha($v['fecha_vencimiento'])) ?><?= $vencido ? ' <span class="panel-vencido">vencido</span>' : '' ?></td>

@@ -345,7 +345,7 @@ include_once __DIR__ . '/../layout/header.php';
                                 <?= (canEdit() && $estaActiva) ? '' : 'disabled' ?>
                                 title="Cambiar estado de la orden">
                                 <?php foreach ($estadosPosibles as $est): ?>
-                                    <option value="<?= $est ?>" <?= ($estadoTexto === $est || ($est === 'En Proceso' && estadoTexto === 'En Progreso')) ? 'selected' : '' ?>>
+                                    <option value="<?= $est ?>" <?= ($estadoTexto === $est || ($est === 'En Proceso' && $estadoTexto === 'En Progreso')) ? 'selected' : '' ?>>
                                         <?= $est ?>
                                     </option>
                                 <?php endforeach; ?>

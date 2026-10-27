@@ -1,9 +1,29 @@
 /* assets/css/panel.css - Panel de Control */
 
+:root {
+    --panel-blue: #2563eb;
+    --panel-green: #16a34a;
+    --panel-amber: #d97706;
+    --panel-red: #dc2626;
+    --panel-indigo: #4f46e5;
+    --panel-slate: #475569;
+}
+
 .panel-rol {
-    margin: 0 0 1rem 0;
-    color: #64748b;
+    margin: 0 0 1.25rem 0;
+    color: #475569;
     font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.panel-rol strong {
+    color: #0b1536;
+    background: #e0e7ff;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
 }
 
 .panel-error {
@@ -15,59 +35,89 @@
     margin-bottom: 1rem;
 }
 
+/* KPIs */
 .panel-kpis {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.75rem;
 }
 
 .panel-kpi {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.35rem;
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 1rem 1.2rem;
+    border-left: 4px solid var(--panel-slate);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
     text-decoration: none;
     color: #0b1536;
-    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    overflow: hidden;
+}
+
+.panel-kpi::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.06;
+    transform: translate(25px, -25px);
 }
 
 .panel-kpi:hover {
-    border-color: #94a3b8;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
 }
 
 .panel-kpi-valor {
-    font-size: 2rem;
+    font-size: 2.1rem;
     font-weight: 800;
     line-height: 1;
 }
 
 .panel-kpi-titulo {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: #64748b;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
+/* Colores por tipo de KPI */
+.panel-kpi--blue   { border-left-color: var(--panel-blue);   color: var(--panel-blue); }
+.panel-kpi--green  { border-left-color: var(--panel-green);  color: var(--panel-green); }
+.panel-kpi--amber  { border-left-color: var(--panel-amber);  color: var(--panel-amber); }
+.panel-kpi--red    { border-left-color: var(--panel-red);    color: var(--panel-red); }
+.panel-kpi--indigo { border-left-color: var(--panel-indigo); color: var(--panel-indigo); }
+
+.panel-kpi--red.activo,
 .panel-kpi.alerta.activo {
-    border-color: #fecaca;
+    border-left-color: var(--panel-red);
     background: #fef2f2;
 }
 
+.panel-kpi--red.activo .panel-kpi-valor,
 .panel-kpi.alerta.activo .panel-kpi-valor {
-    color: #dc2626;
+    color: var(--panel-red);
 }
 
+/* Grid de tarjetas */
 .panel-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.25rem;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 900px) {
     .panel-grid {
         grid-template-columns: 1fr;
     }
@@ -76,23 +126,45 @@
 .panel-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 1.1rem 1.3rem;
+    border-radius: 12px;
+    padding: 1.15rem 1.35rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
     overflow-x: auto;
+    transition: box-shadow 0.15s ease;
+}
+
+.panel-card:hover {
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
 .panel-card h2 {
-    margin: 0 0 0.8rem 0;
-    font-size: 1rem;
+    margin: 0 0 0.85rem 0;
+    font-size: 1.05rem;
     color: #0b1536;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.panel-card h2::before {
+    content: '';
+    width: 4px;
+    height: 16px;
+    background: linear-gradient(180deg, var(--panel-blue), var(--panel-indigo));
+    border-radius: 2px;
 }
 
 .panel-vacio {
     margin: 0;
-    color: #64748b;
+    color: #94a3b8;
     font-size: 0.9rem;
+    font-style: italic;
+    padding: 0.75rem 0;
 }
 
+/* Tablas */
 .panel-tabla {
     width: 100%;
     border-collapse: collapse;
@@ -103,37 +175,163 @@
     text-align: left;
     color: #64748b;
     font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
     border-bottom: 2px solid #e2e8f0;
-    padding: 0.4rem 0.5rem;
+    padding: 0.5rem 0.5rem;
+    background: #f8fafc;
 }
 
 .panel-tabla td {
-    padding: 0.45rem 0.5rem;
+    padding: 0.5rem 0.5rem;
     border-bottom: 1px solid #f1f5f9;
     color: #1e293b;
 }
 
-.panel-tabla .num {
-    text-align: right;
+.panel-tabla tbody tr:hover {
+    background: #f8fafc;
 }
 
+.panel-tabla .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.panel-tabla a {
+    color: var(--panel-blue);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.panel-tabla a:hover {
+    text-decoration: underline;
+}
+
+/* Chips de estado */
 .panel-chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-bottom: 0.8rem;
+    gap: 0.45rem;
+    margin-bottom: 0.9rem;
 }
 
 .panel-chip {
     background: #f1f5f9;
     border-radius: 999px;
-    padding: 0.2rem 0.7rem;
+    padding: 0.25rem 0.75rem;
     font-size: 0.8rem;
     color: #334155;
+    font-weight: 500;
+    border: 1px solid #e2e8f0;
 }
 
 .panel-vencido {
-    color: #dc2626;
+    color: var(--panel-red);
     font-weight: 700;
     font-size: 0.8rem;
+    background: #fef2f2;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+}
+
+/* Chips de estado coloreados por texto */
+.panel-chip:has(strong) {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1e40af;
+}
+
+/* Accesos rápidos */
+.panel-accesos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.panel-acceso {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.8rem 1rem;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.panel-acceso:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.18);
+}
+
+.panel-acceso-icono {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.panel-acceso--blue   { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+.panel-acceso--green  { background: linear-gradient(135deg, #16a34a, #15803d); }
+.panel-acceso--amber  { background: linear-gradient(135deg, #d97706, #b45309); }
+.panel-acceso--indigo { background: linear-gradient(135deg, #4f46e5, #4338ca); }
+
+/* Barras de órdenes por estado */
+.panel-barras {
+    margin-bottom: 0.9rem;
+}
+
+.panel-barra-fila {
+    display: grid;
+    grid-template-columns: 110px 1fr 32px;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+}
+
+.panel-barra-label {
+    font-size: 0.8rem;
+    color: #475569;
+    font-weight: 500;
+}
+
+.panel-barra-track {
+    height: 10px;
+    background: #f1f5f9;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.panel-barra-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.4s ease;
+}
+
+.panel-barra-valor {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #0b1536;
+    text-align: right;
+}
+
+/* Badge de tipo de movimiento */
+.panel-badge-mov {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Fila de vencido destacada */
+.panel-fila-vencida {
+    background: #fef2f2;
+}
+
+.panel-fila-vencida td {
+    color: #991b1b;
 }

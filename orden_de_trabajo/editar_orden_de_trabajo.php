@@ -51,7 +51,13 @@ try {
         'id_mov_devolucion' => !empty($_POST['id_mov_devolucion']) ? (int)$_POST['id_mov_devolucion'] : null,
     ];
 
-    $odtModel->update($idOdt, $datos, operariosDesdePost(), $vinculos);
+    $operarios = null;
+    if (isset($_POST['operarios'])) {
+        $operarios = is_array($_POST['operarios'])
+            ? array_values(array_filter(array_map('intval', $_POST['operarios'])))
+            : [];
+    }
+    $odtModel->update($idOdt, $datos, $operarios, $vinculos);
 
     echo json_encode([
         'success' => true,
