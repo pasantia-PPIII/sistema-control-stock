@@ -292,4 +292,87 @@
     border-radius: 8px;
     color: #64748b;
     font-size: 0.95rem;
-}
+}
+/* ==========================================================================
+   Utilidades de la vista y estilos extraídos del HTML/JS inline
+   ========================================================================== */
+.oculto { display: none; }
+
+.msg-error-modal {
+    display: none;
+    color: #dc2626;
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
+.estado-nota { margin-top: 0.4rem; font-size: 0.8rem; }
+.modal-acciones-centro { display: flex; gap: 1rem; justify-content: center; }
+.btn-action-text.btn-modal-estado { padding: 0.6rem 1.4rem; font-size: 0.9rem; }
+.btn-action-text.btn-modal-estado--confirmar { color: #ffffff; }
+
+.alerta-pagina {
+    display: none;
+    padding: 0.8rem 1.2rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.nota-stock { display: none; font-size: 0.85rem; color: #475569; align-self: center; }
+.modal-form-group--centro { justify-content: center; }
+.check-etiqueta { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-top: 0.5rem; }
+.modal-card--estado { max-width: 460px; }
+.estado-caja { border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.9rem; }
+
+/* Insumos deshabilitados: fila sombreada, texto atenuado y nombre tachado */
+.insumo-card-row--inactivo {
+    background-color: #f1f5f9;
+    color: #94a3b8;
+    box-shadow: inset 3px 0 0 #cbd5e1;
+}
+
+.insumo-card-row--inactivo:hover {
+    background-color: #e9eef5;
+}
+
+.insumo-card-row--inactivo > div:nth-child(2) {
+    text-decoration: line-through;
+    text-decoration-color: #cbd5e1;
+}
+
+/* ==========================================================================
+   Ficha de detalle de insumo (insumo/detalles_insumo.php)
+   ========================================================================== */
+.ficha {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1.5rem 2rem;
+}
+
+.ficha__encabezado { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.ficha__titulo { margin: 0; color: #0b1536; }
+.ficha__subtitulo { margin: 0.3rem 0 0; color: #64748b; }
+.ficha__btn-volver { text-decoration: none; width: auto; padding: 0.6rem 1.2rem; }
+
+.ficha__alerta {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.ficha__subencabezado { color: #0b1536; margin: 1.5rem 0 0.7rem; }
+.ficha__tabla-wrap { overflow-x: auto; }
+.ficha__tabla { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.ficha__tabla thead tr { text-align: left; border-bottom: 2px solid #e2e8f0; color: #64748b; }
+.ficha__tabla th, .ficha__tabla td { padding: 0.5rem; }
+.ficha__tabla tbody tr { border-bottom: 1px solid #f1f5f9; }
+.ficha__tabla .col-der { text-align: right; }
+.ficha__tabla .col-cantidad { font-weight: 700; }
+.ficha__tabla td.ficha__vacio { text-align: center; color: #64748b; padding: 1.5rem; }

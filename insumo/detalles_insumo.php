@@ -50,7 +50,7 @@ if ($esAjax) {
 $esHerramienta = (!empty($insumo['nombre_tipo']) && stripos($insumo['nombre_tipo'], 'herramienta') !== false);
 $stockActual = (float)($insumo['stock_actual'] ?? 0);
 $stockMinimo = (float)($insumo['stock_minimo'] ?? 0);
-$stockBajo = !$esHerramienta && $stockActual < $stockMinimo;
+$stockBajo = !$esHerramienta && $stockActual <= $stockMinimo; // mismo criterio que Reportes::stockCritico()
 $perecedero = !empty($insumo['es_perecedero']) && $insumo['es_perecedero'] !== 'f';
 
 $seccion = 'insumo';
@@ -63,18 +63,18 @@ include_once __DIR__ . '/../layout/header.php';
 $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 ?>
 
-<div style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:1.5rem 2rem;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+<div class="ficha">
+    <div class="ficha__encabezado">
         <div>
-            <h2 style="margin:0; color:#0b1536;"><?= $h($insumo['nombre']) ?></h2>
-            <p style="margin:0.3rem 0 0; color:#64748b;">Código <strong><?= $h($insumo['codigo']) ?></strong> - <?= $h($insumo['nombre_tipo'] ?? 'Material') ?></p>
+            <h2 class="ficha__titulo"><?= $h($insumo['nombre']) ?></h2>
+            <p class="ficha__subtitulo">Código <strong><?= $h($insumo['codigo']) ?></strong> - <?= $h($insumo['nombre_tipo'] ?? 'Material') ?></p>
         </div>
-        <a href="dashboard.php" class="btn-modal-back" style="text-decoration:none; width:auto; padding:0.6rem 1.2rem;">Volver a Insumos</a>
+        <a href="dashboard.php" class="btn-modal-back ficha__btn-volver">Volver a Insumos</a>
     </div>
 
     <?php if ($stockBajo): ?>
-        <div style="background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:8px; padding:0.7rem 1rem; margin-bottom:1rem; font-size:0.9rem;">
-            Stock por debajo del mínimo configurado (<?= $stockActual ?> disponible, mínimo <?= $stockMinimo ?>).
+        <div class="ficha__alerta">
+            Stock en o por debajo del mínimo configurado (<?= $stockActual ?> disponible, mínimo <?= $stockMinimo ?>).
         </div>
     <?php endif; ?>
 
@@ -95,29 +95,29 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         <div class="detail-item"><strong>Estado del Registro:</strong> <?= !empty($insumo['activo']) && $insumo['activo'] !== 'f' ? 'Activo' : 'Deshabilitado' ?></div>
     </div>
 
-    <h3 style="color:#0b1536; margin:1.5rem 0 0.7rem;">Últimos movimientos (<?= count($movimientos) ?>)</h3>
-    <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+    <h3 class="ficha__subencabezado">Últimos movimientos (<?= count($movimientos) ?>)</h3>
+    <div class="ficha__tabla-wrap">
+        <table class="ficha__tabla">
             <thead>
-                <tr style="text-align:left; border-bottom:2px solid #e2e8f0; color:#64748b;">
-                    <th style="padding:0.5rem;">N°</th>
-                    <th style="padding:0.5rem;">Fecha y Hora</th>
-                    <th style="padding:0.5rem;">Tipo</th>
-                    <th style="padding:0.5rem;">Operario</th>
-                    <th style="padding:0.5rem; text-align:right;">Cantidad</th>
+                <tr>
+                    <th>N°</th>
+                    <th>Fecha y Hora</th>
+                    <th>Tipo</th>
+                    <th>Operario</th>
+                    <th class="col-der">Cantidad</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($movimientos)): ?>
-                    <tr><td colspan="5" style="text-align:center; color:#64748b; padding:1.5rem;">Este insumo todavía no registra movimientos.</td></tr>
+                    <tr><td colspan="5" class="ficha__vacio">Este insumo todavía no registra movimientos.</td></tr>
                 <?php else: ?>
                     <?php foreach ($movimientos as $m): ?>
-                        <tr style="border-bottom:1px solid #f1f5f9;">
-                            <td style="padding:0.5rem;"><a href="../movimiento/detalle_movimiento.php?id=<?= (int)$m['id_movimiento'] ?>">#<?= (int)$m['id_movimiento'] ?></a></td>
-                            <td style="padding:0.5rem;"><?= $h(date('d/m/Y', strtotime($m['fecha']))) ?> <?= $h(substr($m['hora'], 0, 5)) ?></td>
-                            <td style="padding:0.5rem;"><?= $h($m['nombre_tipo_movimiento']) ?></td>
-                            <td style="padding:0.5rem;"><?= !empty($m['nombre_operario']) ? $h($m['nombre_operario']) : '-' ?></td>
-                            <td style="padding:0.5rem; text-align:right; font-weight:700;"><?= (float)$m['cantidad'] ?></td>
+                        <tr>
+                            <td><a href="../movimiento/detalle_movimiento.php?id=<?= (int)$m['id_movimiento'] ?>">#<?= (int)$m['id_movimiento'] ?></a></td>
+                            <td><?= $h(date('d/m/Y', strtotime($m['fecha']))) ?> <?= $h(substr($m['hora'], 0, 5)) ?></td>
+                            <td><?= $h($m['nombre_tipo_movimiento']) ?></td>
+                            <td><?= !empty($m['nombre_operario']) ? $h($m['nombre_operario']) : '-' ?></td>
+                            <td class="col-der col-cantidad"><?= (float)$m['cantidad'] ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>

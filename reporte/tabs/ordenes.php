@@ -4,7 +4,6 @@
 $linkInsumo = fn($codigo) => '../insumo/detalles_insumo.php?codigo=' . rawurlencode((string) $codigo);
 $maxOrdenes = $ordenesPeriodo ? max($ordenesPeriodo) : 0;
 
-$pgVencidas = rp_paginar($otVencidas, 'ovenc');
 $pgSinDev = rp_paginar($htasSinDevolver, 'sdev');
 ?>
 

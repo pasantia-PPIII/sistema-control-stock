@@ -3,8 +3,12 @@
 // Historial de auditoría de movimientos (pestaña "Historial").
 // Las métricas y KPIs (stock, herramientas, órdenes, consumo) viven en clases/reportes.php.
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/reportes.php';
 
-function obtenerAuditoriaMovimientos(?string $periodo = 'hoy', ?string $desde = null, ?string $hasta = null, ?string $buscar = null, ?string $tipo_mov = null): array
+/**
+ * Arma la consulta del historial con sus filtros (sin LIMIT). Devuelve [sql, params].
+ */
+function sqlAuditoriaMovimientos(?string $periodo, ?string $desde, ?string $hasta, ?string $buscar, ?string $tipo_mov): array
 {
     $sql = "
         SELECT 
@@ -55,13 +59,20 @@ function obtenerAuditoriaMovimientos(?string $periodo = 'hoy', ?string $desde = 
         $params[':b'] = "%{$buscar}%";
     }
 
-    $sql .= " ORDER BY m.fecha DESC, m.hora DESC LIMIT 500";
-    return Database::fetchAll($sql, $params);
+    $sql .= " ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC";
+    return [$sql, $params];
 }
 
 /**
- * Consulta de líneas detalladas de un movimiento para el Modal
+ * Historial de auditoría paginado en la base (LIMIT/OFFSET): devuelve la página pedida y el total de registros.
+ * @see Reportes::paginado() para la estructura devuelta.
  */
+function obtenerAuditoriaMovimientosPaginado(int $pagina, int $porPagina, ?string $periodo = 'hoy', ?string $desde = null, ?string $hasta = null, ?string $buscar = null, ?string $tipo_mov = null): array
+{
+    [$sql, $params] = sqlAuditoriaMovimientos($periodo, $desde, $hasta, $buscar, $tipo_mov);
+    return Reportes::paginado($sql, $params, $pagina, $porPagina);
+}
+
 /**
  * Consulta de líneas detalladas de un movimiento para el Modal
  */

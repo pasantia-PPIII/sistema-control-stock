@@ -20,7 +20,6 @@ foreach ($actividadDiaria as $d) {
 $totalPeriodo = array_sum(array_column($movPorTipo, 'movimientos'));
 $maxTipo = $movPorTipo ? max(array_column($movPorTipo, 'movimientos')) : 0;
 $rotuloRango = Reportes::RANGOS[$rango][0];
-$pgUlt = rp_paginar($ultimosMov, 'um');
 $claseTipo = [
     'Ingreso' => 'rp-pastilla--ok',
     'Entrega' => 'rp-pastilla--info',
@@ -113,7 +112,7 @@ $claseTipo = [
 <section class="rp-card" id="sec-um">
     <header class="rp-card__cab">
         <h2>Últimos movimientos</h2>
-        <p class="rp-nota">Los 50 movimientos más recientes (sin anulados), del más nuevo al más antiguo.</p>
+        <p class="rp-nota">Todos los movimientos activos (sin anulados), del más nuevo al más antiguo.</p>
     </header>
     <div class="rp-tabla-wrap">
         <table class="rp-tabla">

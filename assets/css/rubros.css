@@ -453,3 +453,138 @@
 .pagination-btn.text-label {
     padding: 0.45rem 1rem;
 }
+/* ==========================================================================
+   Utilidades del módulo
+   ========================================================================== */
+.oculto { display: none; }
+
+/* ==========================================================================
+   Detalle de rubro (rubro/detalle_rubro.php)
+   ========================================================================== */
+.rubro-det {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1.75rem 2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.rubro-det__encabezado {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.rubro-det__titulo-fila { display: flex; align-items: center; gap: 0.75rem; }
+.rubro-det__titulo { margin: 0; color: #0b1536; font-size: 1.6rem; font-weight: 800; }
+.rubro-det__badge { font-size: 0.8rem; }
+.rubro-det__descripcion { margin: 0.4rem 0 0; color: #64748b; font-size: 0.9rem; }
+
+.rubro-det__acciones { display: flex; align-items: center; gap: 0.75rem; }
+.rubro-det__btn-catalogo { text-decoration: none; padding: 0.55rem 1.25rem; font-size: 0.85rem; }
+.rubro-det__btn-volver { text-decoration: none; padding: 0.55rem 1.1rem; font-size: 0.85rem; font-weight: 700; }
+
+.rubro-det__barra {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.2rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.rubro-det__subtitulo { color: #0b1536; margin: 0; font-size: 1.15rem; font-weight: 800; }
+.rubro-det__filtros { display: flex; gap: 0.6rem; align-items: center; }
+.rubro-det__buscador { width: 260px; padding: 0.45rem 0.8rem; font-size: 0.85rem; }
+.rubro-det__filtro-tipo { padding: 0.45rem 1.8rem 0.45rem 0.75rem; font-size: 0.85rem; min-width: 130px; }
+
+.rubro-det__tabla-wrap { overflow-x: auto; }
+
+.rubro-det__tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    table-layout: fixed;
+}
+
+.rubro-det__tabla thead tr { text-align: left; border-bottom: 2px solid #e2e8f0; color: #475569; }
+.rubro-det__tabla th { padding: 0.65rem 0.5rem; }
+.rubro-det__tabla tbody tr { border-bottom: 1px solid #f1f5f9; }
+.rubro-det__tabla td { padding: 0.65rem 0.5rem; }
+
+.rubro-det__tabla .col-codigo { width: 85px; }
+.rubro-det__tabla .col-nombre-th { width: auto; }
+.rubro-det__tabla .col-tipo-th { width: 110px; }
+.rubro-det__tabla .col-unidad { width: 90px; }
+.rubro-det__tabla .col-stock { width: 85px; text-align: right; }
+.rubro-det__tabla .col-estado { width: 100px; text-align: center; }
+.rubro-det__tabla .col-accion { width: 110px; text-align: right; }
+
+.rubro-det__link-codigo { text-decoration: none; color: #2563eb; }
+.rubro-det__celda-tenue { color: #64748b; }
+.rubro-det__celda-centro { text-align: center; }
+.rubro-det__celda-der { text-align: right; }
+.rubro-det__stock { text-align: right; font-weight: 800; color: #0f172a; }
+.rubro-det__stock--cero { color: #ef4444; }
+.rubro-det__badge-insumo { font-size: 0.75rem; }
+.rubro-det__btn-ficha { text-decoration: none; font-size: 0.75rem; padding: 0.3rem 0.6rem; }
+
+.rubro-det__tabla td.rubro-det__vacio { text-align: center; color: #64748b; padding: 2rem; }
+.rubro-det__tabla td.rubro-det__vacio--filtro { font-size: 0.9rem; }
+
+/* ==========================================================================
+   Dashboard de rubros (rubro/dashboard.php y assets/js/rubros.js)
+   ========================================================================== */
+.alerta-pagina {
+    display: none;
+    padding: 0.85rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.btn-sin-subrayado { text-decoration: none; }
+.badge-boton { cursor: pointer; border: none; }
+.deshabilitar-mensaje { font-size: 0.95rem; color: #334155; margin-bottom: 1.5rem; text-align: center; }
+.modal-card--insumos { max-width: 650px; }
+.lista-insumos-rubro { max-height: 320px; overflow-y: auto; margin-bottom: 1.25rem; }
+
+.lista-insumos-msg { text-align: center; padding: 1.5rem; color: #64748b; }
+.lista-insumos-msg--error { color: #dc2626; }
+
+.tabla-insumos-modal { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
+.tabla-insumos-modal thead tr { border-bottom: 2px solid #e2e8f0; color: #0b1536; }
+.tabla-insumos-modal th, .tabla-insumos-modal td { padding: 0.6rem; }
+.tabla-insumos-modal tbody tr { border-bottom: 1px solid #f1f5f9; }
+.tabla-insumos-modal .col-codigo { font-weight: 600; }
+.tabla-insumos-modal .col-stock { text-align: right; }
+.tabla-insumos-modal td.col-stock { font-weight: 700; }
+
+/* Insumos deshabilitados: fila sombreada y texto atenuado (detalle de rubro y modal de insumos) */
+.rubro-det__tabla tbody tr.fila-insumo--inactiva,
+.tabla-insumos-modal tbody tr.fila-inactiva {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
+.rubro-det__tabla tr.fila-insumo--inactiva td:first-child {
+    box-shadow: inset 3px 0 0 #cbd5e1;
+}
+
+.rubro-det__tabla tr.fila-insumo--inactiva .rubro-det__link-codigo,
+.rubro-det__tabla tr.fila-insumo--inactiva .rubro-det__celda-tenue,
+.rubro-det__tabla tr.fila-insumo--inactiva .rubro-det__stock,
+.rubro-det__tabla tr.fila-insumo--inactiva .rubro-det__stock--cero {
+    color: #94a3b8;
+}
+
+.rubro-det__tabla tr.fila-insumo--inactiva .col-nombre {
+    text-decoration: line-through;
+    text-decoration-color: #cbd5e1;
+}
+
+.badge-mini { font-size: 0.68rem; margin-left: 0.4rem; }

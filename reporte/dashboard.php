@@ -11,6 +11,7 @@ if (!isAuthenticated()) {
 
 $seccion = 'reportes';
 $css_modulo = 'reportes';
+$js_modulo = 'reportes';
 $titulo_vista = 'Reportes';
 $titulo_pagina = 'Reportes - Sistema de Control de Stock';
 
@@ -73,7 +74,22 @@ function rp_url(array $cambios, string $ancla = ''): string
     return 'dashboard.php?' . http_build_query($params) . ($ancla !== '' ? '#' . $ancla : '');
 }
 
-/** Recorta $filas a la página pedida en $_GET['p_<clave>'] (por defecto la 1). */
+/**
+ * Página pedida en $_GET['p_<clave>'] (por defecto la 1). Los listados grandes la pasan a Reportes::*Paginado(),
+ * que pagina en la base con LIMIT/OFFSET; rp_paginar() solo queda para listas chicas que ya están en memoria.
+ */
+function rp_pagina(string $clave): int
+{
+    return max(1, (int) ($_GET['p_' . $clave] ?? 1));
+}
+
+/** Agrega la clave del listado al resultado de un *Paginado(), con la forma que espera rp_paginador(). */
+function rp_clave(string $clave, array $pagina): array
+{
+    return ['clave' => $clave] + $pagina;
+}
+
+/** Recorta $filas (ya en memoria) a la página pedida en $_GET['p_<clave>']. Para listas chicas. */
 function rp_paginar(array $filas, string $clave, int $porPagina = RP_POR_PAGINA): array
 {
     $total = count($filas);
@@ -154,35 +170,35 @@ $rango = Reportes::rangoValido($_GET['rango'] ?? null);
 
 switch ($tab_reporte) {
     case 'stock':
-        $stockCritico = Reportes::stockCritico();
-        $stockInmovil = Reportes::stockInmovil(90);
-        $vencimientos = Reportes::vencimientos(30);
+        $pgCrit = rp_clave('crit', Reportes::stockCriticoPaginado(rp_pagina('crit'), RP_POR_PAGINA));
+        $pgVenc = rp_clave('venc', Reportes::vencimientosPaginado(rp_pagina('venc'), RP_POR_PAGINA, 30));
+        $pgInm = rp_clave('inm', Reportes::stockInmovilPaginado(rp_pagina('inm'), RP_POR_PAGINA, 90));
         $higiene = Reportes::higieneDatos();
         break;
     case 'movimientos':
         $movPorTipo = Reportes::movimientosPorTipo($rango);
         $actividadDiaria = Reportes::movimientosPorDia(30);
         $evolucion = Reportes::evolucionMensual(6);
-        $ultimosMov = Reportes::ultimosMovimientos(50);
+        $pgUlt = rp_clave('um', Reportes::ultimosMovimientosPaginado(rp_pagina('um'), RP_POR_PAGINA));
         break;
     case 'herramientas':
         $htasPorEstado = Reportes::herramientasPorEstado();
-        $htasPrestadas = Reportes::herramientasPrestadas();
+        $pgPrest = rp_clave('prest', Reportes::herramientasPrestadasPaginado(rp_pagina('prest'), RP_POR_PAGINA));
         $htasPorOperario = Reportes::herramientasPrestadasPorOperario();
         break;
     case 'ordenes':
-        $otVencidas = Reportes::ordenesVencidas();
+        $pgVencidas = rp_clave('ovenc', Reportes::ordenesVencidasPaginado(rp_pagina('ovenc'), RP_POR_PAGINA));
         $htasSinDevolver = Reportes::herramientasSinDevolverEnOrdenesCerradas();
         $rangoOt = Reportes::rangoOrdenesValido($_GET['rango_ot'] ?? null);
         $ordenesPeriodo = Reportes::ordenesPorEstado($rangoOt);
         break;
     case 'consumo':
-        $topInsumos = Reportes::topInsumosConsumidos($rango, 200);
+        $pgTop = rp_clave('top', Reportes::topInsumosConsumidosPaginado(rp_pagina('top'), RP_POR_PAGINA, $rango));
         $porRubro = Reportes::consumoPorRubro($rango);
-        $porOperario = Reportes::consumoPorOperario($rango, 200);
-        $porOrden = Reportes::consumoPorOrden($rango, 200);
+        $pgOpe = rp_clave('ope', Reportes::consumoPorOperarioPaginado(rp_pagina('ope'), RP_POR_PAGINA, $rango));
+        $pgOrd = rp_clave('ord', Reportes::consumoPorOrdenPaginado(rp_pagina('ord'), RP_POR_PAGINA, $rango));
         $porJurisdiccion = Reportes::consumoPorJurisdiccion($rango);
-        $ajustes = Reportes::ajustesPorInsumo($rango, 200);
+        $pgAju = rp_clave('aju', Reportes::ajustesPorInsumoPaginado(rp_pagina('aju'), RP_POR_PAGINA, $rango));
         break;
     case 'auditoria':
         $periodo = $_GET['periodo'] ?? 'hoy';
@@ -190,8 +206,7 @@ switch ($tab_reporte) {
         $desde = trim($_GET['desde'] ?? '');
         $hasta = trim($_GET['hasta'] ?? '');
         $tipo_mov = trim($_GET['tipo_mov'] ?? '');
-        $auditoria = obtenerAuditoriaMovimientos($periodo, $desde ?: null, $hasta ?: null, $buscar ?: null, $tipo_mov ?: null);
-        $pgAud = rp_paginar($auditoria, 'aud');
+        $pgAud = rp_clave('aud', obtenerAuditoriaMovimientosPaginado(rp_pagina('aud'), RP_POR_PAGINA, $periodo, $desde ?: null, $hasta ?: null, $buscar ?: null, $tipo_mov ?: null));
         break;
 }
 
@@ -248,31 +263,31 @@ require_once __DIR__ . '/../layout/header.php';
     <?php include __DIR__ . '/tabs/consumo.php'; ?>
 <?php else: ?>
     <!-- TABLA DE AUDITORÍA -->
-    <div class="card" id="sec-aud"
-        style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap;">
-            <span style="font-size: 0.85rem; font-weight: 700; color: #475569; margin-right: 0.5rem;">Período:</span>
-            <a href="<?= $h(rp_url(['periodo' => 'hoy', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>"
-                style="text-decoration: none; padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 4px; font-weight: 600; background: <?= ($periodo === 'hoy' && !$desde && !$hasta) ? '#0b1536; color:#fff;' : '#f1f5f9; color:#475569;' ?>">Diario
+    <div class="card rp-aud" id="sec-aud">
+        <?php
+        // Botón de período activo (solo si no hay rango de fechas manual)
+        $periodoActivo = fn(string $p) => ($periodo === $p && !$desde && !$hasta) ? ' rp-aud__periodo--activo' : '';
+        ?>
+        <div class="rp-aud__periodos">
+            <span class="rp-aud__periodos-titulo">Período:</span>
+            <a class="rp-aud__periodo<?= $periodoActivo('hoy') ?>"
+                href="<?= $h(rp_url(['periodo' => 'hoy', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>">Diario
                 (Hoy)</a>
-            <a href="<?= $h(rp_url(['periodo' => 'semana', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>"
-                style="text-decoration: none; padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 4px; font-weight: 600; background: <?= ($periodo === 'semana' && !$desde && !$hasta) ? '#0b1536; color:#fff;' : '#f1f5f9; color:#475569;' ?>">Semanal</a>
-            <a href="<?= $h(rp_url(['periodo' => 'mes', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>"
-                style="text-decoration: none; padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 4px; font-weight: 600; background: <?= ($periodo === 'mes' && !$desde && !$hasta) ? '#0b1536; color:#fff;' : '#f1f5f9; color:#475569;' ?>">Mensual</a>
-            <a href="<?= $h(rp_url(['periodo' => 'anio', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>"
-                style="text-decoration: none; padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 4px; font-weight: 600; background: <?= ($periodo === 'anio' && !$desde && !$hasta) ? '#0b1536; color:#fff;' : '#f1f5f9; color:#475569;' ?>">Anual</a>
+            <a class="rp-aud__periodo<?= $periodoActivo('semana') ?>"
+                href="<?= $h(rp_url(['periodo' => 'semana', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>">Semanal</a>
+            <a class="rp-aud__periodo<?= $periodoActivo('mes') ?>"
+                href="<?= $h(rp_url(['periodo' => 'mes', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>">Mensual</a>
+            <a class="rp-aud__periodo<?= $periodoActivo('anio') ?>"
+                href="<?= $h(rp_url(['periodo' => 'anio', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>">Anual</a>
         </div>
 
-        <form method="GET" action="dashboard.php"
-            style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap;">
+        <form method="GET" action="dashboard.php" class="rp-aud__filtros">
             <input type="hidden" name="tab" value="auditoria">
             <input type="hidden" name="periodo" value="<?= $h($periodo) ?>">
             <input type="text" name="buscar" value="<?= htmlspecialchars($buscar) ?>"
-                placeholder="Buscar por responsable, operario o nota..." class="form-input"
-                style="flex: 2; min-width: 200px; padding: 0.45rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+                placeholder="Buscar por responsable, operario o nota..." class="form-input rp-aud__input rp-aud__input--buscar">
 
-            <select name="tipo_mov" class="form-input"
-                style="padding: 0.45rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+            <select name="tipo_mov" class="form-input rp-aud__input">
                 <option value="">Todos los Tipos</option>
                 <option value="Entrega" <?= $tipo_mov === 'Entrega' ? 'selected' : '' ?>>Entrega</option>
                 <option value="Devolución" <?= $tipo_mov === 'Devolución' ? 'selected' : '' ?>>Devolución</option>
@@ -280,56 +295,49 @@ require_once __DIR__ . '/../layout/header.php';
                 <option value="Ajuste de Inventario" <?= $tipo_mov === 'Ajuste de Inventario' ? 'selected' : '' ?>>Ajuste</option>
             </select>
 
-            <input type="date" name="desde" value="<?= htmlspecialchars($desde) ?>" class="form-input"
-                style="padding: 0.45rem 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
-            <input type="date" name="hasta" value="<?= htmlspecialchars($hasta) ?>" class="form-input"
-                style="padding: 0.45rem 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem;">
+            <input type="date" name="desde" value="<?= htmlspecialchars($desde) ?>" class="form-input rp-aud__input rp-aud__input--fecha">
+            <input type="date" name="hasta" value="<?= htmlspecialchars($hasta) ?>" class="form-input rp-aud__input rp-aud__input--fecha">
 
-            <button type="submit" class="btn btn-primary"
-                style="padding: 0.45rem 0.9rem; font-size: 0.85rem; font-weight: 600;">Filtrar</button>
-            <a href="dashboard.php?tab=auditoria" class="btn btn-secondary"
-                style="padding: 0.45rem 0.8rem; font-size: 0.85rem; text-decoration: none;">Limpiar</a>
+            <button type="submit" class="btn btn-primary rp-aud__btn-filtrar">Filtrar</button>
+            <a href="dashboard.php?tab=auditoria" class="btn btn-secondary rp-aud__btn-limpiar">Limpiar</a>
         </form>
 
         <div class="table-responsive">
-            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+            <table class="data-table rp-aud__tabla">
                 <thead>
-                    <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
-                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Fecha y Hora</th>
-                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Operación</th>
-                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Operario Destinatario</th>
-                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Usuario Responsable</th>
-                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536;">Observaciones</th>
-                        <th style="padding: 0.75rem 0.5rem; font-size: 0.85rem; color: #0b1536; text-align: right;">Acción
-                        </th>
+                    <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Operación</th>
+                        <th>Operario Destinatario</th>
+                        <th>Usuario Responsable</th>
+                        <th>Observaciones</th>
+                        <th class="rp-aud__col-der">Acción</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (empty($auditoria)): ?>
+                    <?php if (empty($pgAud['filas'])): ?>
                         <tr>
-                            <td colspan="6" style="text-align: center; padding: 2.5rem; color: #64748b; font-size: 0.9rem;">
+                            <td colspan="6" class="rp-aud__vacio">
                                 No se encontraron registros de auditoría para los filtros aplicados.
                             </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($pgAud['filas'] as $a): ?>
-                            <tr style="border-bottom: 1px solid #f1f5f9;">
-                                <td style="padding: 0.75rem 0.5rem;"><?= date('d/m/Y', strtotime($a['fecha'])) ?>
+                            <tr>
+                                <td><?= date('d/m/Y', strtotime($a['fecha'])) ?>
                                     <?= htmlspecialchars($a['hora']) ?></td>
-                                <td style="padding: 0.75rem 0.5rem;">
-                                    <span
-                                        style="background: #e0f2fe; color: #0369a1; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 9999px; font-size: 0.8rem;">
+                                <td>
+                                    <span class="rp-aud__tipo">
                                         <?= htmlspecialchars($a['tipo_movimiento']) ?>
                                     </span>
                                 </td>
-                                <td style="padding: 0.75rem 0.5rem;"><strong><?= htmlspecialchars($a['operario']) ?></strong></td>
-                                <td style="padding: 0.75rem 0.5rem;"><?= htmlspecialchars($a['usuario_responsable']) ?></td>
-                                <td style="padding: 0.75rem 0.5rem; color: #64748b;">
+                                <td><strong><?= htmlspecialchars($a['operario']) ?></strong></td>
+                                <td><?= htmlspecialchars($a['usuario_responsable']) ?></td>
+                                <td class="rp-aud__obs">
                                     <?= htmlspecialchars($a['observaciones'] ?: '-') ?></td>
-                                <td style="padding: 0.75rem 0.5rem; text-align: right;">
-                                    <button type="button" class="btn btn-secondary"
-                                        style="padding: 0.35rem 0.7rem; font-size: 0.78rem; font-weight: 700; cursor: pointer;"
-                                        onclick="abrirDetallesMovimiento(<?= $a['id_movimiento'] ?>)">
+                                <td class="rp-aud__col-der">
+                                    <button type="button" class="btn btn-secondary rp-aud__btn-items"
+                                        onclick="abrirDetallesMovimiento(<?= (int) $a['id_movimiento'] ?>)">
                                         Ver Ítems
                                     </button>
                                 </td>
@@ -345,90 +353,38 @@ require_once __DIR__ . '/../layout/header.php';
 
 <?php if ($tab_reporte === 'auditoria'): ?>
 <!-- MODAL VER DETALLE DE AUDITORÍA -->
-<div id="modal-auditoria"
-    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 9999; justify-content: center; align-items: center;">
-    <div
-        style="background: #fff; width: 100%; max-width: 600px; border-radius: 8px; padding: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
-        <div
-            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.6rem; margin-bottom: 1rem;">
-            <h3 style="margin: 0; font-size: 1.15rem; color: #0b1536; font-weight: 800;">
+<div id="modal-auditoria" class="rp-modal">
+    <div class="rp-modal__caja">
+        <div class="rp-modal__cabecera">
+            <h3 class="rp-modal__titulo">
                 Desglose de Ítems (Movimiento #<span id="txt-modal-id"></span>)
             </h3>
-            <button type="button" onclick="cerrarModalAuditoria()"
-                style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #64748b;">&times;</button>
+            <button type="button" class="rp-modal__cerrar" onclick="cerrarModalAuditoria()">&times;</button>
         </div>
 
-        <div id="modal-estado-carga" style="text-align: center; padding: 1.5rem; color: #64748b;">Cargando...</div>
+        <div id="modal-estado-carga" class="rp-modal__estado">Cargando...</div>
 
-        <div id="modal-tabla-items" style="display: none;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+        <div id="modal-tabla-items" class="oculto">
+            <table class="rp-modal__tabla">
                 <thead>
-                    <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
-                        <th style="padding: 0.5rem;">Código</th>
-                        <th style="padding: 0.5rem;">Artículo / Insumo</th>
-                        <th style="padding: 0.5rem;">Cantidad</th>
-                        <th style="padding: 0.5rem;">Estado Hta.</th>
+                    <tr>
+                        <th>Código</th>
+                        <th>Artículo / Insumo</th>
+                        <th>Cantidad</th>
+                        <th>Estado Hta.</th>
                     </tr>
                 </thead>
                 <tbody id="modal-filas"></tbody>
             </table>
         </div>
 
-        <div style="text-align: right; margin-top: 1.25rem;">
-            <button type="button" class="btn btn-secondary" onclick="cerrarModalAuditoria()"
-                style="padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+        <div class="rp-modal__pie">
+            <button type="button" class="btn btn-secondary rp-modal__btn-cerrar" onclick="cerrarModalAuditoria()">
                 Cerrar
             </button>
         </div>
     </div>
 </div>
-
-<script>
-    function abrirDetallesMovimiento(id) {
-        document.getElementById('txt-modal-id').innerText = id;
-        document.getElementById('modal-estado-carga').innerText = 'Cargando ítems...';
-        document.getElementById('modal-estado-carga').style.display = 'block';
-        document.getElementById('modal-tabla-items').style.display = 'none';
-        document.getElementById('modal-auditoria').style.display = 'flex';
-
-        fetch('detalle_auditoria.php?id=' + id)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success && data.detalles && data.detalles.length > 0) {
-                    document.getElementById('modal-estado-carga').style.display = 'none';
-                    let tbody = document.getElementById('modal-filas');
-                    tbody.innerHTML = '';
-                    data.detalles.forEach(it => {
-                        tbody.innerHTML += `
-                        <tr style="border-bottom: 1px solid #f1f5f9;">
-                            <td style="padding: 0.5rem;"><strong>${it.codigo}</strong></td>
-                            <td style="padding: 0.5rem;">${it.item_nombre}</td>
-                            <td style="padding: 0.5rem;">${it.cantidad} ${it.unidad}</td>
-                            <td style="padding: 0.5rem;">${it.estado_herramienta}</td>
-                        </tr>
-                    `;
-                    });
-                    document.getElementById('modal-tabla-items').style.display = 'block';
-                } else if (data.success) {
-                    document.getElementById('modal-estado-carga').innerText = 'No hay ítems registrados en este movimiento.';
-                } else {
-                    document.getElementById('modal-estado-carga').innerText = 'Error: ' + (data.error || 'No se pudieron recuperar los registros.');
-                }
-            })
-            .catch(err => {
-                document.getElementById('modal-estado-carga').innerText = 'Fallo en la consulta: ' + err.message;
-            });
-    }
-
-    function cerrarModalAuditoria() {
-        document.getElementById('modal-auditoria').style.display = 'none';
-    }
-</script>
 <?php endif; ?>
 
 <?php

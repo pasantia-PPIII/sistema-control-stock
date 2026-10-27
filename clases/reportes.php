@@ -75,6 +75,32 @@ class Reportes
         return (int) ($fila['total'] ?? 0);
     }
 
+    /**
+     * Pagina una consulta en la base de datos (LIMIT/OFFSET) en vez de traer todas las filas.
+     * $sql debe terminar en su ORDER BY (con un desempate estable) y sin LIMIT. Con $campoMax devuelve además
+     * el máximo de esa columna sobre TODO el resultado (para escalar barras sin depender de la página).
+     * Devuelve: filas, total, pagina (ya acotada al rango válido), paginas, desde, hasta y maximo.
+     */
+    public static function paginado(string $sql, array $params, int $pagina, int $porPagina, ?string $campoMax = null): array
+    {
+        $porPagina = max(1, $porPagina);
+        $max = ($campoMax !== null && preg_match('/^\w+$/', $campoMax)) ? ", MAX({$campoMax}) AS maximo" : '';
+        $res = Database::fetch("SELECT COUNT(*) AS total{$max} FROM ({$sql}) q", $params) ?? [];
+        $total = (int) ($res['total'] ?? 0);
+        $paginas = max(1, (int) ceil($total / $porPagina));
+        $pagina = min(max(1, $pagina), $paginas);
+        $desde = ($pagina - 1) * $porPagina;
+        return [
+            'filas' => $total > 0 ? Database::fetchAll($sql . ' LIMIT ' . $porPagina . ' OFFSET ' . $desde, $params) : [],
+            'pagina' => $pagina,
+            'paginas' => $paginas,
+            'total' => $total,
+            'desde' => $total > 0 ? $desde + 1 : 0,
+            'hasta' => min($total, $desde + $porPagina),
+            'maximo' => (float) ($res['maximo'] ?? 0),
+        ];
+    }
+
     /** Suma ponderada del consumo neto (Entrega suma, Devolución resta) sobre movimiento_detalle `md`. */
     private static function sqlNeto(): string
     {
@@ -115,7 +141,22 @@ class Reportes
      */
     public static function stockCritico(?int $limite = null): array
     {
-        $sql = "
+        $sql = self::sqlStockCritico();
+        if ($limite !== null) {
+            $sql .= ' LIMIT ' . (int) $limite;
+        }
+        return Database::fetchAll($sql);
+    }
+
+    /** Página $pagina (de $porPagina filas) de stockCritico(), paginada en la base con LIMIT/OFFSET. */
+    public static function stockCriticoPaginado(int $pagina, int $porPagina): array
+    {
+        return self::paginado(self::sqlStockCritico(), [], $pagina, $porPagina);
+    }
+
+    private static function sqlStockCritico(): string
+    {
+        return "
             SELECT i.codigo, i.nombre,
                    COALESCE(r.nombre, 'Sin rubro') AS rubro,
                    COALESCE(u.ubicacion, 'Sin ubicación') AS ubicacion,
@@ -133,11 +174,7 @@ class Reportes
             WHERE i.activo = TRUE
               AND t.tipo <> '" . self::TIPO_HERRAMIENTA . "'
               AND COALESCE(sa.stock_actual, 0) <= i.stock_minimo
-            ORDER BY (i.stock_minimo - COALESCE(sa.stock_actual, 0)) DESC, i.nombre ASC";
-        if ($limite !== null) {
-            $sql .= ' LIMIT ' . (int) $limite;
-        }
-        return Database::fetchAll($sql);
+            ORDER BY (i.stock_minimo - COALESCE(sa.stock_actual, 0)) DESC, i.nombre ASC, i.codigo ASC";
     }
 
     public static function totalStockCritico(): int
@@ -158,7 +195,22 @@ class Reportes
      */
     public static function vencimientos(int $dias = 30, ?int $limite = null): array
     {
-        $sql = "
+        $sql = self::sqlVencimientos($dias);
+        if ($limite !== null) {
+            $sql .= ' LIMIT ' . (int) $limite;
+        }
+        return Database::fetchAll($sql);
+    }
+
+    /** Página $pagina (de $porPagina filas) de vencimientos(), paginada en la base con LIMIT/OFFSET. */
+    public static function vencimientosPaginado(int $pagina, int $porPagina, int $dias = 30): array
+    {
+        return self::paginado(self::sqlVencimientos($dias), [], $pagina, $porPagina);
+    }
+
+    private static function sqlVencimientos(int $dias): string
+    {
+        return "
             SELECT i.codigo, i.nombre, i.fecha_vencimiento,
                    COALESCE(sa.stock_actual, 0) AS stock_actual,
                    COALESCE(um.unidad_medida, 'Unid.') AS unidad,
@@ -171,11 +223,7 @@ class Reportes
               AND i.fecha_vencimiento IS NOT NULL
               AND i.fecha_vencimiento <= CURRENT_DATE + " . (int) $dias . "
               AND COALESCE(sa.stock_actual, 0) > 0
-            ORDER BY i.fecha_vencimiento ASC, i.nombre ASC";
-        if ($limite !== null) {
-            $sql .= ' LIMIT ' . (int) $limite;
-        }
-        return Database::fetchAll($sql);
+            ORDER BY i.fecha_vencimiento ASC, i.nombre ASC, i.codigo ASC";
     }
 
     /** Cantidad de perecederos con stock: ['vencidos' => n, 'por_vencer' => n]. */
@@ -227,8 +275,23 @@ class Reportes
      */
     public static function stockInmovil(int $dias = 90, ?int $limite = null): array
     {
+        $sql = self::sqlStockInmovil($dias);
+        if ($limite !== null) {
+            $sql .= ' LIMIT ' . (int) $limite;
+        }
+        return Database::fetchAll($sql);
+    }
+
+    /** Página $pagina (de $porPagina filas) de stockInmovil(), paginada en la base con LIMIT/OFFSET. */
+    public static function stockInmovilPaginado(int $pagina, int $porPagina, int $dias = 90): array
+    {
+        return self::paginado(self::sqlStockInmovil($dias), [], $pagina, $porPagina);
+    }
+
+    private static function sqlStockInmovil(int $dias): string
+    {
         $dias = max(1, $dias);
-        $sql = "
+        return "
             SELECT i.codigo, i.nombre,
                    COALESCE(um.unidad_medida, 'Unid.') AS unidad,
                    sa.stock_actual,
@@ -247,11 +310,7 @@ class Reportes
             ) le ON le.id_insumo = i.id_insumo
             WHERE i.activo = TRUE
               AND COALESCE(le.ultima_entrega, i.fecha_registro) < CURRENT_DATE - {$dias}
-            ORDER BY dias_sin_salida DESC, i.nombre ASC";
-        if ($limite !== null) {
-            $sql .= ' LIMIT ' . (int) $limite;
-        }
-        return Database::fetchAll($sql);
+            ORDER BY dias_sin_salida DESC, i.nombre ASC, i.codigo ASC";
     }
 
     /**
@@ -349,7 +408,18 @@ class Reportes
      */
     public static function herramientasPrestadas(): array
     {
-        return Database::fetchAll("
+        return Database::fetchAll(self::sqlHerramientasPrestadas());
+    }
+
+    /** Página $pagina (de $porPagina filas) de herramientasPrestadas(), paginada en la base con LIMIT/OFFSET. */
+    public static function herramientasPrestadasPaginado(int $pagina, int $porPagina): array
+    {
+        return self::paginado(self::sqlHerramientasPrestadas(), [], $pagina, $porPagina);
+    }
+
+    private static function sqlHerramientasPrestadas(): string
+    {
+        return "
             SELECT i.codigo, i.nombre,
                    ult.id_movimiento AS id_movimiento_entrega,
                    ult.fecha AS fecha_entrega,
@@ -372,7 +442,7 @@ class Reportes
                 LIMIT 1
             ) ult ON TRUE
             WHERE i.activo = TRUE
-            ORDER BY dias_prestada DESC NULLS LAST, i.nombre ASC");
+            ORDER BY dias_prestada DESC NULLS LAST, i.nombre ASC, i.codigo ASC";
     }
 
     /** Herramientas prestadas agrupadas por operario, con la antigüedad del préstamo más viejo. */
@@ -440,7 +510,22 @@ class Reportes
     /** Órdenes vencidas (fecha final pasada y sin cerrar), las de mayor atraso primero. */
     public static function ordenesVencidas(?int $limite = null): array
     {
-        $sql = "
+        $sql = self::sqlOrdenesVencidas();
+        if ($limite !== null) {
+            $sql .= ' LIMIT ' . (int) $limite;
+        }
+        return Database::fetchAll($sql);
+    }
+
+    /** Página $pagina (de $porPagina filas) de ordenesVencidas(), paginada en la base con LIMIT/OFFSET. */
+    public static function ordenesVencidasPaginado(int $pagina, int $porPagina): array
+    {
+        return self::paginado(self::sqlOrdenesVencidas(), [], $pagina, $porPagina);
+    }
+
+    private static function sqlOrdenesVencidas(): string
+    {
+        return "
             SELECT o.id_odt, o.numero_ot, COALESCE(o.estado, 'Pendiente') AS estado, o.fecha_final,
                    (CURRENT_DATE - o.fecha_final) AS dias_atraso,
                    COALESCE(l.localidad, 'Sin localidad') AS localidad,
@@ -450,10 +535,6 @@ class Reportes
             LEFT JOIN jurisdiccion j ON o.id_jurisdiccion = j.id_jurisdiccion
             WHERE " . self::condicionOrdenVencida() . "
             ORDER BY o.fecha_final ASC, o.id_odt ASC";
-        if ($limite !== null) {
-            $sql .= ' LIMIT ' . (int) $limite;
-        }
-        return Database::fetchAll($sql);
     }
 
     /**
@@ -582,7 +663,18 @@ class Reportes
     /** Últimos movimientos activos, del más reciente al más antiguo. */
     public static function ultimosMovimientos(int $limite = 10): array
     {
-        return Database::fetchAll("
+        return Database::fetchAll(self::sqlUltimosMovimientos() . ' LIMIT ' . (int) $limite);
+    }
+
+    /** Página $pagina (de $porPagina filas) de ultimosMovimientos(), paginada en la base con LIMIT/OFFSET. */
+    public static function ultimosMovimientosPaginado(int $pagina, int $porPagina): array
+    {
+        return self::paginado(self::sqlUltimosMovimientos(), [], $pagina, $porPagina);
+    }
+
+    private static function sqlUltimosMovimientos(): string
+    {
+        return "
             SELECT m.id_movimiento, m.fecha, m.hora, tm.tipo,
                    COALESCE(o.apellido || ', ' || o.nombre, 'Sin operario') AS operario,
                    ot.numero_ot,
@@ -592,14 +684,24 @@ class Reportes
             LEFT JOIN operario o ON m.id_operario = o.id_operario
             LEFT JOIN orden_de_trabajo ot ON m.id_odt = ot.id_odt
             WHERE m.activo = TRUE
-            ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC
-            LIMIT " . (int) $limite);
+            ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC";
     }
 
     /** Materiales más consumidos (consumo neto) en el rango. */
     public static function topInsumosConsumidos(string $rango = '30d', int $limite = 10): array
     {
-        return Database::fetchAll("
+        return Database::fetchAll(self::sqlTopInsumosConsumidos($rango) . ' LIMIT ' . (int) $limite);
+    }
+
+    /** Página $pagina (de $porPagina filas) de topInsumosConsumidos(), paginada en la base con LIMIT/OFFSET. */
+    public static function topInsumosConsumidosPaginado(int $pagina, int $porPagina, string $rango = '30d'): array
+    {
+        return self::paginado(self::sqlTopInsumosConsumidos($rango), [], $pagina, $porPagina, 'neto');
+    }
+
+    private static function sqlTopInsumosConsumidos(string $rango): string
+    {
+        return "
             SELECT i.codigo, i.nombre, COALESCE(um.unidad_medida, 'Unid.') AS unidad,
                    " . self::sqlEntregado() . " AS entregado,
                    " . self::sqlDevuelto() . " AS devuelto,
@@ -607,8 +709,7 @@ class Reportes
             " . self::fromConsumo('LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida') . self::condicionRango($rango) . "
             GROUP BY i.id_insumo, i.codigo, i.nombre, um.unidad_medida
             HAVING " . self::sqlNeto() . " > 0
-            ORDER BY neto DESC, i.nombre ASC
-            LIMIT " . (int) $limite);
+            ORDER BY neto DESC, i.nombre ASC, i.codigo ASC";
     }
 
     /** Consumo de materiales por rubro en el rango (entregado, devuelto y neto). */
@@ -629,30 +730,50 @@ class Reportes
     /** Consumo neto de materiales por operario destinatario en el rango. */
     public static function consumoPorOperario(string $rango = '30d', int $limite = 10): array
     {
-        return Database::fetchAll("
+        return Database::fetchAll(self::sqlConsumoPorOperario($rango) . ' LIMIT ' . (int) $limite);
+    }
+
+    /** Página $pagina (de $porPagina filas) de consumoPorOperario(), paginada en la base con LIMIT/OFFSET. */
+    public static function consumoPorOperarioPaginado(int $pagina, int $porPagina, string $rango = '30d'): array
+    {
+        return self::paginado(self::sqlConsumoPorOperario($rango), [], $pagina, $porPagina, 'neto');
+    }
+
+    private static function sqlConsumoPorOperario(string $rango): string
+    {
+        return "
             SELECT COALESCE(o.apellido || ', ' || o.nombre, 'Sin operario') AS operario,
                    COUNT(DISTINCT m.id_movimiento) AS movimientos,
                    " . self::sqlNeto() . " AS neto
             " . self::fromConsumo('LEFT JOIN operario o ON m.id_operario = o.id_operario') . self::condicionRango($rango) . "
             GROUP BY o.id_operario, o.apellido, o.nombre
             HAVING " . self::sqlEntregado() . " > 0
-            ORDER BY neto DESC, operario ASC
-            LIMIT " . (int) $limite);
+            ORDER BY neto DESC, operario ASC, o.id_operario ASC";
     }
 
     /** Consumo neto de materiales por orden de trabajo en el rango (solo movimientos asociados a una orden). */
     public static function consumoPorOrden(string $rango = '30d', int $limite = 10): array
     {
+        return Database::fetchAll(self::sqlConsumoPorOrden($rango) . ' LIMIT ' . (int) $limite);
+    }
+
+    /** Página $pagina (de $porPagina filas) de consumoPorOrden(), paginada en la base con LIMIT/OFFSET. */
+    public static function consumoPorOrdenPaginado(int $pagina, int $porPagina, string $rango = '30d'): array
+    {
+        return self::paginado(self::sqlConsumoPorOrden($rango), [], $pagina, $porPagina, 'neto');
+    }
+
+    private static function sqlConsumoPorOrden(string $rango): string
+    {
         $f = self::fromConsumo('INNER JOIN orden_de_trabajo ot ON m.id_odt = ot.id_odt');
-        return Database::fetchAll("
+        return "
             SELECT ot.numero_ot, COALESCE(ot.estado, 'Pendiente') AS estado,
                    COUNT(DISTINCT m.id_movimiento) AS movimientos,
                    " . self::sqlNeto() . " AS neto
             {$f}" . self::condicionRango($rango) . "
             GROUP BY ot.id_odt, ot.numero_ot, ot.estado
             HAVING " . self::sqlEntregado() . " > 0
-            ORDER BY neto DESC, ot.numero_ot ASC
-            LIMIT " . (int) $limite);
+            ORDER BY neto DESC, ot.numero_ot ASC, ot.id_odt ASC";
     }
 
     /** Consumo neto de materiales por jurisdicción de la orden de trabajo en el rango. */
@@ -677,7 +798,18 @@ class Reportes
      */
     public static function ajustesPorInsumo(string $rango = '30d', int $limite = 10): array
     {
-        return Database::fetchAll("
+        return Database::fetchAll(self::sqlAjustesPorInsumo($rango) . ' LIMIT ' . (int) $limite);
+    }
+
+    /** Página $pagina (de $porPagina filas) de ajustesPorInsumo(), paginada en la base con LIMIT/OFFSET. */
+    public static function ajustesPorInsumoPaginado(int $pagina, int $porPagina, string $rango = '30d'): array
+    {
+        return self::paginado(self::sqlAjustesPorInsumo($rango), [], $pagina, $porPagina);
+    }
+
+    private static function sqlAjustesPorInsumo(string $rango): string
+    {
+        return "
             SELECT i.codigo, i.nombre,
                    COUNT(DISTINCT m.id_movimiento) AS ajustes,
                    MAX(m.fecha) AS ultimo_ajuste
@@ -687,7 +819,6 @@ class Reportes
             INNER JOIN insumos i ON md.id_insumo = i.id_insumo
             WHERE TRUE" . self::condicionRango($rango) . "
             GROUP BY i.id_insumo, i.codigo, i.nombre
-            ORDER BY ajustes DESC, ultimo_ajuste DESC
-            LIMIT " . (int) $limite);
+            ORDER BY ajustes DESC, ultimo_ajuste DESC, i.codigo ASC";
     }
 }

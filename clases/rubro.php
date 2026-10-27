@@ -73,7 +73,7 @@ class Rubro
                 LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
                 LEFT JOIN tipo t ON i.id_tipo = t.id_tipo
                 LEFT JOIN stock_actual sa ON i.id_stock_actual = sa.id_stock_actual
-                WHERE i.id_rubro = :id_rubro AND i.activo = TRUE
+                WHERE i.id_rubro = :id_rubro
                 ORDER BY i.nombre ASC";
 
         return $this->db->fetchAll($sql, ['id_rubro' => $id_rubro]);

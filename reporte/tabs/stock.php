@@ -4,9 +4,6 @@
 // y los datos cargados allí).
 $linkInsumo = fn($codigo) => '../insumo/detalles_insumo.php?codigo=' . rawurlencode((string) $codigo);
 
-$pgCrit = rp_paginar($stockCritico, 'crit');
-$pgVenc = rp_paginar($vencimientos, 'venc');
-$pgInm = rp_paginar($stockInmovil, 'inm');
 ?>
 
 <!-- STOCK CRÍTICO / COMPRAS -->

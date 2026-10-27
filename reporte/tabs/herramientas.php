@@ -10,7 +10,6 @@ $claseEstado = [
     Reportes::HTA_BAJA => 'rp-pastilla--neutra',
 ];
 
-$pgPrest = rp_paginar($htasPrestadas, 'prest');
 $pgOper = rp_paginar($htasPorOperario, 'hop');
 ?>
 

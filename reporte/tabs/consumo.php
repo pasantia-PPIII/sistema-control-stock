@@ -13,19 +13,15 @@ $maximo = function (array $filas, string $campo): float {
 };
 $rotuloRango = Reportes::RANGOS[$rango][0];
 
-// El máximo de cada barra se calcula sobre la lista completa, para que las proporciones no cambien al paginar
+// El máximo de cada barra se calcula sobre la lista completa (en la base, ver *Paginado()), para que las proporciones no cambien al paginar
 $mxRubro = $maximo($porRubro, 'neto');
 $mxJur = $maximo($porJurisdiccion, 'neto');
-$mxOper = $maximo($porOperario, 'neto');
-$mxOrden = $maximo($porOrden, 'neto');
-$mxTop = $maximo($topInsumos, 'neto');
+$mxOper = $pgOpe['maximo'];
+$mxOrden = $pgOrd['maximo'];
+$mxTop = $pgTop['maximo'];
 
-$pgTop = rp_paginar($topInsumos, 'top');
 $pgRub = rp_paginar($porRubro, 'rub');
 $pgJur = rp_paginar($porJurisdiccion, 'jur');
-$pgOpe = rp_paginar($porOperario, 'ope');
-$pgOrd = rp_paginar($porOrden, 'ord');
-$pgAju = rp_paginar($ajustes, 'aju');
 ?>
 
 <?php include __DIR__ . '/_rango.php'; ?>

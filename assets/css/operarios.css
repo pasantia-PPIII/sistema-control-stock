@@ -378,3 +378,33 @@
 .pagination-btn.text-label {
     padding: 0.45rem 1rem;
 }
+/* ==========================================================================
+   Utilidades de la vista y estilos extraídos del HTML/JS inline
+   ========================================================================== */
+.oculto { display: none; }
+
+.msg-error-modal {
+    display: none;
+    color: #dc2626;
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
+.modal-acciones-centro { display: flex; gap: 1rem; justify-content: center; }
+.btn-action-text.btn-modal-estado { padding: 0.6rem 1.4rem; font-size: 0.9rem; }
+.btn-action-text.btn-modal-estado--confirmar { color: #ffffff; }
+
+.alerta-pagina {
+    display: none;
+    padding: 0.8rem 1.2rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.operario-nombre { font-weight: 700; color: #0f172a; }
+.modal-card--estado { max-width: 480px; }
+.estado-caja { border-radius: 8px; padding: 1.1rem; margin-bottom: 1.5rem; font-size: 0.9rem; }
+.estado-nota { margin-top: 0.5rem; font-size: 0.82rem; }

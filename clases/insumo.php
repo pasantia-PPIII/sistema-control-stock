@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/reportes.php';
 
 class Insumo {
     private $db;
@@ -104,12 +105,29 @@ class Insumo {
     }
 
     /**
-     * Alias de getByCodigo() para consistencia de nomenclatura con las demás clases.
-     * @param string $codigo Código del insumo
-     * @return array|false Datos del insumo
+     * Obtiene un insumo activo por su clave primaria (id_insumo), con sus relaciones.
+     * Equivale a getByCodigo() pero buscando por id (p. ej. enlaces ?editar=ID desde Reportes).
+     * @param int $id_insumo ID del insumo
+     * @return array|false Datos del insumo, o false si no existe o está deshabilitado
      */
-    public function getById($codigo) {
-        return $this->getByCodigo($codigo);
+    public function getById($id_insumo) {
+        $sql = "SELECT i.*, 
+                       um.unidad_medida, 
+                       t.tipo as nombre_tipo, 
+                       r.nombre as nombre_rubro, 
+                       u.ubicacion as nombre_ubicacion,
+                       s.stock_actual,
+                       eh.estado as nombre_estado_herramienta
+                FROM insumos i
+                LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
+                LEFT JOIN tipo t ON i.id_tipo = t.id_tipo
+                LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
+                LEFT JOIN ubicacion u ON i.id_ubicacion = u.id_ubicacion
+                LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
+                LEFT JOIN estado_herramienta eh ON i.id_estado_herramienta = eh.id_estado_herramienta
+                WHERE i.id_insumo = :id_insumo AND i.activo = TRUE";
+
+        return $this->db->fetchOne($sql, ['id_insumo' => (int)$id_insumo]);
     }
 
     /**
@@ -129,20 +147,13 @@ class Insumo {
     }
 
     /**
-     * Obtiene materiales con stock bajo (menor al stock_minimo).
+     * Obtiene materiales en stock crítico (stock actual <= stock mínimo).
+     * Delega en Reportes::stockCritico(), la definición única que usan también el Panel y los Reportes.
      * Las herramientas no se incluyen: su stock es 1 (en el pañol) o 0 (prestada), no una cantidad a reponer.
      * @return array Insumos con stock crítico
      */
     public function getStockBajo() {
-        $sql = "SELECT i.codigo, i.nombre, i.stock_minimo, s.stock_actual
-                FROM insumos i
-                INNER JOIN tipo t ON i.id_tipo = t.id_tipo
-                LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
-                WHERE s.stock_actual < i.stock_minimo
-                AND t.tipo <> 'Herramienta'
-                AND i.activo = TRUE";
-        
-        return $this->db->fetchAll($sql);
+        return Reportes::stockCritico();
     }
 
     /**

@@ -38,8 +38,15 @@ if (!$rubro) {
 
 $insumos = $rubroModel->getInsumosByRubro($idRubro);
 
-// MEJORA 2: Ordenar en el backend para que los insumos con stock 0 o crítico aparezcan primero
+// Orden en el backend: primero los activos con stock 0 o crítico
 usort($insumos, function ($a, $b) {
+    // Los insumos deshabilitados van al final: no requieren reposición
+    $activoA = !empty($a['activo']) && $a['activo'] !== 'f';
+    $activoB = !empty($b['activo']) && $b['activo'] !== 'f';
+    if ($activoA !== $activoB) {
+        return $activoA ? -1 : 1;
+    }
+
     $stockA = (float) ($a['stock_actual'] ?? 0);
     $stockB = (float) ($b['stock_actual'] ?? 0);
 
@@ -68,6 +75,7 @@ $activo = !empty($rubro['activo']) && $rubro['activo'] !== 'f';
 
 $seccion = 'rubro';
 $css_modulo = 'rubros';
+$js_modulo = 'rubro_detalle';
 $titulo_vista = 'Detalle de Rubro';
 $titulo_pagina = 'Rubro ' . $rubro['nombre'] . ' - Sistema de Control de Stock';
 
@@ -76,51 +84,46 @@ include_once __DIR__ . '/../layout/header.php';
 $h = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>
 
-<div
-    style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:1.75rem 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+<div class="rubro-det">
 
     <!-- ENCABEZADO DEL RUBRO -->
-    <div
-        style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+    <div class="rubro-det__encabezado">
         <div>
-            <div style="display:flex; align-items:center; gap:0.75rem;">
-                <h2 style="margin:0; color:#0b1536; font-size:1.6rem; font-weight:800;"><?= $h($rubro['nombre']) ?></h2>
-                <span class="badge <?= $activo ? 'badge-success' : 'badge-danger' ?>" style="font-size:0.8rem;">
+            <div class="rubro-det__titulo-fila">
+                <h2 class="rubro-det__titulo"><?= $h($rubro['nombre']) ?></h2>
+                <span class="badge rubro-det__badge <?= $activo ? 'badge-success' : 'badge-danger' ?>">
                     <?= $activo ? 'Activo' : 'Inactivo' ?>
                 </span>
             </div>
-            <p style="margin:0.4rem 0 0; color:#64748b; font-size:0.9rem;">
+            <p class="rubro-det__descripcion">
                 <?= !empty($rubro['descripcion']) ? $h($rubro['descripcion']) : 'Sin descripción registrada.' ?>
             </p>
         </div>
 
-        <div style="display:flex; align-items:center; gap:0.75rem;">
+        <div class="rubro-det__acciones">
             <?php if (isAdmin()): ?>
-                <a href="../insumo/dashboard.php?rubro=<?= (int) $rubro['id_rubro'] ?>" class="btn-pill-action"
-                    style="text-decoration:none; padding:0.55rem 1.25rem; font-size:0.85rem;">
+                <a href="../insumo/dashboard.php?rubro=<?= (int) $rubro['id_rubro'] ?>"
+                    class="btn-pill-action rubro-det__btn-catalogo">
                     Ver en Catálogo General
                 </a>
             <?php endif; ?>
-            <a href="dashboard.php" class="btn-action-text view"
-                style="text-decoration:none; padding:0.55rem 1.1rem; font-size:0.85rem; font-weight:700;">
+            <a href="dashboard.php" class="btn-action-text view rubro-det__btn-volver">
                 Volver a Rubros
             </a>
         </div>
     </div>
 
     <!-- BARRA DE BÚSQUEDA Y FILTRO RÁPIDO DENTRO DE LA CATEGORÍA -->
-    <div
-        style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem; flex-wrap:wrap; gap:0.75rem;">
-        <h3 style="color:#0b1536; margin:0; font-size:1.15rem; font-weight:800;">
+    <div class="rubro-det__barra">
+        <h3 class="rubro-det__subtitulo">
             Insumos del rubro (<span id="total-articulos-visibles"><?= count($insumos) ?></span>)
         </h3>
 
-        <div style="display:flex; gap:0.6rem; align-items:center;">
+        <div class="rubro-det__filtros">
             <input type="text" id="buscador-insumo-rubro" placeholder="Filtrar por código o nombre..."
-                class="modal-input" style="width:260px; padding:0.45rem 0.8rem; font-size:0.85rem;">
+                class="modal-input rubro-det__buscador">
 
-            <select id="filtro-tipo-rubro" class="filter-select"
-                style="padding:0.45rem 1.8rem 0.45rem 0.75rem; font-size:0.85rem; min-width:130px;">
+            <select id="filtro-tipo-rubro" class="filter-select rubro-det__filtro-tipo">
                 <option value="">Todos los tipos</option>
                 <option value="material">Materiales</option>
                 <option value="herramienta">Herramientas</option>
@@ -129,24 +132,23 @@ $h = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
     </div>
 
     <!-- TABLA DE ARTÍCULOS CON ANCHOS FIJOS (table-layout: fixed) -->
-    <div style="overflow-x:auto;">
-        <table class="data-table" id="tabla-insumos-detalle"
-            style="width:100%; border-collapse:collapse; font-size:0.88rem; table-layout:fixed;">
+    <div class="rubro-det__tabla-wrap">
+        <table class="data-table rubro-det__tabla" id="tabla-insumos-detalle">
             <thead>
-                <tr style="text-align:left; border-bottom:2px solid #e2e8f0; color:#475569;">
-                    <th style="padding:0.65rem 0.5rem; width:85px;">Código</th>
-                    <th style="padding:0.65rem 0.5rem; width:auto;">Nombre</th>
-                    <th style="padding:0.65rem 0.5rem; width:110px;">Tipo</th>
-                    <th style="padding:0.65rem 0.5rem; width:90px;">Unidad</th>
-                    <th style="padding:0.65rem 0.5rem; width:85px; text-align:right;">Stock</th>
-                    <th style="padding:0.65rem 0.5rem; width:100px; text-align:center;">Estado</th>
-                    <th style="padding:0.65rem 0.5rem; width:110px; text-align:right;">Acción</th>
+                <tr>
+                    <th class="col-codigo">Código</th>
+                    <th class="col-nombre-th">Nombre</th>
+                    <th class="col-tipo-th">Tipo</th>
+                    <th class="col-unidad">Unidad</th>
+                    <th class="col-stock">Stock</th>
+                    <th class="col-estado">Estado</th>
+                    <th class="col-accion">Acción</th>
                 </tr>
             </thead>
             <tbody id="cuerpo-tabla-insumos">
                 <?php if (empty($insumos)): ?>
                     <tr>
-                        <td colspan="7" style="text-align:center; color:#64748b; padding:2rem;">
+                        <td colspan="7" class="rubro-det__vacio">
                             Este rubro aún no tiene insumos asociados.
                         </td>
                     </tr>
@@ -156,40 +158,37 @@ $h = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
                         $stockValor = (float) ($i['stock_actual'] ?? 0);
                         $tipoLimpio = strtolower($i['tipo_nombre'] ?? 'material');
                         ?>
-                        <tr class="fila-insumo" data-tipo="<?= $h($tipoLimpio) ?>" style="border-bottom:1px solid #f1f5f9;">
-                            <td style="padding:0.65rem 0.5rem;">
+                        <tr class="fila-insumo<?= $insActivo ? '' : ' fila-insumo--inactiva' ?>" data-tipo="<?= $h($tipoLimpio) ?>"
+                            <?= $insActivo ? '' : 'title="Insumo deshabilitado"' ?>>
+                            <td>
                                 <a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($i['codigo']) ?>"
-                                    style="text-decoration:none; color:#2563eb;">
+                                    class="rubro-det__link-codigo">
                                     <strong><?= $h($i['codigo']) ?></strong>
                                 </a>
                             </td>
-                            <td class="col-nombre" style="padding:0.65rem 0.5rem;"><?= $h($i['nombre']) ?></td>
-                            <td class="col-tipo" style="padding:0.65rem 0.5rem; color:#64748b;">
-                                <?= $h($i['tipo_nombre'] ?? 'Material') ?></td>
-                            <td style="padding:0.65rem 0.5rem; color:#64748b;"><?= $h($i['unidad_medida'] ?? '-') ?></td>
-                            <td
-                                style="padding:0.65rem 0.5rem; text-align:right; font-weight:800; color: <?= $stockValor <= 0 ? '#ef4444' : '#0f172a' ?>;">
+                            <td class="col-nombre"><?= $h($i['nombre']) ?></td>
+                            <td class="col-tipo rubro-det__celda-tenue"><?= $h($i['tipo_nombre'] ?? 'Material') ?></td>
+                            <td class="rubro-det__celda-tenue"><?= $h($i['unidad_medida'] ?? '-') ?></td>
+                            <td class="rubro-det__stock <?= $stockValor <= 0 ? 'rubro-det__stock--cero' : '' ?>">
                                 <?= $stockValor ?>
                             </td>
-                            <td style="padding:0.65rem 0.5rem; text-align:center;">
-                                <span class="badge <?= $insActivo ? 'badge-success' : 'badge-danger' ?>"
-                                    style="font-size:0.75rem;">
+                            <td class="rubro-det__celda-centro">
+                                <span class="badge rubro-det__badge-insumo <?= $insActivo ? 'badge-success' : 'badge-danger' ?>">
                                     <?= $insActivo ? 'Activo' : 'Deshabilitado' ?>
                                 </span>
                             </td>
-                            <td style="padding:0.65rem 0.5rem; text-align:right;">
+                            <td class="rubro-det__celda-der">
                                 <a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($i['codigo']) ?>"
-                                    class="btn-action-text view"
-                                    style="text-decoration:none; font-size:0.75rem; padding:0.3rem 0.6rem;">
+                                    class="btn-action-text view rubro-det__btn-ficha">
                                     Ver Ficha
                                 </a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
 
-                    <!-- MEJORA 1: Fila dinámica de sin resultados (se activa vía JS cuando no hay coincidencias) -->
-                    <tr id="fila-sin-resultados" style="display:none;">
-                        <td colspan="7" style="text-align:center; color:#64748b; padding:2rem; font-size:0.9rem;">
+                    <!-- Fila dinámica de sin resultados (se activa vía JS cuando no hay coincidencias) -->
+                    <tr id="fila-sin-resultados" class="oculto">
+                        <td colspan="7" class="rubro-det__vacio rubro-det__vacio--filtro">
                             No se encontraron insumos que coincidan con los criterios de búsqueda.
                         </td>
                     </tr>
@@ -198,50 +197,6 @@ $h = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
         </table>
     </div>
 </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const buscador = document.getElementById('buscador-insumo-rubro');
-        const filtroTipo = document.getElementById('filtro-tipo-rubro');
-        const totalContador = document.getElementById('total-articulos-visibles');
-        const filas = document.querySelectorAll('.fila-insumo');
-        const filaSinResultados = document.getElementById('fila-sin-resultados');
-
-        function filtrarTabla() {
-            const texto = buscador.value.toLowerCase().trim();
-            const tipoSel = filtroTipo.value.toLowerCase().trim();
-            let visibles = 0;
-
-            filas.forEach(fila => {
-                const codigo = fila.querySelector('td strong') ? fila.querySelector('td strong').innerText.toLowerCase() : '';
-                const nombre = fila.querySelector('.col-nombre') ? fila.querySelector('.col-nombre').innerText.toLowerCase() : '';
-                const tipoFila = fila.getAttribute('data-tipo') || '';
-
-                const coincideTexto = codigo.includes(texto) || nombre.includes(texto);
-                const coincideTipo = tipoSel === '' || tipoFila.includes(tipoSel);
-
-                if (coincideTexto && coincideTipo) {
-                    fila.style.display = '';
-                    visibles++;
-                } else {
-                    fila.style.display = 'none';
-                }
-            });
-
-            if (totalContador) {
-                totalContador.innerText = visibles;
-            }
-
-            // Mostrar o esconder el aviso de sin resultados
-            if (filaSinResultados) {
-                filaSinResultados.style.display = (visibles === 0) ? '' : 'none';
-            }
-        }
-
-        if (buscador) buscador.addEventListener('input', filtrarTabla);
-        if (filtroTipo) filtroTipo.addEventListener('change', filtrarTabla);
-    });
-</script>
 
 <?php
 include_once __DIR__ . '/../layout/footer.php';
