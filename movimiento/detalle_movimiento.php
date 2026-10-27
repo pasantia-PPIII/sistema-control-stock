@@ -86,6 +86,9 @@ include_once __DIR__ . '/../layout/header.php';
         <div class="form-group">
             <label>Operario Responsable</label>
             <input type="text" class="form-control" value="<?= !empty($movimiento['nombre_operario']) ? htmlspecialchars($movimiento['nombre_operario']) : 'No aplica' ?>" readonly>
+            <?php if (!empty($movimiento['id_operario'])): ?>
+                <small style="display:block; margin-top:0.35rem;"><a href="../operario/detalle_operario.php?id=<?= (int)$movimiento['id_operario'] ?>">Ver ficha del operario</a></small>
+            <?php endif; ?>
         </div>
         <div class="form-group">
             <label>Registrado Por (Usuario)</label>
@@ -123,7 +126,7 @@ include_once __DIR__ . '/../layout/header.php';
                     $estadoHerramienta = !empty($d['nombre_estado_herramienta']) ? htmlspecialchars($d['nombre_estado_herramienta']) : 'No aplica';
                 ?>
                 <tr>
-                    <td style="font-weight: 700;"><?= htmlspecialchars($d['codigo']) ?></td>
+                    <td style="font-weight: 700;"><a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($d['codigo']) ?>"><?= htmlspecialchars($d['codigo']) ?></a></td>
                     <td><?= htmlspecialchars($d['nombre_insumo']) ?></td>
                     <td><?= htmlspecialchars($d['tipo_insumo'] ?? 'Material') ?></td>
                     <td style="text-align: right; font-weight: 700;"><?= (float)$d['cantidad'] ?></td>

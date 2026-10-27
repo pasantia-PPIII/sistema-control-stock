@@ -229,7 +229,7 @@ $colorKpi = [
                             };
                         ?>
                         <td><span class="panel-badge-mov" style="background: <?= $colorMov ?>18; color: <?= $colorMov ?>; border: 1px solid <?= $colorMov ?>40;"><?= $h($m['nombre_tipo_movimiento']) ?></span></td>
-                        <td><?= !empty($m['nombre_operario']) ? $h($m['nombre_operario']) : '-' ?></td>
+                        <td><?= !empty($m['nombre_operario']) ? (!empty($m['id_operario']) ? '<a href="../operario/detalle_operario.php?id=' . (int)$m['id_operario'] . '">' . $h($m['nombre_operario']) . '</a>' : $h($m['nombre_operario'])) : '-' ?></td>
                         <td class="num"><?= (int)$m['total_items'] ?></td>
                     </tr>
                 <?php endforeach; ?>

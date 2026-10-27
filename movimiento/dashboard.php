@@ -296,7 +296,9 @@ function renderizarTabla(movimientos) {
         else if (m.id_tipo_mov == 3) tipoClass = 'badge-ingreso';
         else if (m.id_tipo_mov == 4) tipoClass = 'badge-ajuste';
 
-        const operarioTxt = m.nombre_operario ? escaparHtml(m.nombre_operario) : 'No asignado';
+        const operarioTxt = m.nombre_operario
+            ? (m.id_operario ? `<a href="../operario/detalle_operario.php?id=${m.id_operario}" style="color: inherit; text-decoration: none; font-weight: 600;">${escaparHtml(m.nombre_operario)}</a>` : escaparHtml(m.nombre_operario))
+            : 'No asignado';
         const usuarioTxt = m.dni_usuario ? escaparHtml(m.dni_usuario) : '-';
         const cantItems = parseInt(m.total_items || 0, 10);
         const horaTxt = m.hora ? escaparHtml(m.hora.substring(0, 5)) : '';

@@ -199,7 +199,7 @@ require_once __DIR__ . '/../layout/header.php';
                                         <?= htmlspecialchars($a['tipo_movimiento']) ?>
                                     </span>
                                 </td>
-                                <td style="padding: 0.75rem 0.5rem;"><strong><?= htmlspecialchars($a['operario']) ?></strong></td>
+                                <td style="padding: 0.75rem 0.5rem;"><strong><?= !empty($a['id_operario']) ? '<a href="../operario/detalle_operario.php?id=' . (int)$a['id_operario'] . '">' . htmlspecialchars($a['operario']) . '</a>' : htmlspecialchars($a['operario']) ?></strong></td>
                                 <td style="padding: 0.75rem 0.5rem;"><?= htmlspecialchars($a['usuario_responsable']) ?></td>
                                 <td style="padding: 0.75rem 0.5rem; color: #64748b;">
                                     <?= htmlspecialchars($a['observaciones'] ?: '-') ?></td>

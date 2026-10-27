@@ -18,7 +18,7 @@ class Movimiento {
      * @return array Lista de movimientos
      */
     public function getAll($incluir_anulados = false) {
-        $sql = "SELECT m.id_movimiento, m.fecha, m.hora, m.observaciones, m.activo,
+        $sql = "SELECT m.id_movimiento, m.id_operario, m.fecha, m.hora, m.observaciones, m.activo,
                        tm.tipo as nombre_tipo_movimiento,
                        u.dni as dni_usuario,
                        o.apellido || ', ' || o.nombre as nombre_operario

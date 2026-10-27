@@ -78,6 +78,7 @@ function obtenerAuditoriaMovimientos(?string $periodo = 'hoy', ?string $desde = 
             m.fecha, 
             m.hora, 
             tm.tipo AS tipo_movimiento,
+            o.id_operario,
             COALESCE(o.nombre || ' ' || o.apellido, 'Sin operario') AS operario,
             COALESCE(u.nombre || ' ' || u.apellido, u.dni) AS usuario_responsable,
             m.observaciones
