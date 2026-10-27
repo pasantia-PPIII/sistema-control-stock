@@ -166,11 +166,16 @@ include_once __DIR__ . '/../layout/header.php';
 
         <!-- Cabecera del Movimiento -->
         <div class="form-grid-3">
-            <div class="form-group" style="position: relative;">
-                <label for="buscar-operario">Operario <?= $esDevolucion ? 'que Devuelve' : 'Responsable' ?> *</label>
-                <input type="text" id="buscar-operario" class="form-control" placeholder="Escriba DNI, apellido o nombre..." autocomplete="off" value="<?= $idOperarioPre ? htmlspecialchars(($opSel = array_filter($operarios, fn($o) => (int)$o['id_operario'] === $idOperarioPre)) ? reset($opSel)['apellido'] . ', ' . reset($opSel)['nombre'] . ' - DNI: ' . reset($opSel)['dni'] : '') : '' ?>">
-                <input type="hidden" id="id_operario" name="id_operario" value="<?= $idOperarioPre ?: '' ?>">
-                <div id="lista-operarios" class="autocomplete-list" style="display:none;"></div>
+            <div class="form-group">
+                <label for="buscar-operario">Operario <?php echo $esDevolucion ? 'que Devuelve' : 'Responsable'; ?> *</label>
+                <input type="text" id="buscar-operario" name="buscar_operario" class="form-control" list="lista-operarios" placeholder="Escriba DNI, apellido o nombre..." autocomplete="off" value="<?= $idOperarioPre ? htmlspecialchars(($opSel = array_filter($operarios, fn($o) => (int)$o['id_operario'] === $idOperarioPre)) ? reset($opSel)['apellido'] . ', ' . reset($opSel)['nombre'] . ' - DNI: ' . reset($opSel)['dni'] : '') : '' ?>">
+                <datalist id="lista-operarios">
+                    <?php foreach ($operarios as $op): ?>
+                        <option value="<?php echo htmlspecialchars($op['apellido'] . ', ' . $op['nombre'] . ' - DNI: ' . $op['dni']); ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
+                <input type="hidden" id="id_operario" name="id_operario" value="">
+            </div>
             </div>
 
             <div class="form-group">
@@ -195,11 +200,20 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
 
         <div class="form-grid-3" style="background-color: #f8fafc; padding: 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; align-items: flex-end;">
-            <div class="form-group" style="flex: 2; position: relative;">
+            <div class="form-group" style="flex: 2;">
                 <label for="buscar-insumo">Buscar Insumo o Herramienta</label>
-                <input type="text" id="buscar-insumo" class="form-control" placeholder="Escriba código o nombre..." autocomplete="off">
+                <input type="text" id="buscar-insumo" class="form-control" list="lista-insumos" placeholder="Escriba código o nombre..." autocomplete="off">
+                <datalist id="lista-insumos">
+                    <?php foreach ($insumos as $ins):
+                        $stock = (float)($ins['stock_actual'] ?? 0);
+                        $esHerramienta = ((int)$ins['id_tipo'] === 2);
+                        $tipo = $esHerramienta ? 'Herramienta' : 'Material';
+                        $unidad = $esHerramienta ? '' : ($ins['unidad_medida'] ?? 'unidades');
+                    ?>
+                        <option value="<?php echo htmlspecialchars($ins['codigo'] . ' - ' . $ins['nombre'] . ' (' . $tipo . ') - Stock: ' . $stock . ' ' . $unidad); ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
                 <input type="hidden" id="selector-insumo" value="">
-                <div id="lista-insumos" class="autocomplete-list" style="display:none;"></div>
             </div>
 
             <div class="form-group" style="flex: 1;">
@@ -423,11 +437,13 @@ function renderizarTablaItems() {
     const hidden = document.getElementById('id_operario');
     const lista = document.getElementById('lista-operarios');
     if (!input || !hidden || !lista) return;
+    input.value = 'INIT ' + OPERARIOS.length;
 
     function render(term) {
-        const t = term.toLowerCase();
-        const filtrados = OPERARIOS.filter(o => o.text.toLowerCase().includes(t)).slice(0, 15);
-        if (filtrados.length === 0 || term === '') {
+        const t = (term || '').toLowerCase();
+        const base = t === '' ? OPERARIOS : OPERARIOS.filter(o => o.text.toLowerCase().includes(t));
+        const filtrados = base.slice(0, 15);
+        if (filtrados.length === 0) {
             lista.style.display = 'none';
             lista.innerHTML = '';
             return;
@@ -438,6 +454,7 @@ function renderizarTablaItems() {
         lista.style.display = 'block';
     }
 
+    input.addEventListener('focus', function () { render(this.value); });
     input.addEventListener('input', function () {
         hidden.value = '';
         render(this.value);
@@ -467,11 +484,13 @@ function renderizarTablaItems() {
     const input = document.getElementById('buscar-insumo');
     const lista = document.getElementById('lista-insumos');
     if (!input || !lista) return;
+    input.value = 'INIT ' + INSUMOS.length;
 
     function render(term) {
-        const t = term.toLowerCase();
-        const filtrados = INSUMOS.filter(i => i.texto.toLowerCase().includes(t)).slice(0, 15);
-        if (filtrados.length === 0 || term === '') {
+        const t = (term || '').toLowerCase();
+        const base = t === '' ? INSUMOS : INSUMOS.filter(i => i.texto.toLowerCase().includes(t));
+        const filtrados = base.slice(0, 15);
+        if (filtrados.length === 0) {
             lista.style.display = 'none';
             lista.innerHTML = '';
             return;
@@ -482,6 +501,7 @@ function renderizarTablaItems() {
         lista.style.display = 'block';
     }
 
+    input.addEventListener('focus', function () { render(this.value); });
     input.addEventListener('input', function () {
         insumoSeleccionado = null;
         render(this.value);
@@ -508,6 +528,25 @@ function renderizarTablaItems() {
 
 
 
+// Sincronizar campos ocultos con el autocompletado nativo (datalist)
+(function () {
+    const inputOp = document.getElementById('buscar-operario');
+    const hiddenOp = document.getElementById('id_operario');
+    if (inputOp && hiddenOp) {
+        inputOp.addEventListener('input', function () {
+            const op = OPERARIOS.find(o => o.text === this.value);
+            hiddenOp.value = op ? op.id : '';
+        });
+    }
+    const inputIns = document.getElementById('buscar-insumo');
+    if (inputIns) {
+        inputIns.addEventListener('input', function () {
+            insumoSeleccionado = INSUMOS.find(i => i.texto === this.value) || null;
+        });
+    }
+})();
+
+function enviarMovimiento(e) {
     e.preventDefault();
 
     if (!document.getElementById('id_operario').value) {
