@@ -115,14 +115,14 @@ function renderizarTabla(insumos) {
         // Código y nombre viajan en data-* (escapados) para que un apóstrofo no rompa el onclick
         const datosEstado = `data-codigo="${escaparHtml(ins.codigo)}" data-nombre="${escaparHtml(ins.nombre)}"`;
         const botonesEdicion = insActivo ? `
-                <button type="button" class="btn-action-text edit" title="Editar Insumo" onclick="abrirModalEditar(${jsonStr})">
-                    Editar
+                <button type="button" class="btn-action-icon edit" title="Editar Insumo" onclick="abrirModalEditar(${jsonStr})">
+                    ${window.APP_ICONS.edit}
                 </button>
-                <button type="button" class="btn-action-text disable" title="Deshabilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true)">
-                    Deshabilitar
+                <button type="button" class="btn-action-icon disable" title="Deshabilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true)">
+                    ${window.APP_ICONS.disable}
                 </button>` : `
-                <button type="button" class="btn-action-text view" title="Habilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, false)">
-                    Habilitar
+                <button type="button" class="btn-action-icon enable" title="Habilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, false)">
+                    ${window.APP_ICONS.enable}
                 </button>`;
 
         html += `
@@ -136,8 +136,8 @@ function renderizarTabla(insumos) {
             <div>${escaparHtml(estadoVenc)}</div>
             
             <div class="actions-cell" onclick="event.stopPropagation()">
-                <button type="button" class="btn-action-text view" title="Ver Detalles" onclick="abrirModalDetalles(${jsonStr})">
-                    Ver
+                <button type="button" class="btn-action-icon view" title="Ver Detalles" onclick="abrirModalDetalles(${jsonStr})">
+                    ${window.APP_ICONS.view}
                 </button>
                 ${APP_PERMISOS.editar ? botonesEdicion : ''}
             </div>

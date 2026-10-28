@@ -163,23 +163,23 @@ include_once __DIR__ . '/../layout/header.php';
                     <div><span class="badge-role"><?= $rolNombre ?></span></div>
                     <div><?= $badgeEstado ?></div>
                     <div class="actions-cell">
-                        <a href="detalle_usuario.php?dni=<?= rawurlencode($u['dni']) ?>" class="btn-action-text view" title="Ver Detalle" style="text-decoration: none;">Ver</a>
+                        <a href="detalle_usuario.php?dni=<?= rawurlencode($u['dni']) ?>" class="btn-action-icon view" title="Ver Detalle"><?= iconoAccion('view') ?></a>
                         <?php if (isAdmin()): ?>
-                        <button type="button" class="btn-action-text edit" title="Editar Usuario"
+                        <button type="button" class="btn-action-icon edit" title="Editar Usuario"
                             onclick='abrirModalEditar(<?= $jsonUsuario ?>)'>
-                            Editar
+                            <?= iconoAccion('edit') ?>
                         </button>
                         <?php if ($esActivo && (string)$u['dni'] === (string)($_SESSION['dni_usuario'] ?? '')): ?>
                             <?php /* Un administrador no puede deshabilitar su propio usuario */ ?>
                         <?php elseif ($esActivo): ?>
-                            <button type="button" class="btn-action-text disable" title="Deshabilitar Usuario"
+                            <button type="button" class="btn-action-icon disable" title="Deshabilitar Usuario"
                                 onclick="abrirModalEstado('<?= $dniEscapado ?>', true)">
-                                Deshabilitar
+                                <?= iconoAccion('disable') ?>
                             </button>
                         <?php else: ?>
-                            <button type="button" class="btn-action-text view" title="Habilitar Usuario"
+                            <button type="button" class="btn-action-icon enable" title="Habilitar Usuario"
                                 onclick="abrirModalEstado('<?= $dniEscapado ?>', false)">
-                                Habilitar
+                                <?= iconoAccion('enable') ?>
                             </button>
                         <?php endif; ?>
                         <?php endif; ?>
@@ -459,8 +459,8 @@ include_once __DIR__ . '/../layout/header.php';
             const btnEstado = !APP_PERMISOS.admin || (esActivo && esMismoUsuario)
                 ? ''
                 : esActivo
-                ? `<button type="button" class="btn-action-text disable" title="Deshabilitar Usuario" onclick="abrirModalEstado('${dniEscapado}', true)">Deshabilitar</button>`
-                : `<button type="button" class="btn-action-text view" title="Habilitar Usuario" onclick="abrirModalEstado('${dniEscapado}', false)">Habilitar</button>`;
+                ? `<button type="button" class="btn-action-icon disable" title="Deshabilitar Usuario" onclick="abrirModalEstado('${dniEscapado}', true)">${window.APP_ICONS.disable}</button>`
+                : `<button type="button" class="btn-action-icon enable" title="Habilitar Usuario" onclick="abrirModalEstado('${dniEscapado}', false)">${window.APP_ICONS.enable}</button>`;
 
             html += `
         <div class="user-card-row">
@@ -471,10 +471,10 @@ include_once __DIR__ . '/../layout/header.php';
             <div><span class="badge-role">${rolNombre}</span></div>
             <div>${badgeEstado}</div>
             <div class="actions-cell">
-                <a href="detalle_usuario.php?dni=${encodeURIComponent(u.dni)}" class="btn-action-text view" title="Ver Detalle" style="text-decoration: none;">Ver</a>
+                <a href="detalle_usuario.php?dni=${encodeURIComponent(u.dni)}" class="btn-action-icon view" title="Ver Detalle">${window.APP_ICONS.view}</a>
                 ${APP_PERMISOS.admin ? `
-                <button type="button" class="btn-action-text edit" title="Editar Usuario" onclick="abrirModalEditar(${jsonStr})">
-                    Editar
+                <button type="button" class="btn-action-icon edit" title="Editar Usuario" onclick="abrirModalEditar(${jsonStr})">
+                    ${window.APP_ICONS.edit}
                 </button>` : ''}
                 ${btnEstado}
             </div>

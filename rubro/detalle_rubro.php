@@ -179,9 +179,7 @@ $h = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
                             </td>
                             <td class="rubro-det__celda-der">
                                 <a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($i['codigo']) ?>"
-                                    class="btn-action-text view rubro-det__btn-ficha">
-                                    Ver Ficha
-                                </a>
+                                    class="btn-action-icon view" title="Ver Ficha de Insumo"><?= iconoAccion('view') ?></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>

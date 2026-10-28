@@ -81,13 +81,13 @@ function renderizarTabla(operarios) {
         // Datos en data-* (escapados) para que un apóstrofo en el nombre no rompa el onclick
         const datosEstado = `data-id="${idOp}" data-dni="${escaparHtml(op.dni)}" data-nombre="${nombreCompleto}"`;
         const btnAccionEstado = !APP_PERMISOS.admin ? '' : (esActivo ? `
-        <button type="button" class="btn-action-text disable" title="Deshabilitar Operario" ${datosEstado}
+        <button type="button" class="btn-action-icon disable" title="Deshabilitar Operario" ${datosEstado}
                 onclick="abrirModalEstado(this.dataset.id, this.dataset.dni, this.dataset.nombre, true)">
-            Deshabilitar
+            ${window.APP_ICONS.disable}
         </button>` : `
-        <button type="button" class="btn-action-text view" title="Habilitar Operario" ${datosEstado}
+        <button type="button" class="btn-action-icon enable" title="Habilitar Operario" ${datosEstado}
                 onclick="abrirModalEstado(this.dataset.id, this.dataset.dni, this.dataset.nombre, false)">
-            Habilitar
+            ${window.APP_ICONS.enable}
         </button>`);
 
         html += `
@@ -98,10 +98,10 @@ function renderizarTabla(operarios) {
         <div>${rubroTxt}</div>
         
         <div class="actions-cell" onclick="event.stopPropagation()">
-            <a href="detalle_operario.php?id=${idOp}" class="btn-action-text view" title="Ver Ficha">Ver Ficha</a>
+            <a href="detalle_operario.php?id=${idOp}" class="btn-action-icon view" title="Ver Ficha">${window.APP_ICONS.view}</a>
             ${APP_PERMISOS.admin ? `
-            <button type="button" class="btn-action-text edit" title="Editar Operario" onclick="abrirModalEditar(${jsonStr})">
-                Editar
+            <button type="button" class="btn-action-icon edit" title="Editar Operario" onclick="abrirModalEditar(${jsonStr})">
+                ${window.APP_ICONS.edit}
             </button>
             `: ''}
             ${btnAccionEstado}

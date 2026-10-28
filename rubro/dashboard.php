@@ -137,22 +137,22 @@ include_once __DIR__ . '/../layout/header.php';
                     <div><?= $badgeEstado ?></div>
 
                     <div class="actions-cell">
-                        <a href="detalle_rubro.php?id=<?= (int) $r['id_rubro'] ?>" class="btn-action-text view btn-sin-subrayado" title="Ver Detalle">Ver</a>
+                        <a href="detalle_rubro.php?id=<?= (int) $r['id_rubro'] ?>" class="btn-action-icon view" title="Ver Detalle"><?= iconoAccion('view') ?></a>
                         <?php if (isAdmin()): ?>
-                            <button type="button" class="btn-action-text edit" title="Editar Rubro"
+                            <button type="button" class="btn-action-icon edit" title="Editar Rubro"
                                 onclick='abrirModalEditar(<?= json_encode($r, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
-                                Editar
+                                <?= iconoAccion('edit') ?>
                             </button>
 
                             <?php if ($esActivo): ?>
-                                <button type="button" class="btn-action-text disable" title="Deshabilitar Rubro"
+                                <button type="button" class="btn-action-icon disable" title="Deshabilitar Rubro"
                                     onclick="abrirModalDeshabilitar(<?= $r['id_rubro'] ?>, '<?= htmlspecialchars($r['nombre'], ENT_QUOTES) ?>', <?= $cantInsumos ?>)">
-                                    Deshabilitar
+                                    <?= iconoAccion('disable') ?>
                                 </button>
                             <?php else: ?>
-                                <button type="button" class="btn-action-text view" title="Reactivar Rubro"
+                                <button type="button" class="btn-action-icon enable" title="Reactivar Rubro"
                                     onclick="habilitarRubro(<?= $r['id_rubro'] ?>, '<?= htmlspecialchars($r['nombre'], ENT_QUOTES) ?>')">
-                                    Habilitar
+                                    <?= iconoAccion('enable') ?>
                                 </button>
                             <?php endif; ?>
                         <?php endif; ?>

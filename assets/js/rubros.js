@@ -90,13 +90,13 @@ function renderizarTabla(rubros) {
 
         const jsonStr = JSON.stringify(r).replace(/"/g, '&quot;');
         const btnAccionEstado = !APP_PERMISOS.admin ? '' : (esActivo ? `
-        <button type="button" class="btn-action-text disable" title="Deshabilitar Rubro" 
+        <button type="button" class="btn-action-icon disable" title="Deshabilitar Rubro" 
                 onclick="abrirModalDeshabilitar(${r.id_rubro}, '${nombreEscapado}', ${cantInsumos})">
-            Deshabilitar
+            ${window.APP_ICONS.disable}
         </button>` : `
-        <button type="button" class="btn-action-text view" title="Reactivar Rubro" 
+        <button type="button" class="btn-action-icon enable" title="Reactivar Rubro" 
                 onclick="habilitarRubro(${r.id_rubro}, '${nombreEscapado}')">
-            Habilitar
+            ${window.APP_ICONS.enable}
         </button>`);
 
         html += `
@@ -108,10 +108,10 @@ function renderizarTabla(rubros) {
         <div>${badgeEstado}</div>
         
         <div class="actions-cell">
-            <a href="detalle_rubro.php?id=${parseInt(r.id_rubro, 10)}" class="btn-action-text view btn-sin-subrayado" title="Ver Detalle">Ver</a>
+            <a href="detalle_rubro.php?id=${parseInt(r.id_rubro, 10)}" class="btn-action-icon view" title="Ver Detalle">${window.APP_ICONS.view}</a>
             ${APP_PERMISOS.admin ? `
-            <button type="button" class="btn-action-text edit" title="Editar Rubro" onclick="abrirModalEditar(${jsonStr})">
-                Editar
+            <button type="button" class="btn-action-icon edit" title="Editar Rubro" onclick="abrirModalEditar(${jsonStr})">
+                ${window.APP_ICONS.edit}
             </button>
             `: ''}
             ${btnAccionEstado}
