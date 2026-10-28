@@ -164,7 +164,7 @@
     gap: 0.35rem;
     align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 /* Selector de estado dentro de la fila: se ve como el badge pero editable */
