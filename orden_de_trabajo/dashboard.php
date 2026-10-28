@@ -7,7 +7,7 @@
  * - Filtrado por texto/estado y paginación en PHP sobre el listado de la clase.
  * - Acciones AJAX integradas en este archivo:
  *     GET  ?action=detalle&id=N       -> datos completos de una orden (modal "Ver Detalle")
- *     POST ?action=cambiar_estado     -> actualiza el estado de una orden (modal "Cambiar Estado")
+ *     POST ?action=cambiar_estado     -> actualiza el estado de una orden (selector de estado en la fila)
  * - La creación de órdenes se envía a crear_orden_de_trabajo.php.
  */
 
@@ -49,21 +49,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'detalle') {
         'data'        => $orden,
         'operarios'   => $odtModel->getOperariosAsignados($idOdt),
         'movimientos' => $odtModel->getMovimientosVinculados($idOdt)
-    ]);
-    exit;
-}
-
-// =========================================================================
-// ACCIÓN AJAX: MOVIMIENTOS DISPONIBLES PARA VINCULAR (entrega y devolución, ambos opcionales)
-// =========================================================================
-if (isset($_GET['action']) && $_GET['action'] === 'movimientos_disponibles') {
-    requireRole(['admin', 'panolero']);
-    header('Content-Type: application/json; charset=utf-8');
-    $idOdt = isset($_GET['id_odt']) ? (int)$_GET['id_odt'] : 0;
-    echo json_encode([
-        'success'     => true,
-        'entregas'    => $odtModel->getMovimientosDisponibles('Entrega', $idOdt),
-        'devoluciones' => $odtModel->getMovimientosDisponibles('Devolución', $idOdt)
     ]);
     exit;
 }
@@ -129,27 +114,11 @@ $estado = isset($_GET['estado']) ? trim((string)$_GET['estado']) : '';
 // 'estado' es el estado del trabajo (Pendiente, En Progreso...); 'registro' indica si la orden está habilitada o deshabilitada
 $registro = isset($_GET['registro']) ? trim((string)$_GET['registro']) : 'activo';
 
-$ordenesFiltradas = array_values(array_filter($odtModel->getAll(true), function ($ot) use ($busqueda, $estado, $registro) {
-    if ($registro === 'activo' && !$ot['activo']) {
-        return false;
-    }
-    if ($registro === 'inactivo' && $ot['activo']) {
-        return false;
-    }
-    if ($estado !== '' && ($ot['estado'] ?? 'Pendiente') !== $estado) {
-        return false;
-    }
-    $texto = $ot['id_odt'] . ' ' . $ot['numero_ot'] . ' ' . ($ot['pa'] ?? '') . ' ' . ($ot['trabajo_a_realizar'] ?? '');
-    if ($busqueda !== '' && stripos($texto, $busqueda) === false) {
-        return false;
-    }
-    return true;
-}));
-
-$totalRegistros = count($ordenesFiltradas);
-$totalPaginas = max(1, (int)ceil($totalRegistros / $porPagina));
-$paginaActual = min($paginaActual, $totalPaginas);
-$ordenes = array_slice($ordenesFiltradas, ($paginaActual - 1) * $porPagina, $porPagina);
+$res = $odtModel->getPaginado($busqueda, $estado, $registro, $paginaActual, $porPagina);
+$ordenes = $res['filas'];
+$totalRegistros = $res['total'];
+$totalPaginas = $res['paginas'];
+$paginaActual = $res['pagina'];
 
 // =========================================================================
 // RESPUESTA AJAX PARA BÚSQUEDA, FILTROS Y PAGINACIÓN DINÁMICA
@@ -168,6 +137,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
 require_once __DIR__ . '/../clases/operario.php';
 $operariosOdt = (new Operario())->getParaSelect();
+$estadosPosibles = $odtModel->getEstadosPosibles();
 $localidades = $odtModel->getLocalidades();
 $jurisdicciones = $odtModel->getJurisdicciones();
 
@@ -253,7 +223,16 @@ include_once __DIR__ . '/../layout/header.php';
                     <td><?= $ubicacion ?></td>
                     <td><?= $periodo ?></td>
                     <td>
+                        <?php if (canEdit() && $ot['activo']): ?>
+                        <select class="badge badge-select <?= $badgeClass ?>" data-prev="<?= $estadoTexto ?>"
+                                onchange="cambiarEstadoDirecto(this, <?= $idOdt ?>)" title="Cambiar estado de la orden">
+                            <?php foreach (array_keys($estadosPosibles) as $est): ?>
+                            <option value="<?= htmlspecialchars($est, ENT_QUOTES, 'UTF-8') ?>" <?= ($ot['estado'] ?? 'Pendiente') === $est ? 'selected' : '' ?>><?= htmlspecialchars($est, ENT_QUOTES, 'UTF-8') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php else: ?>
                         <span class="badge <?= $badgeClass ?>"><?= $estadoTexto ?></span>
+                        <?php endif; ?>
                         <?php if (!$ot['activo']): ?><span class="badge badge-anulada">Deshabilitada</span><?php endif; ?>
                     </td>
                     <td>
@@ -268,27 +247,27 @@ include_once __DIR__ . '/../layout/header.php';
                     <td>
                         <div class="actions-cell">
                             <?php if ($ot['activo']): ?>
-                            <button type="button" class="btn-action-text view" onclick="verDetalleModal(<?= $idOdt ?>)">
-                                Ver Detalle
+                            <button type="button" class="btn-action-icon view" title="Ver Detalle" onclick="verDetalleModal(<?= $idOdt ?>)">
+                                <?= iconoAccion('view') ?>
                             </button>
                             <?php endif; ?>
                             <?php if (canEdit()): ?>
                             <?php if ($ot['activo']): ?>
-                            <button type="button" class="btn-action-text edit" onclick="abrirModalEditar(<?= $idOdt ?>)">
-                                Editar
+                            <?php if (!in_array($ot['estado'] ?? '', ['Finalizada', 'Anulada'], true)): ?>
+                            <a href="../movimiento/crear_movimiento.php?tipo=entrega&amp;id_odt=<?= $idOdt ?>" class="btn-action-icon dispatch" title="Registrar Entrega para esta orden"><?= iconoAccion('dispatch') ?></a>
+                            <?php endif; ?>
+                            <a href="../movimiento/crear_movimiento.php?tipo=devolucion&amp;id_odt=<?= $idOdt ?>" class="btn-action-icon return" title="Registrar Devolución de esta orden"><?= iconoAccion('return') ?></a>
+                            <button type="button" class="btn-action-icon edit" title="Editar Orden" onclick="abrirModalEditar(<?= $idOdt ?>)">
+                                <?= iconoAccion('edit') ?>
                             </button>
-                            <button type="button" class="btn-action-text disable" data-id="<?= $idOdt ?>" data-numero="<?= $numeroOt ?>"
+                            <button type="button" class="btn-action-icon disable" title="Deshabilitar Orden" data-id="<?= $idOdt ?>" data-numero="<?= $numeroOt ?>"
                                     onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, true)">
-                                Deshabilitar
-                            </button>
-                            <button type="button" class="btn-action-text edit" data-numero="<?= $numeroOt ?>" data-estado="<?= $estadoTexto ?>"
-                                    onclick="abrirModalCambiarEstado(<?= $idOdt ?>, this.dataset.numero, this.dataset.estado)">
-                                Cambiar Estado
+                                <?= iconoAccion('disable') ?>
                             </button>
                             <?php else: ?>
-                            <button type="button" class="btn-action-text view" data-id="<?= $idOdt ?>" data-numero="<?= $numeroOt ?>"
+                            <button type="button" class="btn-action-icon enable" title="Habilitar Orden" data-id="<?= $idOdt ?>" data-numero="<?= $numeroOt ?>"
                                     onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, false)">
-                                Habilitar
+                                <?= iconoAccion('enable') ?>
                             </button>
                             <?php endif; ?>
                             <?php endif; ?>
@@ -417,21 +396,6 @@ include_once __DIR__ . '/../layout/header.php';
                 <small style="color:#64748b;">Mantenga presionada la tecla Ctrl para seleccionar varios operarios.</small>
             </div>
 
-            <div class="form-grid-2">
-                <div>
-                    <label class="modal-label" for="crear-mov-egreso">Movimiento de entrega (opcional)</label>
-                    <select id="crear-mov-egreso" name="id_mov_egreso" class="modal-select">
-                        <option value="">Sin movimiento de entrega</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="modal-label" for="crear-mov-devolucion">Movimiento de devolución (opcional)</label>
-                    <select id="crear-mov-devolucion" name="id_mov_devolucion" class="modal-select">
-                        <option value="">Sin movimiento de devolución</option>
-                    </select>
-                </div>
-            </div>
-
             <div style="margin-bottom: 1rem;">
                 <label class="modal-label" for="crear-trabajo">Trabajo a Realizar / Descripción</label>
                 <textarea id="crear-trabajo" name="trabajo_a_realizar" class="modal-textarea" placeholder="Describa las tareas a ejecutar..."></textarea>
@@ -450,41 +414,7 @@ include_once __DIR__ . '/../layout/header.php';
     </div>
 </div>
 
-<!-- Modal 2: Cambiar Estado de Orden -->
-<div id="modal-cambiar-estado" class="modal-overlay">
-    <div class="modal-card" style="max-width: 480px;">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-cambiar-estado')" title="Cerrar">Cerrar</button>
-        <h2 class="modal-title">Cambiar Estado</h2>
-        <p class="modal-subtitle" id="estado-modal-subtitulo">Actualizar el estado operativo de la orden</p>
-
-        <form id="form-cambiar-estado" onsubmit="guardarCambioEstado(event)">
-            <input type="hidden" id="estado-id-odt" name="id_odt">
-
-            <div style="margin-bottom: 1.25rem;">
-                <label class="modal-label">Orden de Trabajo Seleccionada</label>
-                <input type="text" id="estado-display-ot" class="modal-input" readonly style="background-color: #f1f5f9; font-weight:700;">
-            </div>
-
-            <div style="margin-bottom: 1.25rem;">
-                <label class="modal-label" for="estado-nuevo">Nuevo Estado *</label>
-                <select id="estado-nuevo" name="estado" class="modal-select" required>
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="En Progreso">En Progreso</option>
-                    <option value="Pausada">Pausada</option>
-                    <option value="Finalizada">Finalizada</option>
-                    <option value="Anulada">Anulada</option>
-                </select>
-            </div>
-
-            <div class="modal-actions-row">
-                <button type="button" class="btn-modal-cancel" onclick="cerrarModal('modal-cambiar-estado')">Cancelar</button>
-                <button type="submit" class="btn-modal-submit" id="btn-submit-estado">Actualizar Estado</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Modal 3: Ver Detalle Completo de la Orden -->
+<!-- Modal 2: Ver Detalle Completo de la Orden -->
 <div id="modal-detalle-odt" class="modal-overlay">
     <div class="modal-card">
         <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-detalle-odt')" title="Cerrar">Cerrar</button>
@@ -589,28 +519,32 @@ function renderizarTabla(ordenes) {
         const otActiva = (ot.activo === true || ot.activo === 't' || ot.activo === 1 || ot.activo === '1');
         const badgeDeshabilitada = otActiva ? '' : '<span class="badge badge-anulada">Deshabilitada</span>';
 
-        // Número y estado viajan en data-* (escapados) para que un apóstrofo no rompa el onclick
+        // Con permiso de edicion y orden habilitada, el estado se cambia desde la propia fila
+        const celdaEstado = (APP_PERMISOS.editar && otActiva)
+            ? `<select class="badge badge-select ${badgeClass}" data-prev="${estadoTexto}" onchange="cambiarEstadoDirecto(this, ${idOdt})" title="Cambiar estado de la orden">${opcionesEstado(ot.estado || 'Pendiente')}</select>`
+            : `<span class="badge ${badgeClass}">${estadoTexto}</span>`;
+
+        // El número viaja en data-* (escapado) para que un apóstrofo no rompa el onclick
         let botones = '';
         if (otActiva) {
             botones = `
-                    <button type="button" class="btn-action-text view" onclick="verDetalleModal(${idOdt})">
-                        Ver Detalle
+                    <button type="button" class="btn-action-icon view" title="Ver Detalle" onclick="verDetalleModal(${idOdt})">
+                        ${window.APP_ICONS.view}
                     </button>
                     ${APP_PERMISOS.editar ? `
-                    <button type="button" class="btn-action-text edit" onclick="abrirModalEditar(${idOdt})">
-                        Editar
+                    ${(ot.estado === 'Finalizada' || ot.estado === 'Anulada') ? '' : `<a href="../movimiento/crear_movimiento.php?tipo=entrega&id_odt=${idOdt}" class="btn-action-icon dispatch" title="Registrar Entrega para esta orden">${window.APP_ICONS.dispatch}</a>`}
+                    <a href="../movimiento/crear_movimiento.php?tipo=devolucion&id_odt=${idOdt}" class="btn-action-icon return" title="Registrar Devolución de esta orden">${window.APP_ICONS.return}</a>
+                    <button type="button" class="btn-action-icon edit" title="Editar Orden" onclick="abrirModalEditar(${idOdt})">
+                        ${window.APP_ICONS.edit}
                     </button>
-                    <button type="button" class="btn-action-text disable" data-id="${idOdt}" data-numero="${numeroOt}" onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, true)">
-                        Deshabilitar
-                    </button>
-                    <button type="button" class="btn-action-text edit" data-numero="${numeroOt}" data-estado="${estadoTexto}" onclick="abrirModalCambiarEstado(${idOdt}, this.dataset.numero, this.dataset.estado)">
-                        Cambiar Estado
+                    <button type="button" class="btn-action-icon disable" title="Deshabilitar Orden" data-id="${idOdt}" data-numero="${numeroOt}" onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, true)">
+                        ${window.APP_ICONS.disable}
                     </button>
                     `: ''}`;
         } else if (APP_PERMISOS.editar) {
             botones = `
-                    <button type="button" class="btn-action-text view" data-id="${idOdt}" data-numero="${numeroOt}" onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, false)">
-                        Habilitar
+                    <button type="button" class="btn-action-icon enable" title="Habilitar Orden" data-id="${idOdt}" data-numero="${numeroOt}" onclick="cambiarRegistroOdt(this.dataset.id, this.dataset.numero, false)">
+                        ${window.APP_ICONS.enable}
                     </button>`;
         }
 
@@ -627,7 +561,7 @@ function renderizarTabla(ordenes) {
             <td title="${trabajo}">${trabajoCorto}</td>
             <td>${ubicacion}</td>
             <td>${periodo}</td>
-            <td><span class="badge ${badgeClass}">${estadoTexto}</span> ${badgeDeshabilitada}</td>
+            <td>${celdaEstado} ${badgeDeshabilitada}</td>
             <td>${pdfHtml}</td>
             <td>
                 <div class="actions-cell">${botones}
@@ -676,35 +610,12 @@ document.getElementById('filtro-registro').addEventListener('change', function()
     cargarOrdenes(1);
 });
 
-// Modal: Nueva / Editar Orden de Trabajo (FormData con PDF, operarios y movimientos opcionales)
-function llenarSelectMovimientos(idSelect, movimientos, seleccionado, textoVacio) {
-    const select = document.getElementById(idSelect);
-    let html = `<option value="">${escaparHtml(textoVacio)}</option>`;
-    (movimientos || []).forEach(m => {
-        const operario = m.nombre_operario ? ` - ${escaparHtml(m.nombre_operario)}` : '';
-        const hora = m.hora ? String(m.hora).substring(0, 5) : '';
-        html += `<option value="${parseInt(m.id_movimiento, 10)}">#${parseInt(m.id_movimiento, 10)} - ${escaparHtml(m.fecha)} ${hora}${operario}</option>`;
-    });
-    select.innerHTML = html;
-    select.value = seleccionado ? String(seleccionado) : '';
-}
-
-function cargarMovimientosDisponibles(idOdt, idEgreso, idDevolucion) {
-    return fetch(`dashboard.php?action=movimientos_disponibles&id_odt=${idOdt}`, { credentials: 'same-origin' })
-        .then(response => response.json())
-        .then(res => {
-            if (!res.success) throw new Error(res.error || 'No se pudieron cargar los movimientos.');
-            llenarSelectMovimientos('crear-mov-egreso', res.entregas, idEgreso, 'Sin movimiento de entrega');
-            llenarSelectMovimientos('crear-mov-devolucion', res.devoluciones, idDevolucion, 'Sin movimiento de devolución');
-        });
-}
-
+// Modal: Nueva / Editar Orden de Trabajo (FormData con PDF y operarios)
 function abrirModalCrear() {
     document.getElementById('form-crear-odt').reset();
     document.getElementById('crear-id-odt').value = '';
     document.getElementById('crear-odt-titulo').innerText = 'Nueva Orden de Trabajo';
     document.getElementById('btn-submit-crear').innerText = 'Guardar Orden';
-    cargarMovimientosDisponibles(0, null, null).catch(err => mostrarAlerta(err.message, false));
     abrirModal('modal-crear-odt');
 }
 
@@ -737,8 +648,6 @@ function abrirModalEditar(idOdt) {
             Array.from(document.getElementById('crear-operarios').options).forEach(opt => {
                 opt.selected = asignados.includes(opt.value);
             });
-
-            return cargarMovimientosDisponibles(idOdt, o.id_mov_egreso, o.id_mov_devolucion);
         })
         .then(() => abrirModal('modal-crear-odt'))
         .catch(err => mostrarAlerta(err.message, false));
@@ -799,46 +708,40 @@ function cambiarRegistroOdt(idOdt, numeroOt, deshabilitar) {
         .catch(err => mostrarAlerta(err.message, false));
 }
 
-// Modal: Cambiar Estado
-function abrirModalCambiarEstado(idOdt, numeroOt, estadoActual) {
-    document.getElementById('estado-id-odt').value = idOdt;
-    document.getElementById('estado-display-ot').value = numeroOt;
-    document.getElementById('estado-nuevo').value = estadoActual;
-    document.getElementById('estado-modal-subtitulo').innerText = `Actualizar estado de la orden "${numeroOt}"`;
-    abrirModal('modal-cambiar-estado');
+// Opciones del selector de estado (los estados salen de OrdenDeTrabajo::getEstadosPosibles)
+const ESTADOS_ODT = <?= json_encode(array_keys($estadosPosibles), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+
+function opcionesEstado(actual) {
+    const lista = ESTADOS_ODT.includes(actual) ? ESTADOS_ODT : [actual].concat(ESTADOS_ODT);
+    return lista.map(est => `<option value="${escaparHtml(est)}" ${est === actual ? 'selected' : ''}>${escaparHtml(est)}</option>`).join('');
 }
 
-function guardarCambioEstado(e) {
-    e.preventDefault();
-    const btnSubmit = document.getElementById('btn-submit-estado');
-    btnSubmit.disabled = true;
-    btnSubmit.innerText = 'Actualizando...';
+// Cambio de estado desde el selector de la fila (mismo endpoint de siempre: dashboard.php?action=cambiar_estado)
+function cambiarEstadoDirecto(select, idOdt) {
+    const anterior = select.dataset.prev;
+    const nuevo = select.value;
+    if (nuevo === anterior) return;
 
-    const form = document.getElementById('form-cambiar-estado');
-    const formData = new FormData(form);
+    const formData = new FormData();
+    formData.append('id_odt', idOdt);
+    formData.append('estado', nuevo);
+    select.disabled = true;
 
-    fetch('dashboard.php?action=cambiar_estado', {
-        method: 'POST',
-        body: formData,
-        credentials: 'same-origin'
-    })
-    .then(response => {
-        if (!response.ok) throw new Error('Error al conectar con el servidor.');
-        return response.json();
-    })
-    .then(res => {
-        if (!res.success) throw new Error(res.error || 'No se pudo actualizar el estado.');
-        cerrarModal('modal-cambiar-estado');
-        mostrarAlerta(res.message, true);
-        cargarOrdenes(paginaActual);
-    })
-    .catch(err => {
-        mostrarAlerta(err.message, false);
-    })
-    .finally(() => {
-        btnSubmit.disabled = false;
-        btnSubmit.innerText = 'Actualizar Estado';
-    });
+    fetch('dashboard.php?action=cambiar_estado', { method: 'POST', body: formData, credentials: 'same-origin' })
+        .then(response => {
+            if (!response.ok) throw new Error('Error al conectar con el servidor.');
+            return response.json();
+        })
+        .then(res => {
+            if (!res.success) throw new Error(res.error || 'No se pudo actualizar el estado.');
+            mostrarAlerta(res.message, true);
+            cargarOrdenes(paginaActual);
+        })
+        .catch(err => {
+            select.value = anterior;
+            select.disabled = false;
+            mostrarAlerta(err.message, false);
+        });
 }
 
 // Modal: Ver Detalle Completo
@@ -918,7 +821,7 @@ function verDetalleModal(idOdt) {
                 ? '<ul style="margin: 0.3rem 0 0 1.2rem;">' + operarios.map(op => `<li>${escaparHtml(op.apellido + ', ' + op.nombre)} (DNI ${escaparHtml(op.dni)})</li>`).join('') + '</ul>'
                 : '<span style="color:#64748b;">Sin operarios asignados.</span>';
             const listaMovimientos = movimientos.length
-                ? '<ul style="margin: 0.3rem 0 0 1.2rem;">' + movimientos.map(m => `<li>${m.rol_en_odt === 'egreso' ? 'Entrega' : 'Devolución'}: <a href="../movimiento/detalle_movimiento.php?id=${parseInt(m.id_movimiento, 10)}">Movimiento #${parseInt(m.id_movimiento, 10)}</a> - ${escaparHtml(m.fecha)}</li>`).join('') + '</ul>'
+                ? '<ul style="margin: 0.3rem 0 0 1.2rem;">' + movimientos.map(m => `<li>${m.rol_en_odt === 'egreso' ? 'Entrega' : 'Devolución'}: <a href="../movimiento/detalle_movimiento.php?id=${parseInt(m.id_movimiento, 10)}">Movimiento #${parseInt(m.id_movimiento, 10)}</a> - ${escaparHtml(m.fecha)}${m.nombre_operario ? ' - ' + escaparHtml(m.nombre_operario) : ''}</li>`).join('') + '</ul>'
                 : '<span style="color:#64748b;">Sin movimientos vinculados.</span>';
 
             html += `
@@ -942,7 +845,6 @@ function verDetalleModal(idOdt) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         cerrarModal('modal-crear-odt');
-        cerrarModal('modal-cambiar-estado');
         cerrarModal('modal-detalle-odt');
     }
 });

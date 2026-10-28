@@ -162,28 +162,28 @@ include_once __DIR__ . '/../layout/header.php';
                 <div><?= htmlspecialchars($estadoVenc) ?></div>
                 
                 <div class="actions-cell" onclick="event.stopPropagation()">
-                    <button type="button" class="btn-action-text view" title="Ver Detalles" 
+                    <button type="button" class="btn-action-icon view" title="Ver Detalles" 
                             onclick='abrirModalDetalles(<?= json_encode($ins, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
-                        Ver
+                        <?= iconoAccion('view') ?>
                     </button>
                     
                     <?php if (canEdit()): ?>
                     <?php if ($ins['activo']): ?>
-                    <button type="button" class="btn-action-text edit" title="Editar Insumo"
+                    <button type="button" class="btn-action-icon edit" title="Editar Insumo"
                             onclick='abrirModalEditar(<?= json_encode($ins, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
-                        Editar
+                        <?= iconoAccion('edit') ?>
                     </button>
 
-                    <button type="button" class="btn-action-text disable" title="Deshabilitar Insumo"
+                    <button type="button" class="btn-action-icon disable" title="Deshabilitar Insumo"
                             data-codigo="<?= htmlspecialchars($ins['codigo'], ENT_QUOTES) ?>" data-nombre="<?= htmlspecialchars($ins['nombre'], ENT_QUOTES) ?>"
                             onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true)">
-                        Deshabilitar
+                        <?= iconoAccion('disable') ?>
                     </button>
                     <?php else: ?>
-                    <button type="button" class="btn-action-text view" title="Habilitar Insumo"
+                    <button type="button" class="btn-action-icon enable" title="Habilitar Insumo"
                             data-codigo="<?= htmlspecialchars($ins['codigo'], ENT_QUOTES) ?>" data-nombre="<?= htmlspecialchars($ins['nombre'], ENT_QUOTES) ?>"
                             onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, false)">
-                        Habilitar
+                        <?= iconoAccion('enable') ?>
                     </button>
                     <?php endif; ?>
                     <?php endif; ?>

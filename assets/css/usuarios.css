@@ -68,6 +68,10 @@
     font-size: 0.88rem;
 }
 
+.table-header-row > div:last-child {
+    text-align: center;
+}
+
 .user-card-row {
     background-color: #ffffff;
     display: grid;
@@ -88,8 +92,9 @@
 
 .actions-cell {
     display: flex;
-    gap: 0.4rem;
+    gap: 0.35rem;
     align-items: center;
+    justify-content: center;
 }
 
 .badge-role {
@@ -340,4 +345,4 @@
 
 .pagination-btn.text-label {
     padding: 0.45rem 1rem;
-}
+}

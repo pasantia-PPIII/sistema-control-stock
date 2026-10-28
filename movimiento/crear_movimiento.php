@@ -27,6 +27,7 @@ requireRole(['admin', 'panolero']);
 require_once __DIR__ . '/../clases/movimiento.php';
 require_once __DIR__ . '/../clases/operario.php';
 require_once __DIR__ . '/../clases/insumo.php';
+require_once __DIR__ . '/../clases/orden_de_trabajo.php';
 
 // Tipos de movimiento (ids del catálogo tipo_movimiento): 1 = Entrega, 2 = Devolución
 $tipoForm = (($_POST['tipo'] ?? $_GET['tipo'] ?? 'entrega') === 'devolucion') ? 'devolucion' : 'entrega';
@@ -36,6 +37,7 @@ $idTipoMov = $esDevolucion ? 2 : 1;
 $movimientoModel = new Movimiento();
 $operarioModel = new Operario();
 $insumoModel = new Insumo();
+$odtModel = new OrdenDeTrabajo();
 
 // =========================================================================
 // PROCESAMIENTO DEL REGISTRO (POST, respuesta JSON)
@@ -48,6 +50,11 @@ if ($esPost) {
         $fecha = !empty($_POST['fecha']) ? trim($_POST['fecha']) : date('Y-m-d');
         $hora = !empty($_POST['hora']) ? trim($_POST['hora']) : date('H:i:s');
         $observaciones = isset($_POST['observaciones']) ? trim((string)$_POST['observaciones']) : '';
+        // Orden de Trabajo opcional (RF-27): vacío = uso general. Movimiento::create() valida que exista y esté habilitada
+        $idOdt = !empty($_POST['id_odt']) ? (int)$_POST['id_odt'] : null;
+
+        // RF-34: toda devolución lleva un motivo del catálogo. Movimiento::create() lo valida
+        $idMotivo = ($esDevolucion && !empty($_POST['id_motivo'])) ? (int)$_POST['id_motivo'] : null;
 
         if ($idOperario <= 0) {
             throw new Exception($esDevolucion
@@ -115,7 +122,9 @@ if ($esPost) {
             'id_operario'   => (int)$operario['id_operario'],
             'fecha'         => $fecha,
             'hora'          => $hora,
-            'observaciones' => $observaciones
+            'observaciones' => $observaciones,
+            'id_odt'        => $idOdt,
+            'id_motivo'     => $idMotivo
         ];
 
         $idMovimiento = $movimientoModel->create($cabecera, $detalles);
@@ -145,6 +154,13 @@ $estadosHerramienta = $movimientoModel->getEstadosHerramienta();
 $nombresEstadoHerramienta = array_column($estadosHerramienta, 'estado', 'id_estado_herramienta');
 
 $idOperarioPre = !empty($_GET['id_operario']) ? (int)$_GET['id_operario'] : 0;
+$motivosDevolucion = $esDevolucion ? $movimientoModel->getMotivosDevolucion() : [];
+
+// Órdenes de Trabajo habilitadas para vincular (RF-27). Una entrega no se puede asociar a una orden Finalizada o Anulada
+$idOdtPre = !empty($_GET['id_odt']) ? (int)$_GET['id_odt'] : 0;
+$ordenesVinculables = array_values(array_filter($odtModel->getAll(), function ($o) use ($esDevolucion) {
+    return $esDevolucion || !in_array($o['estado'] ?? '', ['Finalizada', 'Anulada'], true);
+}));
 
 include_once __DIR__ . '/../layout/header.php';
 ?>
@@ -194,8 +210,38 @@ include_once __DIR__ . '/../layout/header.php';
             </div>
         </div>
 
+        <?php if ($esDevolucion): ?>
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="id_motivo">Motivo de la Devolución *</label>
+            <select id="id_motivo" name="id_motivo" class="form-control" required>
+                <option value="">-- Seleccionar Motivo --</option>
+                <?php foreach ($motivosDevolucion as $mot): ?>
+                    <option value="<?= (int)$mot['id_motivo'] ?>"><?= htmlspecialchars($mot['motivo']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="id_odt">Orden de Trabajo (opcional)</label>
+            <select id="id_odt" name="id_odt" class="form-control">
+                <option value="">Sin OT / Uso general</option>
+                <?php foreach ($ordenesVinculables as $ot):
+                    $trabajoOt = trim((string)($ot['trabajo_a_realizar'] ?? ''));
+                    if (mb_strlen($trabajoOt) > 60) {
+                        $trabajoOt = mb_substr($trabajoOt, 0, 60) . '...';
+                    }
+                    $textoOt = $ot['numero_ot'] . ($trabajoOt !== '' ? ' - ' . $trabajoOt : '') . ' [' . ($ot['estado'] ?? 'Pendiente') . ']';
+                ?>
+                    <option value="<?= (int)$ot['id_odt'] ?>" <?= ($idOdtPre === (int)$ot['id_odt']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($textoOt) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
         <div class="form-group" style="margin-bottom: 2rem;">
-            <label for="observaciones">Observaciones o Motivo</label>
+            <label for="observaciones"><?= $esDevolucion ? 'Observaciones' : 'Observaciones o Motivo' ?></label>
             <textarea id="observaciones" name="observaciones" class="form-control" style="min-height: 70px; resize: vertical;" placeholder="<?= $esDevolucion ? 'Detalles de la devolución, estado de los elementos, orden de trabajo...' : 'Detalles de la entrega, orden de trabajo, destino o estado al entregar...' ?>"></textarea>
         </div>
 

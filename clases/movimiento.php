@@ -45,12 +45,13 @@ class Movimiento {
         $sql = "SELECT m.*, tm.tipo as nombre_tipo_movimiento,
                        u.nombre || ' ' || u.apellido as nombre_usuario,
                        o.apellido || ', ' || o.nombre as nombre_operario,
-                       odt.numero_ot
+                       odt.numero_ot, mot.motivo AS nombre_motivo
                 FROM movimiento m
                 INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
                 INNER JOIN usuario u ON m.dni_usuario = u.dni
                 LEFT JOIN operario o ON m.id_operario = o.id_operario
                 LEFT JOIN orden_de_trabajo odt ON m.id_odt = odt.id_odt
+                LEFT JOIN motivo_devolucion mot ON m.id_motivo = mot.id_motivo
                 WHERE m.id_movimiento = :id_movimiento";
 
         return $this->db->fetchOne($sql, ['id_movimiento' => $id_movimiento]);
@@ -101,7 +102,7 @@ class Movimiento {
      * Crea un movimiento completo (Cabecera + Detalles) en una sola transacción.
      * Esto garantiza que si falla el detalle, no se crea la cabecera huérfana.
      * 
-     * @param array $cabecera - Datos del movimiento (id_tipo_mov, id_operario, dni_usuario, fecha, hora, observaciones)
+     * @param array $cabecera - Datos del movimiento (id_tipo_mov, id_operario, dni_usuario, fecha, hora, observaciones, id_odt opcional, id_motivo solo en devoluciones)
      * @param array $detalles - Array de arrays con los insumos (id_insumo, cantidad, id_estado_herramienta)
      * @return int - El ID del movimiento creado
      */
@@ -128,6 +129,31 @@ class Movimiento {
                 throw new Exception("El tipo de movimiento indicado no existe.");
             }
             $tipoMov = $tipoFila['tipo'];
+
+            // Motivo de la devolución (RF-34): obligatorio al devolver y exclusivo de las devoluciones
+            $idMotivo = !empty($cabecera['id_motivo']) ? (int)$cabecera['id_motivo'] : null;
+            $cabecera['id_motivo'] = $idMotivo;
+            if ($tipoMov === self::TIPO_DEVOLUCION) {
+                $motivo = $idMotivo !== null
+                    ? $this->db->fetchOne("SELECT motivo FROM motivo_devolucion WHERE id_motivo = :id", ['id' => $idMotivo])
+                    : null;
+                if (!$motivo) {
+                    throw new Exception("Debe indicar el motivo de la devolución.");
+                }
+                if ($motivo['motivo'] === 'Otro' && $cabecera['observaciones'] === null) {
+                    throw new Exception("Si el motivo es 'Otro', detállelo en las observaciones.");
+                }
+            } elseif ($idMotivo !== null) {
+                throw new Exception("Solo las devoluciones llevan motivo.");
+            }
+
+            // Vínculo opcional con una Orden de Trabajo (RF-27): solo entregas y devoluciones, y la orden debe estar habilitada.
+            // Una misma orden puede tener varias entregas y devoluciones (RF-47).
+            $idOdt = !empty($cabecera['id_odt']) ? (int)$cabecera['id_odt'] : null;
+            $cabecera['id_odt'] = $idOdt;
+            if ($idOdt !== null) {
+                $this->validarOrdenVinculable($idOdt, $tipoMov);
+            }
 
             // 3. Insertar la cabecera del movimiento
             $nuevoMovimiento = $this->db->insert('movimiento', $cabecera);
@@ -313,16 +339,34 @@ class Movimiento {
         return [$idStock, (float)$stock['stock_actual']];
     }
 
+    /**
+     * Valida que un movimiento de este tipo se pueda vincular a la Orden de Trabajo indicada (RF-27):
+     * solo entregas y devoluciones, la orden debe existir y estar habilitada, y no admite entregas nuevas
+     * si está Finalizada o Anulada.
+     */
+    private function validarOrdenVinculable($idOdt, $tipoMov) {
+        if (!in_array($tipoMov, [self::TIPO_ENTREGA, self::TIPO_DEVOLUCION], true)) {
+            throw new Exception("Solo las entregas y devoluciones se pueden vincular a una Orden de Trabajo.");
+        }
+        $odt = $this->db->fetchOne("SELECT numero_ot, estado, activo FROM orden_de_trabajo WHERE id_odt = :id", ['id' => (int)$idOdt]);
+        if (!$odt || !$odt['activo']) {
+            throw new Exception("La Orden de Trabajo indicada no existe o está deshabilitada.");
+        }
+        if ($tipoMov === self::TIPO_ENTREGA && in_array($odt['estado'], ['Finalizada', 'Anulada'], true)) {
+            throw new Exception("La Orden de Trabajo '{$odt['numero_ot']}' está {$odt['estado']}: no admite nuevas entregas.");
+        }
+    }
+
     // =========================================================
     // 3. ACTUALIZACIÓN (UPDATE) - RESTRINGIDA
     // =========================================================
 
     /**
-     * Actualiza SOLO las observaciones o el operario de un movimiento.
+     * Actualiza SOLO las observaciones, el operario o la Orden de Trabajo vinculada de un movimiento.
      * IMPORTANTE: No se permite cambiar fecha, hora, tipo o detalles para preservar la auditoría.
      * 
      * @param int $id_movimiento ID del movimiento
-     * @param array $data Datos a actualizar (solo 'observaciones' o 'id_operario')
+     * @param array $data Datos a actualizar (solo 'observaciones', 'id_operario' o 'id_odt'; id_odt vacío = sin orden)
      * @return bool
      */
     public function update($id_movimiento, $data) {
@@ -334,6 +378,27 @@ class Movimiento {
             }
             if (isset($data['id_operario'])) {
                 $allowedFields['id_operario'] = !empty($data['id_operario']) ? $data['id_operario'] : null;
+            }
+
+            // Orden de Trabajo (RF-27): se valida solo si cambia. Un movimiento anulado no se puede vincular
+            if (array_key_exists('id_odt', $data)) {
+                $idOdt = !empty($data['id_odt']) ? (int)$data['id_odt'] : null;
+                $actual = $this->db->fetchOne(
+                    "SELECT m.activo, m.id_odt, tm.tipo FROM movimiento m
+                     INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                     WHERE m.id_movimiento = :id",
+                    ['id' => (int)$id_movimiento]
+                );
+                if (!$actual) {
+                    throw new Exception("El movimiento indicado no existe.");
+                }
+                if ($idOdt !== null && $idOdt !== (int)$actual['id_odt']) {
+                    if (!$actual['activo']) {
+                        throw new Exception("Un movimiento anulado no se puede vincular a una Orden de Trabajo.");
+                    }
+                    $this->validarOrdenVinculable($idOdt, $actual['tipo']);
+                }
+                $allowedFields['id_odt'] = $idOdt;
             }
 
             if (empty($allowedFields)) {
@@ -406,6 +471,13 @@ class Movimiento {
      */
     public function getTiposMovimiento() {
         return $this->db->fetchAll("SELECT id_tipo_mov, tipo FROM tipo_movimiento ORDER BY tipo");
+    }
+
+    /**
+     * Obtiene los motivos de devolución para el <select> del formulario (RF-34).
+     */
+    public function getMotivosDevolucion() {
+        return $this->db->fetchAll("SELECT id_motivo, motivo FROM motivo_devolucion ORDER BY id_motivo");
     }
 
     /**

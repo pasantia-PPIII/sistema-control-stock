@@ -58,6 +58,15 @@ INSERT INTO tipo_movimiento (id_tipo_mov, tipo) VALUES
 (4, 'Ajuste de Inventario')
 ON CONFLICT (id_tipo_mov) DO UPDATE SET tipo = EXCLUDED.tipo;
 
+-- 6.1 Motivos de Devolución
+-- Basado en RF-34: sobrante, fin de tarea, herramienta rota, otro
+INSERT INTO motivo_devolucion (id_motivo, motivo) VALUES
+(1, 'Sobrante'),
+(2, 'Fin de tarea'),
+(3, 'Herramienta rota'),
+(4, 'Otro')
+ON CONFLICT (id_motivo) DO UPDATE SET motivo = EXCLUDED.motivo;
+
 -- 7. Localidades y Jurisdicciones / Sedes de la Provincia de Corrientes
 -- Basado en la división por Circunscripciones Judiciales y sedes reales del Poder Judicial de Corrientes
 INSERT INTO localidad (id_localidad, localidad) VALUES
@@ -95,6 +104,7 @@ SELECT setval(pg_get_serial_sequence('unidad_medida', 'id_unidad_medida'), (SELE
 SELECT setval(pg_get_serial_sequence('ubicacion', 'id_ubicacion'), (SELECT MAX(id_ubicacion) FROM ubicacion));
 SELECT setval(pg_get_serial_sequence('estado_herramienta', 'id_estado_herramienta'), (SELECT MAX(id_estado_herramienta) FROM estado_herramienta));
 SELECT setval(pg_get_serial_sequence('tipo_movimiento', 'id_tipo_mov'), (SELECT MAX(id_tipo_mov) FROM tipo_movimiento));
+SELECT setval(pg_get_serial_sequence('motivo_devolucion', 'id_motivo'), (SELECT MAX(id_motivo) FROM motivo_devolucion));
 SELECT setval(pg_get_serial_sequence('localidad', 'id_localidad'), (SELECT MAX(id_localidad) FROM localidad));
 SELECT setval(pg_get_serial_sequence('jurisdiccion', 'id_jurisdiccion'), (SELECT MAX(id_jurisdiccion) FROM jurisdiccion));
 SELECT setval(pg_get_serial_sequence('rubro', 'id_rubro'), (SELECT MAX(id_rubro) FROM rubro));

@@ -1,0 +1,17 @@
+# Finales de línea del proyecto
+# Git decide solo qué archivos son de texto y los guarda con LF en el repositorio.
+# En el directorio de trabajo cada equipo usa los suyos (core.autocrlf en Windows),
+# así los cambios no se ven como "archivo entero modificado" por diferencias CRLF/LF.
+* text=auto
+
+# Archivos binarios: nunca se modifican
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.pdf  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary

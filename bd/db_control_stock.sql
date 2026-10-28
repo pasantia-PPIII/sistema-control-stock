@@ -14,6 +14,7 @@ DROP TABLE IF EXISTS stock_actual CASCADE;
 DROP TABLE IF EXISTS usuario CASCADE;
 DROP TABLE IF EXISTS operario CASCADE;
 DROP TABLE IF EXISTS rubro CASCADE;
+DROP TABLE IF EXISTS motivo_devolucion CASCADE;
 DROP TABLE IF EXISTS tipo_movimiento CASCADE;
 DROP TABLE IF EXISTS estado_herramienta CASCADE;
 DROP TABLE IF EXISTS ubicacion CASCADE;
@@ -68,6 +69,11 @@ CREATE TABLE estado_herramienta (
 CREATE TABLE tipo_movimiento (
     id_tipo_mov SERIAL PRIMARY KEY,
     tipo VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE motivo_devolucion (
+    id_motivo SERIAL PRIMARY KEY,
+    motivo VARCHAR(50) NOT NULL
 );
 
 CREATE TABLE rubro (
@@ -194,6 +200,7 @@ CREATE TABLE movimiento (
     id_operario INT,
     dni_usuario VARCHAR(20) NOT NULL,
     id_odt INT,
+    id_motivo INT,
     fecha DATE NOT NULL DEFAULT CURRENT_DATE,
     hora TIME NOT NULL DEFAULT CURRENT_TIME,
     observaciones TEXT,
@@ -201,7 +208,8 @@ CREATE TABLE movimiento (
     CONSTRAINT fk_mov_tipo FOREIGN KEY (id_tipo_mov) REFERENCES tipo_movimiento(id_tipo_mov),
     CONSTRAINT fk_mov_operario FOREIGN KEY (id_operario) REFERENCES operario(id_operario) ON DELETE SET NULL,
     CONSTRAINT fk_mov_usuario FOREIGN KEY (dni_usuario) REFERENCES usuario(dni),
-    CONSTRAINT fk_mov_odt FOREIGN KEY (id_odt) REFERENCES orden_de_trabajo(id_odt) ON DELETE SET NULL
+    CONSTRAINT fk_mov_odt FOREIGN KEY (id_odt) REFERENCES orden_de_trabajo(id_odt) ON DELETE SET NULL,
+    CONSTRAINT fk_mov_motivo FOREIGN KEY (id_motivo) REFERENCES motivo_devolucion(id_motivo) ON DELETE SET NULL
 );
 
 CREATE TABLE movimiento_detalle (

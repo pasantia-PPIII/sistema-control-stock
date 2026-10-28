@@ -138,26 +138,25 @@ include_once __DIR__ . '/../layout/header.php';
                     <div><?= $rubroTxt ?></div>
 
                     <div class="actions-cell" onclick="event.stopPropagation()">
-                        <a href="detalle_operario.php?id=<?= $idOp ?>" class="btn-action-text view" title="Ver Ficha">Ver
-                            Ficha</a>
+                        <a href="detalle_operario.php?id=<?= $idOp ?>" class="btn-action-icon view" title="Ver Ficha"><?= iconoAccion('view') ?></a>
                         <?php if (isAdmin()): ?>
-                            <button type="button" class="btn-action-text edit" title="Editar Operario"
+                            <button type="button" class="btn-action-icon edit" title="Editar Operario"
                                 onclick='abrirModalEditar(<?= json_encode($op, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
-                                Editar
+                                <?= iconoAccion('edit') ?>
                             </button>
 
                             <?php
                             $datosEstado = 'data-id="' . $idOp . '" data-dni="' . htmlspecialchars($op['dni'], ENT_QUOTES) . '" data-nombre="' . htmlspecialchars($op['apellido'] . ', ' . $op['nombre'], ENT_QUOTES) . '"';
                             ?>
                             <?php if ($esActivo): ?>
-                                <button type="button" class="btn-action-text disable" title="Deshabilitar Operario" <?= $datosEstado ?>
+                                <button type="button" class="btn-action-icon disable" title="Deshabilitar Operario" <?= $datosEstado ?>
                                     onclick="abrirModalEstado(this.dataset.id, this.dataset.dni, this.dataset.nombre, true)">
-                                    Deshabilitar
+                                    <?= iconoAccion('disable') ?>
                                 </button>
                             <?php else: ?>
-                                <button type="button" class="btn-action-text view" title="Habilitar Operario" <?= $datosEstado ?>
+                                <button type="button" class="btn-action-icon enable" title="Habilitar Operario" <?= $datosEstado ?>
                                     onclick="abrirModalEstado(this.dataset.id, this.dataset.dni, this.dataset.nombre, false)">
-                                    Habilitar
+                                    <?= iconoAccion('enable') ?>
                                 </button>
                             <?php endif; ?>
                         <?php endif; ?>

@@ -161,12 +161,12 @@ include_once __DIR__ . '/../layout/header.php';
                 <div><span class="badge badge-neutral"><?= $cantItems ?> ítem(s)</span></div>
                 
                 <div class="actions-cell">
-                    <button type="button" class="btn-action-text view" title="Ver Detalle del Movimiento" onclick="abrirModalDetalle(<?= $m['id_movimiento'] ?>)">
-                        Ver Detalle
+                    <button type="button" class="btn-action-icon view" title="Ver Detalle del Movimiento" onclick="abrirModalDetalle(<?= $m['id_movimiento'] ?>)">
+                        <?= iconoAccion('view') ?>
                     </button>
                     <?php if (canEdit() && !empty($m['activo']) && $m['activo'] !== 'f'): ?>
-                    <button type="button" class="btn-action-text disable" title="Anular Movimiento" onclick="anularMovimiento(<?= (int)$m['id_movimiento'] ?>)">
-                        Anular
+                    <button type="button" class="btn-action-icon disable" title="Anular Movimiento" onclick="anularMovimiento(<?= (int)$m['id_movimiento'] ?>)">
+                        <?= iconoAccion('disable') ?>
                     </button>
                     <?php endif; ?>
                 </div>
@@ -312,12 +312,12 @@ function renderizarTabla(movimientos) {
             <div><span class="badge badge-neutral">${cantItems} ítem(s)</span></div>
             
             <div class="actions-cell">
-                <button type="button" class="btn-action-text view" title="Ver Detalle del Movimiento" onclick="abrirModalDetalle(${m.id_movimiento})">
-                    Ver Detalle
+                <button type="button" class="btn-action-icon view" title="Ver Detalle del Movimiento" onclick="abrirModalDetalle(${m.id_movimiento})">
+                    ${window.APP_ICONS.view}
                 </button>
                 ${(APP_PERMISOS.editar && (m.activo === true || m.activo === 't' || m.activo == 1)) ? `
-                <button type="button" class="btn-action-text disable" title="Anular Movimiento" onclick="anularMovimiento(${m.id_movimiento})">
-                    Anular
+                <button type="button" class="btn-action-icon disable" title="Anular Movimiento" onclick="anularMovimiento(${m.id_movimiento})">
+                    ${window.APP_ICONS.disable}
                 </button>` : ''}
             </div>
         </div>`;
@@ -413,6 +413,20 @@ function abrirModalDetalle(idMovimiento) {
                     <div><strong>Fecha y Hora:</strong> ${escaparHtml(m.fecha)} ${escaparHtml(m.hora.substring(0, 5))}</div>
                     <div><strong>Estado Registro:</strong> ${m.activo ? '<span class="badge badge-success">Activo</span>' : '<span class="badge badge-danger">Anulado</span>'}</div>
                 </div>`;
+
+            if (m.numero_ot) {
+                html += `
+                    <div style="margin-bottom: 0.75rem; font-size: 0.85rem; color: #475569;">
+                        <strong>Orden de Trabajo:</strong> ${escaparHtml(m.numero_ot)}
+                    </div>`;
+            }
+
+            if (m.nombre_motivo) {
+                html += `
+                    <div style="margin-bottom: 0.75rem; font-size: 0.85rem; color: #475569;">
+                        <strong>Motivo de la devolución:</strong> ${escaparHtml(m.nombre_motivo)}
+                    </div>`;
+            }
 
             if (m.observaciones) {
                 html += `

@@ -143,14 +143,14 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
     <div style="margin-bottom: 1.5rem;">
         <label class="modal-label">Movimientos Vinculados</label>
         <?php if (empty($movimientos)): ?>
-            <div style="color: #64748b;">No hay movimientos de egreso ni devolución vinculados.</div>
+            <div style="color: #64748b;">No hay entregas ni devoluciones vinculadas.</div>
         <?php else: ?>
             <ul style="margin: 0.3rem 0 0 1.2rem; color: #334155; line-height: 1.7;">
                 <?php foreach ($movimientos as $mv): ?>
                     <li>
-                        <?= $mv['rol_en_odt'] === 'egreso' ? 'Egreso' : 'Devolución' ?>:
+                        <?= $mv['rol_en_odt'] === 'egreso' ? 'Entrega' : 'Devolución' ?>:
                         <a href="../movimiento/detalle_movimiento.php?id=<?= (int)$mv['id_movimiento'] ?>">Movimiento #<?= (int)$mv['id_movimiento'] ?></a>
-                        - <?= $h($fecha($mv['fecha'])) ?> <?= $h(substr($mv['hora'], 0, 5)) ?>
+                        - <?= $h($fecha($mv['fecha'])) ?> <?= $h(substr($mv['hora'], 0, 5)) ?><?= !empty($mv['nombre_operario']) ? ' - ' . $h($mv['nombre_operario']) : '' ?>
                     </li>
                 <?php endforeach; ?>
             </ul>

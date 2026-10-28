@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/reportes.php';
 
 class OrdenDeTrabajo {
     private $db;
@@ -32,6 +33,41 @@ class OrdenDeTrabajo {
         $sql .= " ORDER BY o.fecha_inicio DESC, o.id_odt DESC";
 
         return $this->db->fetchAll($sql);
+    }
+
+    /**
+     * Órdenes de Trabajo filtradas y paginadas en la base (LIMIT/OFFSET), igual que reportes y auditoría.
+     * @param string $busqueda Texto a buscar en id, número de OT, PA y trabajo a realizar
+     * @param string $estado Estado del trabajo ('' = todos)
+     * @param string $registro 'activo' (habilitadas), 'inactivo' (deshabilitadas) o 'todos'
+     * @return array Estructura de Reportes::paginado(): filas, total, pagina, paginas, desde, hasta
+     */
+    public function getPaginado($busqueda, $estado, $registro, $pagina, $porPagina) {
+        $sql = "SELECT o.*,
+                       l.localidad as nombre_localidad,
+                       j.jurisdiccion as nombre_jurisdiccion
+                FROM orden_de_trabajo o
+                LEFT JOIN localidad l ON o.id_localidad = l.id_localidad
+                LEFT JOIN jurisdiccion j ON o.id_jurisdiccion = j.id_jurisdiccion
+                WHERE 1 = 1";
+        $params = [];
+
+        if ($registro === 'activo') {
+            $sql .= " AND o.activo = TRUE";
+        } elseif ($registro === 'inactivo') {
+            $sql .= " AND o.activo = FALSE";
+        }
+        if ($estado !== '') {
+            $sql .= " AND COALESCE(o.estado, 'Pendiente') = :estado";
+            $params['estado'] = $estado;
+        }
+        if ($busqueda !== '') {
+            $sql .= " AND (CAST(o.id_odt AS TEXT) || ' ' || o.numero_ot || ' ' || COALESCE(o.pa, '') || ' ' || COALESCE(o.trabajo_a_realizar, '')) ILIKE :busqueda";
+            $params['busqueda'] = '%' . addcslashes($busqueda, '%_\\') . '%';
+        }
+
+        $sql .= " ORDER BY o.fecha_inicio DESC, o.id_odt DESC";
+        return Reportes::paginado($sql, $params, (int)$pagina, (int)$porPagina);
     }
 
     /**
@@ -158,16 +194,14 @@ class OrdenDeTrabajo {
     }
 
     /**
-     * Crea una nueva Orden de Trabajo junto con su comisión de operarios y,
-     * opcionalmente, sus movimientos de entrega y de devolución. Todo en una transacción.
+     * Crea una nueva Orden de Trabajo junto con su comisión de operarios, en una transacción.
+     * Las entregas y devoluciones se vinculan después, al registrarlas en Movimientos (movimiento.id_odt).
      *
      * @param array $data Datos de la ODT
      * @param array $ids_operarios id_operario de los operarios asignados (comisión)
-     * @param int|null $id_mov_egreso Movimiento de tipo Entrega (opcional)
-     * @param int|null $id_mov_devolucion Movimiento de tipo Devolución (opcional)
      * @return array El registro insertado con su ID generado
      */
-    public function create($data, $ids_operarios = [], $id_mov_egreso = null, $id_mov_devolucion = null) {
+    public function create($data, $ids_operarios = []) {
         $this->db->beginTransaction();
         try {
             $data = $this->limpiarDatos($data);
@@ -184,8 +218,6 @@ class OrdenDeTrabajo {
             $orden = $this->db->insert('orden_de_trabajo', $data);
             $id_odt = (int)$orden['id_odt'];
 
-            $this->aplicarVinculo($id_odt, 'id_mov_egreso', 'Entrega', $id_mov_egreso);
-            $this->aplicarVinculo($id_odt, 'id_mov_devolucion', 'Devolución', $id_mov_devolucion);
             $this->sincronizarOperarios($id_odt, $ids_operarios);
 
             $this->db->commit();
@@ -201,10 +233,9 @@ class OrdenDeTrabajo {
      * @param int $id_odt ID de la orden a actualizar
      * @param array $data Nuevos datos
      * @param array|null $ids_operarios Comisión completa (null = no tocar la comisión)
-     * @param array|null $vinculos ['id_mov_egreso' => ?int, 'id_mov_devolucion' => ?int]; solo se aplican las claves presentes
      * @return bool true si se actualizó correctamente
      */
-    public function update($id_odt, $data, $ids_operarios = null, $vinculos = null) {
+    public function update($id_odt, $data, $ids_operarios = null) {
         $this->db->beginTransaction();
         try {
             $data = $this->limpiarDatos($data);
@@ -219,14 +250,6 @@ class OrdenDeTrabajo {
 
             if (!empty($data)) {
                 $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => (int)$id_odt]);
-            }
-            if (is_array($vinculos)) {
-                if (array_key_exists('id_mov_egreso', $vinculos)) {
-                    $this->aplicarVinculo((int)$id_odt, 'id_mov_egreso', 'Entrega', $vinculos['id_mov_egreso']);
-                }
-                if (array_key_exists('id_mov_devolucion', $vinculos)) {
-                    $this->aplicarVinculo((int)$id_odt, 'id_mov_devolucion', 'Devolución', $vinculos['id_mov_devolucion']);
-                }
             }
             if (is_array($ids_operarios)) {
                 $this->sincronizarOperarios((int)$id_odt, $ids_operarios);
@@ -393,121 +416,11 @@ class OrdenDeTrabajo {
     }
 
     // =========================================================
-    // 4. VINCULACIÓN CON MOVIMIENTOS (ambos opcionales)
-    //    id_mov_egreso -> movimiento de tipo Entrega; id_mov_devolucion -> movimiento de tipo Devolución.
+    // 4. MOVIMIENTOS VINCULADOS
+    //    Las entregas y devoluciones se vinculan al registrarlas (o editarlas) en el módulo Movimientos,
+    //    con movimiento.id_odt. Una orden puede tener varias. Ver getMovimientosVinculados().
     // =========================================================
 
-    /**
-     * Vincula (o desvincula, con null) el movimiento de entrega de la orden.
-     * @param int $id_odt ID de la orden
-     * @param int|null $id_mov_egreso ID del movimiento de tipo Entrega
-     * @return bool
-     */
-    public function vincularMovimientoEgreso($id_odt, $id_mov_egreso) {
-        return $this->vincularEnTransaccion($id_odt, 'id_mov_egreso', 'Entrega', $id_mov_egreso);
-    }
-
-    /**
-     * Vincula (o desvincula, con null) el movimiento de devolución de la orden.
-     * @param int $id_odt ID de la orden
-     * @param int|null $id_mov_devolucion ID del movimiento de tipo Devolución
-     * @return bool
-     */
-    public function vincularMovimientoDevolucion($id_odt, $id_mov_devolucion) {
-        return $this->vincularEnTransaccion($id_odt, 'id_mov_devolucion', 'Devolución', $id_mov_devolucion);
-    }
-
-    private function vincularEnTransaccion($id_odt, $columna, $tipo, $id_mov) {
-        $this->db->beginTransaction();
-        try {
-            $this->aplicarVinculo((int)$id_odt, $columna, $tipo, $id_mov);
-            $this->db->commit();
-            return true;
-        } catch (Throwable $e) {
-            $this->cerrarConError($e, 'vincular el movimiento');
-        }
-    }
-
-    /**
-     * Deja el movimiento indicado como el vinculado en la columna dada (null = sin movimiento).
-     * Valida que el movimiento exista, esté activo, sea del tipo correcto y no esté vinculado a otra orden.
-     * Mantiene sincronizado movimiento.id_odt. Debe llamarse dentro de una transacción.
-     * @param int $id_odt ID de la orden
-     * @param string $columna 'id_mov_egreso' o 'id_mov_devolucion' (valor interno, nunca viene del usuario)
-     * @param string $tipoEsperado 'Entrega' o 'Devolución'
-     * @param int|null $idNuevo ID del movimiento a vincular
-     */
-    private function aplicarVinculo($id_odt, $columna, $tipoEsperado, $idNuevo) {
-        if (!in_array($columna, ['id_mov_egreso', 'id_mov_devolucion'], true)) {
-            throw new Exception("Vínculo de movimiento inválido.");
-        }
-
-        $actual = $this->db->fetchOne("SELECT {$columna} AS id FROM orden_de_trabajo WHERE id_odt = :id", ['id' => $id_odt]);
-        $idActual = ($actual && !empty($actual['id'])) ? (int)$actual['id'] : null;
-        $idNuevo = !empty($idNuevo) ? (int)$idNuevo : null;
-
-        if ($idActual === $idNuevo) {
-            return;
-        }
-
-        if ($idNuevo !== null) {
-            $mov = $this->db->fetchOne(
-                "SELECT m.activo, tm.tipo FROM movimiento m
-                 INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
-                 WHERE m.id_movimiento = :id",
-                ['id' => $idNuevo]
-            );
-            if (!$mov || !$mov['activo']) {
-                throw new Exception("El movimiento #{$idNuevo} no existe o está anulado.");
-            }
-            if ($mov['tipo'] !== $tipoEsperado) {
-                throw new Exception("El movimiento #{$idNuevo} es de tipo '{$mov['tipo']}' y debe ser de tipo '{$tipoEsperado}'.");
-            }
-            $usado = $this->db->fetchOne(
-                "SELECT id_odt FROM orden_de_trabajo
-                 WHERE activo = TRUE AND id_odt <> :odt AND (id_mov_egreso = :m1 OR id_mov_devolucion = :m2)",
-                ['odt' => $id_odt, 'm1' => $idNuevo, 'm2' => $idNuevo]
-            );
-            if ($usado) {
-                throw new Exception("El movimiento #{$idNuevo} ya está vinculado a otra Orden de Trabajo.");
-            }
-        }
-
-        if ($idActual !== null) {
-            Database::execute(
-                "UPDATE movimiento SET id_odt = NULL WHERE id_movimiento = :m AND id_odt = :odt",
-                ['m' => $idActual, 'odt' => $id_odt]
-            );
-        }
-        Database::execute("UPDATE orden_de_trabajo SET {$columna} = :m WHERE id_odt = :odt", ['m' => $idNuevo, 'odt' => $id_odt]);
-        if ($idNuevo !== null) {
-            Database::execute("UPDATE movimiento SET id_odt = :odt WHERE id_movimiento = :m", ['m' => $idNuevo, 'odt' => $id_odt]);
-        }
-    }
-
-    /**
-     * Movimientos que se pueden elegir al vincular: activos, del tipo pedido y no vinculados a otra orden.
-     * Incluye el que ya tiene vinculado la orden indicada (id_odt = 0 al crear una nueva).
-     * @param string $tipo 'Entrega' o 'Devolución'
-     * @param int $id_odt Orden que se está editando (0 si es nueva)
-     * @return array Movimientos con fecha, hora y operario
-     */
-    public function getMovimientosDisponibles($tipo, $id_odt = 0) {
-        $sql = "SELECT m.id_movimiento, m.fecha, m.hora,
-                       o.apellido || ', ' || o.nombre as nombre_operario
-                FROM movimiento m
-                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
-                LEFT JOIN operario o ON m.id_operario = o.id_operario
-                WHERE m.activo = TRUE AND tm.tipo = ?
-                  AND NOT EXISTS (
-                      SELECT 1 FROM orden_de_trabajo x
-                      WHERE x.activo = TRUE AND x.id_odt <> ?
-                        AND (x.id_mov_egreso = m.id_movimiento OR x.id_mov_devolucion = m.id_movimiento)
-                  )
-                ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC";
-
-        return $this->db->fetchAll($sql, [$tipo, (int)$id_odt]);
-    }
     // =========================================================
     // 5. DESHABILITACIÓN Y HABILITACIÓN (SOFT DELETE)
     // =========================================================
@@ -541,27 +454,11 @@ class OrdenDeTrabajo {
 
     /**
      * Reactiva una Orden de Trabajo anulada.
-     * Falla si alguno de sus movimientos vinculados fue tomado mientras tanto por otra orden activa.
      * @param int $id_odt ID de la orden
      * @return bool
      */
     public function reactivar($id_odt) {
         try {
-            $conflicto = $this->db->fetchOne(
-                "SELECT o2.numero_ot
-                 FROM orden_de_trabajo o
-                 INNER JOIN orden_de_trabajo o2
-                    ON o2.activo = TRUE AND o2.id_odt <> o.id_odt
-                   AND (o2.id_mov_egreso IN (o.id_mov_egreso, o.id_mov_devolucion)
-                     OR o2.id_mov_devolucion IN (o.id_mov_egreso, o.id_mov_devolucion))
-                 WHERE o.id_odt = :id_odt
-                 LIMIT 1",
-                ['id_odt' => (int)$id_odt]
-            );
-            if ($conflicto) {
-                throw new Exception("No se puede reactivar: uno de sus movimientos vinculados ya está asignado a la Orden de Trabajo '{$conflicto['numero_ot']}'. Edite esa orden o desvincule el movimiento primero.");
-            }
-
             $data = ['activo' => true];
             return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
         } catch (PDOException $e) {
@@ -579,12 +476,8 @@ class OrdenDeTrabajo {
      * @return bool
      */
     public function tieneMovimientosAsociados($id_odt) {
-        $sql = "SELECT 
-                    (CASE WHEN id_mov_egreso IS NOT NULL THEN 1 ELSE 0 END) +
-                    (CASE WHEN id_mov_devolucion IS NOT NULL THEN 1 ELSE 0 END) as total
-                FROM orden_de_trabajo 
-                WHERE id_odt = :id_odt";
-        
+        $sql = "SELECT COUNT(*) as total FROM movimiento WHERE id_odt = :id_odt AND activo = TRUE";
+
         $result = $this->db->fetchOne($sql, ['id_odt' => $id_odt]);
         return $result['total'] > 0;
     }
@@ -651,32 +544,23 @@ class OrdenDeTrabajo {
     }
 
     /**
-     * Obtiene los movimientos vinculados a una ODT (egreso y devolución).
-     * Devuelve los datos completos de cada movimiento para mostrar en el frontend.
+     * Obtiene todos los movimientos (entregas y devoluciones) de una ODT, en orden cronológico.
+     * Se toman por movimiento.id_odt, así una orden puede tener varias entregas y devoluciones (RF-47, RF-49).
      * @param int $id_odt ID de la orden de trabajo
-     * @return array Movimientos vinculados con tipo y fecha
+     * @return array Movimientos con rol ('egreso' / 'devolucion'), tipo, fecha, hora y operario
      */
     public function getMovimientosVinculados($id_odt) {
-        $sql = "SELECT 
-                    'egreso' as rol_en_odt,
-                    m.id_movimiento, m.fecha, m.hora, m.observaciones,
-                    tm.tipo as nombre_tipo_movimiento
-                FROM orden_de_trabajo o
-                INNER JOIN movimiento m ON o.id_mov_egreso = m.id_movimiento
+        $sql = "SELECT CASE WHEN tm.tipo = 'Devolución' THEN 'devolucion' ELSE 'egreso' END AS rol_en_odt,
+                       m.id_movimiento, m.fecha, m.hora, m.observaciones,
+                       tm.tipo AS nombre_tipo_movimiento,
+                       op.apellido || ', ' || op.nombre AS nombre_operario
+                FROM movimiento m
                 INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
-                WHERE o.id_odt = :id_odt AND o.id_mov_egreso IS NOT NULL
-                UNION ALL
-                SELECT 
-                    'devolucion' as rol_en_odt,
-                    m.id_movimiento, m.fecha, m.hora, m.observaciones,
-                    tm.tipo as nombre_tipo_movimiento
-                FROM orden_de_trabajo o
-                INNER JOIN movimiento m ON o.id_mov_devolucion = m.id_movimiento
-                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
-                WHERE o.id_odt = :id_odt2 AND o.id_mov_devolucion IS NOT NULL
-                ORDER BY fecha ASC";
+                LEFT JOIN operario op ON m.id_operario = op.id_operario
+                WHERE m.activo = TRUE AND m.id_odt = :id_odt
+                ORDER BY m.fecha ASC, m.hora ASC, m.id_movimiento ASC";
 
-        return $this->db->fetchAll($sql, ['id_odt' => $id_odt, 'id_odt2' => $id_odt]);
+        return $this->db->fetchAll($sql, ['id_odt' => $id_odt]);
     }
 }
 ?>

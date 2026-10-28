@@ -3,7 +3,6 @@
  * orden_de_trabajo/crear_orden_de_trabajo.php
  * Endpoint AJAX para registrar una nueva orden de trabajo con:
  *  - comisión de operarios (operarios[]),
- *  - movimiento de entrega y movimiento de devolución (ambos opcionales),
  *  - adjunto PDF opcional.
  * Solo Administrador y Pañolero. Responde exclusivamente en formato JSON.
  */
@@ -41,11 +40,8 @@ try {
         $datos['archivo_pdf'] = $nombrePdf;
     }
 
-    $idEgreso = !empty($_POST['id_mov_egreso']) ? (int)$_POST['id_mov_egreso'] : null;
-    $idDevolucion = !empty($_POST['id_mov_devolucion']) ? (int)$_POST['id_mov_devolucion'] : null;
-
     $odtModel = new OrdenDeTrabajo();
-    $orden = $odtModel->create($datos, operariosDesdePost(), $idEgreso, $idDevolucion);
+    $orden = $odtModel->create($datos, operariosDesdePost());
 
     echo json_encode([
         'success'   => true,

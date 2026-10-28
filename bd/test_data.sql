@@ -426,3 +426,6 @@ BEGIN
                (SELECT i.fecha_registro FROM insumos i WHERE i.id_stock_actual = sa.id_stock_actual LIMIT 1),
                CURRENT_DATE);
 END $$;
+
+-- 7. Motivo de las devoluciones de prueba (RF-34): todas se cargan como "Fin de tarea" (id 2)
+UPDATE movimiento SET id_motivo = 2 WHERE id_tipo_mov = 2;
