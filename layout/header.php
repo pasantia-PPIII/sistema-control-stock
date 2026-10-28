@@ -44,7 +44,8 @@ $alerta_flash = getAlert();
             disable: <?= json_encode(iconoAccion('disable')) ?>,
             delete: <?= json_encode(iconoAccion('delete')) ?>,
             enable: <?= json_encode(iconoAccion('enable')) ?>,
-            dispatch: <?= json_encode(iconoAccion('dispatch')) ?>
+            dispatch: <?= json_encode(iconoAccion('dispatch')) ?>,
+            return: <?= json_encode(iconoAccion('return')) ?>
         };
     </script>
 </head>

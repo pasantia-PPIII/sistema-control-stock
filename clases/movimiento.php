@@ -101,7 +101,7 @@ class Movimiento {
      * Crea un movimiento completo (Cabecera + Detalles) en una sola transacción.
      * Esto garantiza que si falla el detalle, no se crea la cabecera huérfana.
      * 
-     * @param array $cabecera - Datos del movimiento (id_tipo_mov, id_operario, dni_usuario, fecha, hora, observaciones)
+     * @param array $cabecera - Datos del movimiento (id_tipo_mov, id_operario, dni_usuario, fecha, hora, observaciones, id_odt opcional)
      * @param array $detalles - Array de arrays con los insumos (id_insumo, cantidad, id_estado_herramienta)
      * @return int - El ID del movimiento creado
      */
@@ -128,6 +128,23 @@ class Movimiento {
                 throw new Exception("El tipo de movimiento indicado no existe.");
             }
             $tipoMov = $tipoFila['tipo'];
+
+            // Vínculo opcional con una Orden de Trabajo (RF-27): solo entregas y devoluciones, y la orden debe estar habilitada.
+            // Una misma orden puede tener varias entregas y devoluciones (RF-47).
+            $idOdt = !empty($cabecera['id_odt']) ? (int)$cabecera['id_odt'] : null;
+            $cabecera['id_odt'] = $idOdt;
+            if ($idOdt !== null) {
+                if (!in_array($tipoMov, [self::TIPO_ENTREGA, self::TIPO_DEVOLUCION], true)) {
+                    throw new Exception("Solo las entregas y devoluciones se pueden vincular a una Orden de Trabajo.");
+                }
+                $odt = $this->db->fetchOne("SELECT numero_ot, estado, activo FROM orden_de_trabajo WHERE id_odt = :id", ['id' => $idOdt]);
+                if (!$odt || !$odt['activo']) {
+                    throw new Exception("La Orden de Trabajo indicada no existe o está deshabilitada.");
+                }
+                if ($tipoMov === self::TIPO_ENTREGA && in_array($odt['estado'], ['Finalizada', 'Anulada'], true)) {
+                    throw new Exception("La Orden de Trabajo '{$odt['numero_ot']}' está {$odt['estado']}: no admite nuevas entregas.");
+                }
+            }
 
             // 3. Insertar la cabecera del movimiento
             $nuevoMovimiento = $this->db->insert('movimiento', $cabecera);

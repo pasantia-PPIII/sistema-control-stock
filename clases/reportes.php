@@ -555,9 +555,11 @@ class Reportes
         }
 
         $ordenes = Database::fetchAll("
-            SELECT o.id_odt, o.numero_ot, o.estado, o.fecha_final, o.id_mov_egreso
+            SELECT o.id_odt, o.numero_ot, o.estado, o.fecha_final, m.id_movimiento AS id_mov_egreso
             FROM orden_de_trabajo o
-            WHERE o.activo = TRUE AND o.id_mov_egreso IS NOT NULL
+            INNER JOIN movimiento m ON m.activo = TRUE AND (m.id_odt = o.id_odt OR m.id_movimiento = o.id_mov_egreso)
+            INNER JOIN tipo_movimiento tm ON tm.id_tipo_mov = m.id_tipo_mov AND tm.tipo = 'Entrega'
+            WHERE o.activo = TRUE
               AND o.estado IN (" . self::enLista(self::OT_CERRADAS) . ")
             ORDER BY o.fecha_final DESC NULLS LAST, o.id_odt DESC");
 

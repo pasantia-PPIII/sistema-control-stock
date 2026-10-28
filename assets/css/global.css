@@ -381,4 +381,15 @@ button.btn-logout {
     background-color: #dcfce7;
     color: #14532d;
 }
+
+.btn-action-icon.return {
+    background-color: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+}
+
+.btn-action-icon.return:hover {
+    background-color: #fde68a;
+    color: #78350f;
+}
 

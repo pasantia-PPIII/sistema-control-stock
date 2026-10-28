@@ -452,7 +452,7 @@ class OrdenDeTrabajo {
 
         if ($idNuevo !== null) {
             $mov = $this->db->fetchOne(
-                "SELECT m.activo, tm.tipo FROM movimiento m
+                "SELECT m.activo, m.id_odt, tm.tipo FROM movimiento m
                  INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
                  WHERE m.id_movimiento = :id",
                 ['id' => $idNuevo]
@@ -462,6 +462,10 @@ class OrdenDeTrabajo {
             }
             if ($mov['tipo'] !== $tipoEsperado) {
                 throw new Exception("El movimiento #{$idNuevo} es de tipo '{$mov['tipo']}' y debe ser de tipo '{$tipoEsperado}'.");
+            }
+            // Un movimiento ya asignado a otra orden (por una entrega/devolución registrada desde esa orden) no se puede reasignar
+            if (!empty($mov['id_odt']) && (int)$mov['id_odt'] !== (int)$id_odt) {
+                throw new Exception("El movimiento #{$idNuevo} ya está vinculado a otra Orden de Trabajo.");
             }
             $usado = $this->db->fetchOne(
                 "SELECT id_odt FROM orden_de_trabajo
@@ -504,9 +508,10 @@ class OrdenDeTrabajo {
                       WHERE x.activo = TRUE AND x.id_odt <> ?
                         AND (x.id_mov_egreso = m.id_movimiento OR x.id_mov_devolucion = m.id_movimiento)
                   )
+                  AND (m.id_odt IS NULL OR m.id_odt = ?)
                 ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC";
 
-        return $this->db->fetchAll($sql, [$tipo, (int)$id_odt]);
+        return $this->db->fetchAll($sql, [$tipo, (int)$id_odt, (int)$id_odt]);
     }
     // =========================================================
     // 5. DESHABILITACIÓN Y HABILITACIÓN (SOFT DELETE)
@@ -651,32 +656,27 @@ class OrdenDeTrabajo {
     }
 
     /**
-     * Obtiene los movimientos vinculados a una ODT (egreso y devolución).
-     * Devuelve los datos completos de cada movimiento para mostrar en el frontend.
+     * Obtiene todos los movimientos (entregas y devoluciones) de una ODT, en orden cronológico.
+     * Se toman por movimiento.id_odt, así una orden puede tener varias entregas y devoluciones (RF-47, RF-49).
+     * También se incluyen los movimientos de los vínculos simples de la orden (id_mov_egreso / id_mov_devolucion).
      * @param int $id_odt ID de la orden de trabajo
-     * @return array Movimientos vinculados con tipo y fecha
+     * @return array Movimientos con rol ('egreso' / 'devolucion'), tipo, fecha, hora y operario
      */
     public function getMovimientosVinculados($id_odt) {
-        $sql = "SELECT 
-                    'egreso' as rol_en_odt,
-                    m.id_movimiento, m.fecha, m.hora, m.observaciones,
-                    tm.tipo as nombre_tipo_movimiento
-                FROM orden_de_trabajo o
-                INNER JOIN movimiento m ON o.id_mov_egreso = m.id_movimiento
+        $sql = "SELECT CASE WHEN tm.tipo = 'Devolución' THEN 'devolucion' ELSE 'egreso' END AS rol_en_odt,
+                       m.id_movimiento, m.fecha, m.hora, m.observaciones,
+                       tm.tipo AS nombre_tipo_movimiento,
+                       op.apellido || ', ' || op.nombre AS nombre_operario
+                FROM movimiento m
                 INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
-                WHERE o.id_odt = :id_odt AND o.id_mov_egreso IS NOT NULL
-                UNION ALL
-                SELECT 
-                    'devolucion' as rol_en_odt,
-                    m.id_movimiento, m.fecha, m.hora, m.observaciones,
-                    tm.tipo as nombre_tipo_movimiento
-                FROM orden_de_trabajo o
-                INNER JOIN movimiento m ON o.id_mov_devolucion = m.id_movimiento
-                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
-                WHERE o.id_odt = :id_odt2 AND o.id_mov_devolucion IS NOT NULL
-                ORDER BY fecha ASC";
+                LEFT JOIN operario op ON m.id_operario = op.id_operario
+                WHERE m.activo = TRUE
+                  AND (m.id_odt = :id_odt
+                       OR m.id_movimiento IN (SELECT x.id_mov_egreso FROM orden_de_trabajo x WHERE x.id_odt = :id_odt2 AND x.id_mov_egreso IS NOT NULL)
+                       OR m.id_movimiento IN (SELECT x.id_mov_devolucion FROM orden_de_trabajo x WHERE x.id_odt = :id_odt3 AND x.id_mov_devolucion IS NOT NULL))
+                ORDER BY m.fecha ASC, m.hora ASC, m.id_movimiento ASC";
 
-        return $this->db->fetchAll($sql, ['id_odt' => $id_odt, 'id_odt2' => $id_odt]);
+        return $this->db->fetchAll($sql, ['id_odt' => $id_odt, 'id_odt2' => $id_odt, 'id_odt3' => $id_odt]);
     }
 }
 ?>

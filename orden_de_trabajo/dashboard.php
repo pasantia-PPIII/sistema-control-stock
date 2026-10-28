@@ -284,6 +284,10 @@ include_once __DIR__ . '/../layout/header.php';
                             <?php endif; ?>
                             <?php if (canEdit()): ?>
                             <?php if ($ot['activo']): ?>
+                            <?php if (!in_array($ot['estado'] ?? '', ['Finalizada', 'Anulada'], true)): ?>
+                            <a href="../movimiento/crear_movimiento.php?tipo=entrega&amp;id_odt=<?= $idOdt ?>" class="btn-action-icon dispatch" title="Registrar Entrega para esta orden"><?= iconoAccion('dispatch') ?></a>
+                            <?php endif; ?>
+                            <a href="../movimiento/crear_movimiento.php?tipo=devolucion&amp;id_odt=<?= $idOdt ?>" class="btn-action-icon return" title="Registrar Devolución de esta orden"><?= iconoAccion('return') ?></a>
                             <button type="button" class="btn-action-icon edit" title="Editar Orden" onclick="abrirModalEditar(<?= $idOdt ?>)">
                                 <?= iconoAccion('edit') ?>
                             </button>
@@ -574,6 +578,8 @@ function renderizarTabla(ordenes) {
                         ${window.APP_ICONS.view}
                     </button>
                     ${APP_PERMISOS.editar ? `
+                    ${(ot.estado === 'Finalizada' || ot.estado === 'Anulada') ? '' : `<a href="../movimiento/crear_movimiento.php?tipo=entrega&id_odt=${idOdt}" class="btn-action-icon dispatch" title="Registrar Entrega para esta orden">${window.APP_ICONS.dispatch}</a>`}
+                    <a href="../movimiento/crear_movimiento.php?tipo=devolucion&id_odt=${idOdt}" class="btn-action-icon return" title="Registrar Devolución de esta orden">${window.APP_ICONS.return}</a>
                     <button type="button" class="btn-action-icon edit" title="Editar Orden" onclick="abrirModalEditar(${idOdt})">
                         ${window.APP_ICONS.edit}
                     </button>
@@ -886,7 +892,7 @@ function verDetalleModal(idOdt) {
                 ? '<ul style="margin: 0.3rem 0 0 1.2rem;">' + operarios.map(op => `<li>${escaparHtml(op.apellido + ', ' + op.nombre)} (DNI ${escaparHtml(op.dni)})</li>`).join('') + '</ul>'
                 : '<span style="color:#64748b;">Sin operarios asignados.</span>';
             const listaMovimientos = movimientos.length
-                ? '<ul style="margin: 0.3rem 0 0 1.2rem;">' + movimientos.map(m => `<li>${m.rol_en_odt === 'egreso' ? 'Entrega' : 'Devolución'}: <a href="../movimiento/detalle_movimiento.php?id=${parseInt(m.id_movimiento, 10)}">Movimiento #${parseInt(m.id_movimiento, 10)}</a> - ${escaparHtml(m.fecha)}</li>`).join('') + '</ul>'
+                ? '<ul style="margin: 0.3rem 0 0 1.2rem;">' + movimientos.map(m => `<li>${m.rol_en_odt === 'egreso' ? 'Entrega' : 'Devolución'}: <a href="../movimiento/detalle_movimiento.php?id=${parseInt(m.id_movimiento, 10)}">Movimiento #${parseInt(m.id_movimiento, 10)}</a> - ${escaparHtml(m.fecha)}${m.nombre_operario ? ' - ' + escaparHtml(m.nombre_operario) : ''}</li>`).join('') + '</ul>'
                 : '<span style="color:#64748b;">Sin movimientos vinculados.</span>';
 
             html += `
