@@ -51,6 +51,14 @@ try {
     $resultado = $insumoModel->deshabilitar($codigo);
 
     if ($resultado) {
+        registrarAuditoria(
+            'DESHABILITAR',
+            'INSUMOS',
+            "Baja lógica del insumo '{$existente['nombre']}' (Código: {$codigo})",
+            ['activo' => true],
+            ['activo' => false]
+        );
+
         echo json_encode([
             'success' => true,
             'message' => "El insumo '{$codigo}' ha sido deshabilitado correctamente.",

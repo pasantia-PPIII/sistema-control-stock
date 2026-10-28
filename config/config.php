@@ -10,7 +10,7 @@ defined('DB_HOST') || define('DB_HOST', 'localhost');          // Servidor de la
 defined('DB_PORT') || define('DB_PORT', '5432');               // Puerto de PostgreSQL (por defecto 5432)
 defined('DB_NAME') || define('DB_NAME', 'db_control_stock');   // Nombre de la base de datos
 defined('DB_USER') || define('DB_USER', 'postgres');           // Usuario de la base de datos
-defined('DB_PASS') || define('DB_PASS', '');                   // Contraseña del usuario
+defined('DB_PASS') || define('DB_PASS', '1234');                   // Contraseña del usuario
 
 // =========================================================
 // SESIÓN (cookie endurecida)
@@ -82,7 +82,8 @@ ini_set('display_errors', DEBUG_MODE ? '1' : '0');
 /**
  * Token CSRF de la sesión actual (se genera una sola vez por sesión).
  */
-function csrfToken() {
+function csrfToken()
+{
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
@@ -92,14 +93,16 @@ function csrfToken() {
 /**
  * Campo oculto con el token CSRF para formularios HTML clásicos.
  */
-function csrfField() {
+function csrfField()
+{
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') . '">';
 }
 
 /**
  * Valida el token enviado en el header X-CSRF-Token o en el campo csrf_token.
  */
-function csrfVerify() {
+function csrfVerify()
+{
     $enviado = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? '');
     return is_string($enviado) && $enviado !== '' && hash_equals(csrfToken(), $enviado);
 }
@@ -108,7 +111,8 @@ function csrfVerify() {
  * Mensaje apto para mostrar al usuario: los errores de base de datos (PDO / SQLSTATE) se
  * registran en el log y se reemplazan por un texto genérico; los de validación pasan tal cual.
  */
-function safeErrorMessage($e) {
+function safeErrorMessage($e)
+{
     $mensaje = $e->getMessage();
     if ($e instanceof PDOException || stripos($mensaje, 'SQLSTATE') !== false) {
         error_log('[DB] ' . $mensaje);
@@ -121,7 +125,8 @@ function safeErrorMessage($e) {
 // responden 401 por sí mismos). login.php define CSRF_REQUIRE para validar también antes de autenticar.
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
     && (defined('CSRF_REQUIRE') || isset($_SESSION['dni_usuario']))
-    && !csrfVerify()) {
+    && !csrfVerify()
+) {
     http_response_code(403);
     if (defined('CSRF_REQUIRE')) {
         die('Solicitud no válida (token de seguridad inválido o vencido). Recargue la página e intente nuevamente.');
@@ -138,7 +143,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
 /*
  * Redireccionar a una URL interna
  */
-function redirect($url) {
+function redirect($url)
+{
     header("Location: " . BASE_URL . $url);
     exit;
 }
@@ -146,7 +152,8 @@ function redirect($url) {
 /**
  * Establecer un mensaje de alerta en sesión
  */
-function setAlert($message, $type = 'info') {
+function setAlert($message, $type = 'info')
+{
     $_SESSION['alert'] = [
         'message' => $message,
         'type' => $type  // 'success', 'danger', 'warning', 'info'
@@ -156,7 +163,8 @@ function setAlert($message, $type = 'info') {
 /**
  * Obtener y limpiar la alerta de sesión
  */
-function getAlert() {
+function getAlert()
+{
     if (isset($_SESSION['alert'])) {
         $alert = $_SESSION['alert'];
         unset($_SESSION['alert']);
@@ -168,7 +176,8 @@ function getAlert() {
 /**
  * Verificar si el usuario está autenticado
  */
-function isAuthenticated() {
+function isAuthenticated()
+{
     return isset($_SESSION['dni_usuario']);
 }
 
@@ -176,7 +185,8 @@ function isAuthenticated() {
  * Rol del usuario en sesión normalizado: minúsculas y sin tildes.
  * Roles del sistema: 'admin', 'panolero', 'vista'.
  */
-function currentRole() {
+function currentRole()
+{
     $rol = $_SESSION['nombre_rol'] ?? '';
     $rol = mb_strtolower(trim($rol), 'UTF-8');
     $rol = strtr($rol, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ñ' => 'n']);
@@ -186,35 +196,40 @@ function currentRole() {
 /**
  * Verificar si el usuario es Administrador
  */
-function isAdmin() {
+function isAdmin()
+{
     return currentRole() === 'admin';
 }
 
 /**
  * Verificar si el usuario es Pañolero (o Admin)
  */
-function isPanolero() {
+function isPanolero()
+{
     return in_array(currentRole(), ['admin', 'panolero'], true);
 }
 
 /**
  * Verificar si el usuario tiene rol de solo lectura (Vista)
  */
-function isVista() {
+function isVista()
+{
     return currentRole() === 'vista';
 }
 
 /**
  * Verificar si el usuario puede editar (Admin/Pañolero)
  */
-function canEdit() {
+function canEdit()
+{
     return isPanolero();
 }
 
 /**
  * Verificar si el usuario puede gestionar otros usuarios (solo Administrador)
  */
-function canManageUsers() {
+function canManageUsers()
+{
     return isAdmin();
 }
 
@@ -223,7 +238,8 @@ function canManageUsers() {
  * - Peticiones POST / AJAX: responde 403 en JSON y corta.
  * - Páginas: guarda una alerta y redirige al Panel de Control.
  */
-function requireRole(array $roles) {
+function requireRole(array $roles)
+{
     if (in_array(currentRole(), $roles, true)) {
         return;
     }
@@ -247,7 +263,8 @@ function requireRole(array $roles) {
 /**
  * Permisos del usuario actual en formato listo para publicar al JavaScript de las vistas.
  */
-function permisosActuales() {
+function permisosActuales()
+{
     return [
         'rol'    => currentRole(),
         'admin'  => isAdmin(),
@@ -260,7 +277,8 @@ function permisosActuales() {
  * Retorna el SVG de un icono de acción del sistema (estilo unificado Feather / Lucide).
  * Tipos admitidos: 'view', 'edit', 'delete', 'disable', 'enable', 'dispatch'.
  */
-function iconoAccion($tipo, $size = 15) {
+function iconoAccion($tipo, $size = 15)
+{
     switch ($tipo) {
         case 'view':
             return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
@@ -278,3 +296,65 @@ function iconoAccion($tipo, $size = 15) {
     }
 }
 
+// =========================================================
+// AUDITORÍA Y TRAZABILIDAD
+// =========================================================
+require_once __DIR__ . '/../clases/auditoria.php';
+
+/**
+ * Función global reutilizable para registrar eventos de auditoría y trazabilidad.
+ *
+ * @param string      $accion           Acción realizada (LOGIN, LOGOUT, CREAR, MODIFICAR, DESHABILITAR, HABILITAR, ENTREGA, DEVOLUCION, etc.)
+ * @param string      $modulo           Módulo afectado (AUTH, USUARIOS, INSUMOS, MOVIMIENTOS, ORDENES_TRABAJO, OPERARIOS, RUBROS, etc.)
+ * @param string      $descripcion      Descripción humana clara y contextual del evento
+ * @param array|null  $datosAnteriores  Estado previo de los datos (o arreglo con 'antes')
+ * @param array|null  $datosNuevos      Nuevo estado de los datos (o arreglo con 'despues')
+ * @param string|null $dniUsuario       DNI explícito (si no se especifica, se toma de la sesión actual)
+ * @param string|null $nombreUsuario    Nombre explícito (si no se especifica, se toma de la sesión actual)
+ * @param string|null $rolUsuario       Rol explícito (si no se especifica, se toma de la sesión actual)
+ * @return bool True si se registró correctamente, false si ocurrió un error
+ */
+function registrarAuditoria(
+    string $accion,
+    string $modulo,
+    string $descripcion,
+    ?array $datosAnteriores = null,
+    ?array $datosNuevos = null,
+    ?string $dniUsuario = null,
+    ?string $nombreUsuario = null,
+    ?string $rolUsuario = null
+): bool {
+    try {
+        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        if (str_contains($ip, ',')) {
+            $ip = trim(explode(',', $ip)[0]);
+        }
+
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Desconocido';
+
+        $dni = $dniUsuario ?? ($_SESSION['dni_usuario'] ?? null);
+        $nombre = $nombreUsuario ?? ($_SESSION['usuario_nombre'] ?? null);
+        $rol = $rolUsuario ?? ($_SESSION['nombre_rol'] ?? null);
+
+        static $instanciaAuditoria = null;
+        if ($instanciaAuditoria === null) {
+            $instanciaAuditoria = new Auditoria();
+        }
+
+        return (bool)$instanciaAuditoria->registrar([
+            'dni_usuario'      => $dni,
+            'nombre_usuario'   => $nombre,
+            'rol_usuario'      => $rol,
+            'accion'           => $accion,
+            'modulo'           => $modulo,
+            'descripcion'      => $descripcion,
+            'ip'               => $ip,
+            'user_agent'       => $userAgent,
+            'datos_anteriores' => $datosAnteriores,
+            'datos_nuevos'     => $datosNuevos
+        ]);
+    } catch (Throwable $e) {
+        error_log('[registrarAuditoria] Error: ' . $e->getMessage());
+        return false;
+    }
+}

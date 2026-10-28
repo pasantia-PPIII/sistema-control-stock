@@ -4,7 +4,7 @@ define('DB_HOST', 'localhost');
 define('DB_PORT', '5432');
 define('DB_NAME', 'db_control_stock');
 define('DB_USER', 'postgres');
-define('DB_PASS', '');
+define('DB_PASS', '1234');
 
 // true solo en desarrollo (muestra errores en pantalla); en producción false o eliminar la línea
 define('APP_DEBUG', false);

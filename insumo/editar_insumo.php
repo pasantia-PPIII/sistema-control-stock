@@ -97,6 +97,15 @@ try {
     $resultado = $insumoModel->update($codigo, $datosActualizar);
 
     if ($resultado) {
+        $diff = Auditoria::calcularDiferencias($insumoActual, $datosActualizar);
+        registrarAuditoria(
+            'MODIFICAR',
+            'INSUMOS',
+            "Modificación del insumo '{$insumoActual['nombre']}' (Código: {$codigo})",
+            $diff['antes'],
+            $diff['despues']
+        );
+
         echo json_encode([
             'success' => true,
             'message' => 'Insumo actualizado correctamente.',

@@ -116,6 +116,25 @@ if ($esPost) {
 
         $idMovimiento = $movimientoModel->create($cabecera, $detalles);
 
+        $tipoAccion = $esDevolucion ? 'DEVOLUCION' : 'ENTREGA';
+        $tipoNombre = $esDevolucion ? 'Devolución' : 'Entrega';
+        registrarAuditoria(
+            $tipoAccion,
+            'MOVIMIENTOS',
+            "{$tipoNombre} #{$idMovimiento} registrada para el operario {$operario['nombre']} {$operario['apellido']} (" . count($detalles) . " ítem/s)",
+            null,
+            [
+                'id_movimiento' => $idMovimiento,
+                'id_tipo_mov'   => $idTipoMov,
+                'id_operario'   => (int)$operario['id_operario'],
+                'operario'      => $operario['nombre'] . ' ' . $operario['apellido'],
+                'fecha'         => $fecha,
+                'hora'          => $hora,
+                'total_items'   => count($detalles),
+                'observaciones' => $observaciones
+            ]
+        );
+
         echo json_encode([
             'success'       => true,
             'message'       => ($esDevolucion ? 'Devolución' : 'Entrega') . " #{$idMovimiento} registrada exitosamente para {$operario['nombre']} {$operario['apellido']}.",

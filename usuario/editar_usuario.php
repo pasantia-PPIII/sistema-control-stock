@@ -51,6 +51,10 @@ try {
     }
 
     $usuarioModel = new Usuario();
+    $usuarioAnterior = $usuarioModel->getByDni($dni, true);
+    if (!$usuarioAnterior) {
+        throw new Exception("No se encontró el usuario con DNI '{$dni}'.");
+    }
 
     $datos = [
         'id_rol'       => $id_rol,
@@ -71,6 +75,20 @@ try {
     $resultado = $usuarioModel->update($dni, $datos);
 
     if ($resultado) {
+        $datosParaComparar = $datos;
+        if (isset($datosParaComparar['password'])) {
+            $datosParaComparar['password'] = '[MODIFICADA]';
+        }
+        $diff = Auditoria::calcularDiferencias($usuarioAnterior, $datosParaComparar);
+
+        registrarAuditoria(
+            'MODIFICAR',
+            'USUARIOS',
+            "Modificación del usuario con DNI: {$dni}",
+            $diff['antes'],
+            $diff['despues']
+        );
+
         echo json_encode([
             'success' => true,
             'message' => "Usuario con DNI '{$dni}' actualizado exitosamente.",

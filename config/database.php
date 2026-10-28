@@ -35,7 +35,7 @@ class Database
             $port = defined('DB_PORT') ? DB_PORT : '5432';
             $dbname = defined('DB_NAME') ? DB_NAME : 'db_control_stock';
             $user = defined('DB_USER') ? DB_USER : 'postgres';
-            $password = defined('DB_PASS') ? DB_PASS : '';
+            $password = defined('DB_PASS') ? DB_PASS : '1234';
 
             $dsn = "pgsql:host={$host};port={$port};dbname={$dbname};";
 

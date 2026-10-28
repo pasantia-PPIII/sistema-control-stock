@@ -67,6 +67,14 @@ try {
         ? "El usuario con DNI '{$dni}' ha sido habilitado exitosamente." 
         : "El usuario con DNI '{$dni}' ha sido deshabilitado correctamente.";
 
+    registrarAuditoria(
+        $nuevoEstado ? 'HABILITAR' : 'DESHABILITAR',
+        'USUARIOS',
+        $mensaje,
+        ['activo' => !$nuevoEstado],
+        ['activo' => $nuevoEstado]
+    );
+
     echo json_encode([
         'success' => true,
         'message' => $mensaje,

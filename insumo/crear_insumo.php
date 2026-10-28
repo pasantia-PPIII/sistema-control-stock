@@ -84,6 +84,14 @@ try {
     $resultado = $insumoModel->create($datosLimpios);
 
     if ($resultado) {
+        registrarAuditoria(
+            'CREAR',
+            'INSUMOS',
+            "Creación del insumo '{$nombre}' (Código: {$codigo})",
+            null,
+            $datosLimpios
+        );
+
         echo json_encode([
             'success' => true,
             'message' => 'Insumo creado correctamente.',

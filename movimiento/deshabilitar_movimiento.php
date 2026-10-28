@@ -32,6 +32,14 @@ try {
     $movimientoModel = new Movimiento();
     $movimientoModel->anular($idMovimiento);
 
+    registrarAuditoria(
+        'ANULAR_MOVIMIENTO',
+        'MOVIMIENTOS',
+        "Anulación del movimiento #{$idMovimiento} con reversión de stock y estado de herramientas",
+        ['activo' => true],
+        ['activo' => false, 'anulado' => true]
+    );
+
     echo json_encode([
         'success'       => true,
         'message'       => "El movimiento #{$idMovimiento} fue anulado y su efecto sobre el stock quedó revertido.",

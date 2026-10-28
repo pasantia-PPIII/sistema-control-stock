@@ -73,16 +73,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Bloqueo por 5 intentos fallidos: se revisa antes de verificar la contraseña
             $minutosBloqueo = minutosBloqueoLogin($dni_ingresado);
             if ($minutosBloqueo > 0) {
+                registrarAuditoria(
+                    'LOGIN_BLOQUEADO',
+                    'AUTH',
+                    'Intento de acceso con DNI bloqueado temporalmente: ' . $dni_ingresado,
+                    null,
+                    ['dni_intentado' => $dni_ingresado, 'minutos_restantes' => $minutosBloqueo],
+                    $dni_ingresado
+                );
                 $error = 'Demasiados intentos fallidos. Intente nuevamente en ' . $minutosBloqueo
                     . ($minutosBloqueo === 1 ? ' minuto.' : ' minutos.');
             } elseif ($usuarioModel->login($dni_ingresado, $password_ingresada)) {
                 registrarIntentoLogin($dni_ingresado, true);
+                registrarAuditoria(
+                    'LOGIN',
+                    'AUTH',
+                    'Inicio de sesión exitoso',
+                    null,
+                    ['dni' => $dni_ingresado, 'rol' => $_SESSION['nombre_rol'] ?? ''],
+                    $dni_ingresado,
+                    $_SESSION['usuario_nombre'] ?? null,
+                    $_SESSION['nombre_rol'] ?? null
+                );
                 // Evita fijación de sesión: nuevo ID de sesión tras autenticar
                 session_regenerate_id(true);
                 header("Location: ../panel/dashboard.php");
                 exit;
             } else {
                 registrarIntentoLogin($dni_ingresado, false);
+
+                // Investigar la causa real exclusivamente para el registro interno de auditoría (el usuario ve mensaje genérico)
+                $usuarioExiste = $usuarioModel->getByDni($dni_ingresado, true);
+                if ($usuarioExiste) {
+                    if (!$usuarioExiste['activo']) {
+                        $descMotivo = "Intento de inicio de sesión con usuario inactivo/deshabilitado: {$usuarioExiste['nombre']} {$usuarioExiste['apellido']} (DNI: {$dni_ingresado})";
+                        $motivo = 'USUARIO_INACTIVO';
+                    } else {
+                        $descMotivo = "Contraseña incorrecta para el usuario: {$usuarioExiste['nombre']} {$usuarioExiste['apellido']} (DNI: {$dni_ingresado})";
+                        $motivo = 'PASSWORD_INCORRECTA';
+                    }
+                    $nombreAudit = trim(($usuarioExiste['nombre'] ?? '') . ' ' . ($usuarioExiste['apellido'] ?? ''));
+                    $rolAudit = $usuarioExiste['nombre_rol'] ?? null;
+                } else {
+                    $descMotivo = "Intento de inicio de sesión con DNI no registrado en el sistema: {$dni_ingresado}";
+                    $motivo = 'DNI_NO_REGISTRADO';
+                    $nombreAudit = 'No registrado';
+                    $rolAudit = null;
+                }
+
+                registrarAuditoria(
+                    'LOGIN_FALLIDO',
+                    'AUTH',
+                    $descMotivo,
+                    null,
+                    [
+                        'dni_intentado' => $dni_ingresado,
+                        'motivo'        => $motivo
+                    ],
+                    $dni_ingresado,
+                    $nombreAudit,
+                    $rolAudit
+                );
                 $error = 'DNI o contraseña incorrectos, o el usuario se encuentra inactivo.';
             }
         } catch (Throwable $e) {

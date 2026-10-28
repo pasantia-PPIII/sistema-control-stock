@@ -71,6 +71,14 @@ try {
     $resultado = $usuarioModel->create($datos, $password);
 
     if ($resultado) {
+        registrarAuditoria(
+            'CREAR',
+            'USUARIOS',
+            "Creación del usuario {$nombre} {$apellido} (DNI: {$dni})",
+            null,
+            ['dni' => $dni, 'nombre' => $nombre, 'apellido' => $apellido, 'id_rol' => $id_rol, 'id_operario' => $id_operario]
+        );
+
         echo json_encode([
             'success' => true,
             'message' => "Usuario con DNI '{$dni}' registrado exitosamente.",

@@ -11,6 +11,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     redirect(isAuthenticated() ? 'panel/dashboard.php' : 'auth/login.php');
 }
 
+// Registrar auditoría antes de vaciar la sesión
+if (isAuthenticated()) {
+    registrarAuditoria('LOGOUT', 'AUTH', 'Cierre de sesión');
+}
+
 // Vaciar arreglo de sesión
 $_SESSION = [];
 
