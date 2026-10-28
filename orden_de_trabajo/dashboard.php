@@ -129,27 +129,11 @@ $estado = isset($_GET['estado']) ? trim((string)$_GET['estado']) : '';
 // 'estado' es el estado del trabajo (Pendiente, En Progreso...); 'registro' indica si la orden está habilitada o deshabilitada
 $registro = isset($_GET['registro']) ? trim((string)$_GET['registro']) : 'activo';
 
-$ordenesFiltradas = array_values(array_filter($odtModel->getAll(true), function ($ot) use ($busqueda, $estado, $registro) {
-    if ($registro === 'activo' && !$ot['activo']) {
-        return false;
-    }
-    if ($registro === 'inactivo' && $ot['activo']) {
-        return false;
-    }
-    if ($estado !== '' && ($ot['estado'] ?? 'Pendiente') !== $estado) {
-        return false;
-    }
-    $texto = $ot['id_odt'] . ' ' . $ot['numero_ot'] . ' ' . ($ot['pa'] ?? '') . ' ' . ($ot['trabajo_a_realizar'] ?? '');
-    if ($busqueda !== '' && stripos($texto, $busqueda) === false) {
-        return false;
-    }
-    return true;
-}));
-
-$totalRegistros = count($ordenesFiltradas);
-$totalPaginas = max(1, (int)ceil($totalRegistros / $porPagina));
-$paginaActual = min($paginaActual, $totalPaginas);
-$ordenes = array_slice($ordenesFiltradas, ($paginaActual - 1) * $porPagina, $porPagina);
+$res = $odtModel->getPaginado($busqueda, $estado, $registro, $paginaActual, $porPagina);
+$ordenes = $res['filas'];
+$totalRegistros = $res['total'];
+$totalPaginas = $res['paginas'];
+$paginaActual = $res['pagina'];
 
 // =========================================================================
 // RESPUESTA AJAX PARA BÚSQUEDA, FILTROS Y PAGINACIÓN DINÁMICA

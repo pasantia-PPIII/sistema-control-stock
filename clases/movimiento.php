@@ -195,6 +195,9 @@ class Movimiento {
     const TIPO_INGRESO = 'Ingreso';
     const TIPO_AJUSTE = 'Ajuste de Inventario';
 
+    /** Motivos de una devolución (RF-34). Se guardan al inicio de las observaciones del movimiento. */
+    const MOTIVOS_DEVOLUCION = ['Sobrante', 'Fin de tarea', 'Herramienta rota', 'Otro'];
+
     const ESTADO_DISPONIBLE = 1;
     const ESTADO_PRESTADA = 2;
 

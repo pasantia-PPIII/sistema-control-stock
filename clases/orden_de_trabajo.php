@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/reportes.php';
 
 class OrdenDeTrabajo {
     private $db;
@@ -32,6 +33,41 @@ class OrdenDeTrabajo {
         $sql .= " ORDER BY o.fecha_inicio DESC, o.id_odt DESC";
 
         return $this->db->fetchAll($sql);
+    }
+
+    /**
+     * Órdenes de Trabajo filtradas y paginadas en la base (LIMIT/OFFSET), igual que reportes y auditoría.
+     * @param string $busqueda Texto a buscar en id, número de OT, PA y trabajo a realizar
+     * @param string $estado Estado del trabajo ('' = todos)
+     * @param string $registro 'activo' (habilitadas), 'inactivo' (deshabilitadas) o 'todos'
+     * @return array Estructura de Reportes::paginado(): filas, total, pagina, paginas, desde, hasta
+     */
+    public function getPaginado($busqueda, $estado, $registro, $pagina, $porPagina) {
+        $sql = "SELECT o.*,
+                       l.localidad as nombre_localidad,
+                       j.jurisdiccion as nombre_jurisdiccion
+                FROM orden_de_trabajo o
+                LEFT JOIN localidad l ON o.id_localidad = l.id_localidad
+                LEFT JOIN jurisdiccion j ON o.id_jurisdiccion = j.id_jurisdiccion
+                WHERE 1 = 1";
+        $params = [];
+
+        if ($registro === 'activo') {
+            $sql .= " AND o.activo = TRUE";
+        } elseif ($registro === 'inactivo') {
+            $sql .= " AND o.activo = FALSE";
+        }
+        if ($estado !== '') {
+            $sql .= " AND COALESCE(o.estado, 'Pendiente') = :estado";
+            $params['estado'] = $estado;
+        }
+        if ($busqueda !== '') {
+            $sql .= " AND (CAST(o.id_odt AS TEXT) || ' ' || o.numero_ot || ' ' || COALESCE(o.pa, '') || ' ' || COALESCE(o.trabajo_a_realizar, '')) ILIKE :busqueda";
+            $params['busqueda'] = '%' . addcslashes($busqueda, '%_\\') . '%';
+        }
+
+        $sql .= " ORDER BY o.fecha_inicio DESC, o.id_odt DESC";
+        return Reportes::paginado($sql, $params, (int)$pagina, (int)$porPagina);
     }
 
     /**

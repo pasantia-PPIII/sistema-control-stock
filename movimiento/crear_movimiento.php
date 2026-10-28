@@ -53,6 +53,18 @@ if ($esPost) {
         // Orden de Trabajo opcional (RF-27): vacío = uso general. Movimiento::create() valida que exista y esté habilitada
         $idOdt = !empty($_POST['id_odt']) ? (int)$_POST['id_odt'] : null;
 
+        // RF-34: toda devolución lleva un motivo. Se antepone a las observaciones para que quede en el historial
+        if ($esDevolucion) {
+            $motivo = isset($_POST['motivo']) ? trim((string)$_POST['motivo']) : '';
+            if (!in_array($motivo, Movimiento::MOTIVOS_DEVOLUCION, true)) {
+                throw new Exception('Debe indicar el motivo de la devolución.');
+            }
+            if ($motivo === 'Otro' && $observaciones === '') {
+                throw new Exception("Si el motivo es 'Otro', detállelo en las observaciones.");
+            }
+            $observaciones = 'Motivo: ' . $motivo . ($observaciones !== '' ? '. ' . $observaciones : '');
+        }
+
         if ($idOperario <= 0) {
             throw new Exception($esDevolucion
                 ? 'Debe seleccionar el operario que realiza la devolución.'
@@ -205,6 +217,18 @@ include_once __DIR__ . '/../layout/header.php';
             </div>
         </div>
 
+        <?php if ($esDevolucion): ?>
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="motivo">Motivo de la Devolución *</label>
+            <select id="motivo" name="motivo" class="form-control" required>
+                <option value="">-- Seleccionar Motivo --</option>
+                <?php foreach (Movimiento::MOTIVOS_DEVOLUCION as $motivoOpt): ?>
+                    <option value="<?= htmlspecialchars($motivoOpt) ?>"><?= htmlspecialchars($motivoOpt) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
+
         <div class="form-group" style="margin-bottom: 1.25rem;">
             <label for="id_odt">Orden de Trabajo (opcional)</label>
             <select id="id_odt" name="id_odt" class="form-control">
@@ -224,7 +248,7 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
 
         <div class="form-group" style="margin-bottom: 2rem;">
-            <label for="observaciones">Observaciones o Motivo</label>
+            <label for="observaciones"><?= $esDevolucion ? 'Observaciones' : 'Observaciones o Motivo' ?></label>
             <textarea id="observaciones" name="observaciones" class="form-control" style="min-height: 70px; resize: vertical;" placeholder="<?= $esDevolucion ? 'Detalles de la devolución, estado de los elementos, orden de trabajo...' : 'Detalles de la entrega, orden de trabajo, destino o estado al entregar...' ?>"></textarea>
         </div>
 
