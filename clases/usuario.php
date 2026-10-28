@@ -289,4 +289,4 @@ class Usuario {
         return $this->db->fetchAll($sql, ['termino' => '%' . $termino . '%']);
     }
 }
-?>
+?>
