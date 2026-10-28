@@ -414,6 +414,13 @@ function abrirModalDetalle(idMovimiento) {
                     <div><strong>Estado Registro:</strong> ${m.activo ? '<span class="badge badge-success">Activo</span>' : '<span class="badge badge-danger">Anulado</span>'}</div>
                 </div>`;
 
+            if (m.nombre_motivo) {
+                html += `
+                    <div style="margin-bottom: 0.75rem; font-size: 0.85rem; color: #475569;">
+                        <strong>Motivo de la devolución:</strong> ${escaparHtml(m.nombre_motivo)}
+                    </div>`;
+            }
+
             if (m.observaciones) {
                 html += `
                     <div style="margin-bottom: 1.25rem; font-size: 0.85rem; color: #475569;">

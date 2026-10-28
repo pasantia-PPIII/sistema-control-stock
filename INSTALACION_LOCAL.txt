@@ -114,6 +114,11 @@ PASO 4 - Cargar las tablas y los datos
   pero NO volver a ejecutarlo sobre una base con datos reales: los
   borraría.
 
+  SI YA TENÉS LA BASE CREADA (sin volver a ejecutar lo anterior): aplicar solo
+  la migración del motivo de devolución, que es segura y se puede repetir:
+
+    psql -U postgres -d db_control_stock -f bd/migracion_motivo_devolucion.sql
+
   Para comprobar que la carga salió bien:
 
     psql -U postgres -d db_control_stock -c "SELECT COUNT(*) FROM usuario;"

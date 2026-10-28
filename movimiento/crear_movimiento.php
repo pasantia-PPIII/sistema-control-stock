@@ -53,17 +53,8 @@ if ($esPost) {
         // Orden de Trabajo opcional (RF-27): vacío = uso general. Movimiento::create() valida que exista y esté habilitada
         $idOdt = !empty($_POST['id_odt']) ? (int)$_POST['id_odt'] : null;
 
-        // RF-34: toda devolución lleva un motivo. Se antepone a las observaciones para que quede en el historial
-        if ($esDevolucion) {
-            $motivo = isset($_POST['motivo']) ? trim((string)$_POST['motivo']) : '';
-            if (!in_array($motivo, Movimiento::MOTIVOS_DEVOLUCION, true)) {
-                throw new Exception('Debe indicar el motivo de la devolución.');
-            }
-            if ($motivo === 'Otro' && $observaciones === '') {
-                throw new Exception("Si el motivo es 'Otro', detállelo en las observaciones.");
-            }
-            $observaciones = 'Motivo: ' . $motivo . ($observaciones !== '' ? '. ' . $observaciones : '');
-        }
+        // RF-34: toda devolución lleva un motivo del catálogo. Movimiento::create() lo valida
+        $idMotivo = ($esDevolucion && !empty($_POST['id_motivo'])) ? (int)$_POST['id_motivo'] : null;
 
         if ($idOperario <= 0) {
             throw new Exception($esDevolucion
@@ -132,7 +123,8 @@ if ($esPost) {
             'fecha'         => $fecha,
             'hora'          => $hora,
             'observaciones' => $observaciones,
-            'id_odt'        => $idOdt
+            'id_odt'        => $idOdt,
+            'id_motivo'     => $idMotivo
         ];
 
         $idMovimiento = $movimientoModel->create($cabecera, $detalles);
@@ -162,6 +154,7 @@ $estadosHerramienta = $movimientoModel->getEstadosHerramienta();
 $nombresEstadoHerramienta = array_column($estadosHerramienta, 'estado', 'id_estado_herramienta');
 
 $idOperarioPre = !empty($_GET['id_operario']) ? (int)$_GET['id_operario'] : 0;
+$motivosDevolucion = $esDevolucion ? $movimientoModel->getMotivosDevolucion() : [];
 
 // Órdenes de Trabajo habilitadas para vincular (RF-27). Una entrega no se puede asociar a una orden Finalizada o Anulada
 $idOdtPre = !empty($_GET['id_odt']) ? (int)$_GET['id_odt'] : 0;
@@ -219,11 +212,11 @@ include_once __DIR__ . '/../layout/header.php';
 
         <?php if ($esDevolucion): ?>
         <div class="form-group" style="margin-bottom: 1.25rem;">
-            <label for="motivo">Motivo de la Devolución *</label>
-            <select id="motivo" name="motivo" class="form-control" required>
+            <label for="id_motivo">Motivo de la Devolución *</label>
+            <select id="id_motivo" name="id_motivo" class="form-control" required>
                 <option value="">-- Seleccionar Motivo --</option>
-                <?php foreach (Movimiento::MOTIVOS_DEVOLUCION as $motivoOpt): ?>
-                    <option value="<?= htmlspecialchars($motivoOpt) ?>"><?= htmlspecialchars($motivoOpt) ?></option>
+                <?php foreach ($motivosDevolucion as $mot): ?>
+                    <option value="<?= (int)$mot['id_motivo'] ?>"><?= htmlspecialchars($mot['motivo']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>

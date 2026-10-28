@@ -93,6 +93,13 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
     </div>
 
+    <?php if (!empty($movimiento['nombre_motivo'])): ?>
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label>Motivo de la Devolución</label>
+        <input type="text" class="form-control" value="<?= htmlspecialchars($movimiento['nombre_motivo']) ?>" readonly>
+    </div>
+    <?php endif; ?>
+
     <div class="form-group" style="margin-bottom: 2rem;">
         <label>Observaciones</label>
         <textarea class="form-control" style="min-height: 70px; resize: vertical;" readonly><?= !empty($movimiento['observaciones']) ? htmlspecialchars($movimiento['observaciones']) : 'Sin observaciones registradas.' ?></textarea>

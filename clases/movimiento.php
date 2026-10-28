@@ -45,12 +45,13 @@ class Movimiento {
         $sql = "SELECT m.*, tm.tipo as nombre_tipo_movimiento,
                        u.nombre || ' ' || u.apellido as nombre_usuario,
                        o.apellido || ', ' || o.nombre as nombre_operario,
-                       odt.numero_ot
+                       odt.numero_ot, mot.motivo AS nombre_motivo
                 FROM movimiento m
                 INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
                 INNER JOIN usuario u ON m.dni_usuario = u.dni
                 LEFT JOIN operario o ON m.id_operario = o.id_operario
                 LEFT JOIN orden_de_trabajo odt ON m.id_odt = odt.id_odt
+                LEFT JOIN motivo_devolucion mot ON m.id_motivo = mot.id_motivo
                 WHERE m.id_movimiento = :id_movimiento";
 
         return $this->db->fetchOne($sql, ['id_movimiento' => $id_movimiento]);
@@ -101,7 +102,7 @@ class Movimiento {
      * Crea un movimiento completo (Cabecera + Detalles) en una sola transacción.
      * Esto garantiza que si falla el detalle, no se crea la cabecera huérfana.
      * 
-     * @param array $cabecera - Datos del movimiento (id_tipo_mov, id_operario, dni_usuario, fecha, hora, observaciones, id_odt opcional)
+     * @param array $cabecera - Datos del movimiento (id_tipo_mov, id_operario, dni_usuario, fecha, hora, observaciones, id_odt opcional, id_motivo solo en devoluciones)
      * @param array $detalles - Array de arrays con los insumos (id_insumo, cantidad, id_estado_herramienta)
      * @return int - El ID del movimiento creado
      */
@@ -128,6 +129,23 @@ class Movimiento {
                 throw new Exception("El tipo de movimiento indicado no existe.");
             }
             $tipoMov = $tipoFila['tipo'];
+
+            // Motivo de la devolución (RF-34): obligatorio al devolver y exclusivo de las devoluciones
+            $idMotivo = !empty($cabecera['id_motivo']) ? (int)$cabecera['id_motivo'] : null;
+            $cabecera['id_motivo'] = $idMotivo;
+            if ($tipoMov === self::TIPO_DEVOLUCION) {
+                $motivo = $idMotivo !== null
+                    ? $this->db->fetchOne("SELECT motivo FROM motivo_devolucion WHERE id_motivo = :id", ['id' => $idMotivo])
+                    : null;
+                if (!$motivo) {
+                    throw new Exception("Debe indicar el motivo de la devolución.");
+                }
+                if ($motivo['motivo'] === 'Otro' && $cabecera['observaciones'] === null) {
+                    throw new Exception("Si el motivo es 'Otro', detállelo en las observaciones.");
+                }
+            } elseif ($idMotivo !== null) {
+                throw new Exception("Solo las devoluciones llevan motivo.");
+            }
 
             // Vínculo opcional con una Orden de Trabajo (RF-27): solo entregas y devoluciones, y la orden debe estar habilitada.
             // Una misma orden puede tener varias entregas y devoluciones (RF-47).
@@ -194,9 +212,6 @@ class Movimiento {
     const TIPO_DEVOLUCION = 'Devolución';
     const TIPO_INGRESO = 'Ingreso';
     const TIPO_AJUSTE = 'Ajuste de Inventario';
-
-    /** Motivos de una devolución (RF-34). Se guardan al inicio de las observaciones del movimiento. */
-    const MOTIVOS_DEVOLUCION = ['Sobrante', 'Fin de tarea', 'Herramienta rota', 'Otro'];
 
     const ESTADO_DISPONIBLE = 1;
     const ESTADO_PRESTADA = 2;
@@ -426,6 +441,13 @@ class Movimiento {
      */
     public function getTiposMovimiento() {
         return $this->db->fetchAll("SELECT id_tipo_mov, tipo FROM tipo_movimiento ORDER BY tipo");
+    }
+
+    /**
+     * Obtiene los motivos de devolución para el <select> del formulario (RF-34).
+     */
+    public function getMotivosDevolucion() {
+        return $this->db->fetchAll("SELECT id_motivo, motivo FROM motivo_devolucion ORDER BY id_motivo");
     }
 
     /**
