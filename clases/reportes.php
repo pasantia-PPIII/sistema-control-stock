@@ -555,9 +555,9 @@ class Reportes
         }
 
         $ordenes = Database::fetchAll("
-            SELECT o.id_odt, o.numero_ot, o.estado, o.fecha_final, m.id_movimiento AS id_mov_egreso
+            SELECT o.id_odt, o.numero_ot, o.estado, o.fecha_final, m.id_movimiento AS id_mov_entrega
             FROM orden_de_trabajo o
-            INNER JOIN movimiento m ON m.activo = TRUE AND (m.id_odt = o.id_odt OR m.id_movimiento = o.id_mov_egreso)
+            INNER JOIN movimiento m ON m.activo = TRUE AND m.id_odt = o.id_odt
             INNER JOIN tipo_movimiento tm ON tm.id_tipo_mov = m.id_tipo_mov AND tm.tipo = 'Entrega'
             WHERE o.activo = TRUE
               AND o.estado IN (" . self::enLista(self::OT_CERRADAS) . ")
@@ -565,7 +565,7 @@ class Reportes
 
         $out = [];
         foreach ($ordenes as $o) {
-            foreach ($prestadas[(int) $o['id_mov_egreso']] ?? [] as $h) {
+            foreach ($prestadas[(int) $o['id_mov_entrega']] ?? [] as $h) {
                 $out[] = [
                     'numero_ot' => $o['numero_ot'],
                     'estado' => $o['estado'],

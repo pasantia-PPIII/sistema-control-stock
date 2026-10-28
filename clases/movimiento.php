@@ -152,16 +152,7 @@ class Movimiento {
             $idOdt = !empty($cabecera['id_odt']) ? (int)$cabecera['id_odt'] : null;
             $cabecera['id_odt'] = $idOdt;
             if ($idOdt !== null) {
-                if (!in_array($tipoMov, [self::TIPO_ENTREGA, self::TIPO_DEVOLUCION], true)) {
-                    throw new Exception("Solo las entregas y devoluciones se pueden vincular a una Orden de Trabajo.");
-                }
-                $odt = $this->db->fetchOne("SELECT numero_ot, estado, activo FROM orden_de_trabajo WHERE id_odt = :id", ['id' => $idOdt]);
-                if (!$odt || !$odt['activo']) {
-                    throw new Exception("La Orden de Trabajo indicada no existe o está deshabilitada.");
-                }
-                if ($tipoMov === self::TIPO_ENTREGA && in_array($odt['estado'], ['Finalizada', 'Anulada'], true)) {
-                    throw new Exception("La Orden de Trabajo '{$odt['numero_ot']}' está {$odt['estado']}: no admite nuevas entregas.");
-                }
+                $this->validarOrdenVinculable($idOdt, $tipoMov);
             }
 
             // 3. Insertar la cabecera del movimiento
@@ -348,16 +339,34 @@ class Movimiento {
         return [$idStock, (float)$stock['stock_actual']];
     }
 
+    /**
+     * Valida que un movimiento de este tipo se pueda vincular a la Orden de Trabajo indicada (RF-27):
+     * solo entregas y devoluciones, la orden debe existir y estar habilitada, y no admite entregas nuevas
+     * si está Finalizada o Anulada.
+     */
+    private function validarOrdenVinculable($idOdt, $tipoMov) {
+        if (!in_array($tipoMov, [self::TIPO_ENTREGA, self::TIPO_DEVOLUCION], true)) {
+            throw new Exception("Solo las entregas y devoluciones se pueden vincular a una Orden de Trabajo.");
+        }
+        $odt = $this->db->fetchOne("SELECT numero_ot, estado, activo FROM orden_de_trabajo WHERE id_odt = :id", ['id' => (int)$idOdt]);
+        if (!$odt || !$odt['activo']) {
+            throw new Exception("La Orden de Trabajo indicada no existe o está deshabilitada.");
+        }
+        if ($tipoMov === self::TIPO_ENTREGA && in_array($odt['estado'], ['Finalizada', 'Anulada'], true)) {
+            throw new Exception("La Orden de Trabajo '{$odt['numero_ot']}' está {$odt['estado']}: no admite nuevas entregas.");
+        }
+    }
+
     // =========================================================
     // 3. ACTUALIZACIÓN (UPDATE) - RESTRINGIDA
     // =========================================================
 
     /**
-     * Actualiza SOLO las observaciones o el operario de un movimiento.
+     * Actualiza SOLO las observaciones, el operario o la Orden de Trabajo vinculada de un movimiento.
      * IMPORTANTE: No se permite cambiar fecha, hora, tipo o detalles para preservar la auditoría.
      * 
      * @param int $id_movimiento ID del movimiento
-     * @param array $data Datos a actualizar (solo 'observaciones' o 'id_operario')
+     * @param array $data Datos a actualizar (solo 'observaciones', 'id_operario' o 'id_odt'; id_odt vacío = sin orden)
      * @return bool
      */
     public function update($id_movimiento, $data) {
@@ -369,6 +378,27 @@ class Movimiento {
             }
             if (isset($data['id_operario'])) {
                 $allowedFields['id_operario'] = !empty($data['id_operario']) ? $data['id_operario'] : null;
+            }
+
+            // Orden de Trabajo (RF-27): se valida solo si cambia. Un movimiento anulado no se puede vincular
+            if (array_key_exists('id_odt', $data)) {
+                $idOdt = !empty($data['id_odt']) ? (int)$data['id_odt'] : null;
+                $actual = $this->db->fetchOne(
+                    "SELECT m.activo, m.id_odt, tm.tipo FROM movimiento m
+                     INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                     WHERE m.id_movimiento = :id",
+                    ['id' => (int)$id_movimiento]
+                );
+                if (!$actual) {
+                    throw new Exception("El movimiento indicado no existe.");
+                }
+                if ($idOdt !== null && $idOdt !== (int)$actual['id_odt']) {
+                    if (!$actual['activo']) {
+                        throw new Exception("Un movimiento anulado no se puede vincular a una Orden de Trabajo.");
+                    }
+                    $this->validarOrdenVinculable($idOdt, $actual['tipo']);
+                }
+                $allowedFields['id_odt'] = $idOdt;
             }
 
             if (empty($allowedFields)) {

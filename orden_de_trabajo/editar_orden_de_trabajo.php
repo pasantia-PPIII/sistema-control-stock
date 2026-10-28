@@ -2,7 +2,7 @@
 /**
  * orden_de_trabajo/editar_orden_de_trabajo.php
  * Endpoint AJAX para editar una orden de trabajo: datos, comisión de operarios,
- * movimiento de entrega / devolución (opcionales) y PDF (si se envía uno nuevo, reemplaza al anterior).
+ * y PDF (si se envía uno nuevo, reemplaza al anterior).
  * Solo Administrador y Pañolero. Responde exclusivamente en formato JSON.
  */
 
@@ -45,13 +45,7 @@ try {
         $datos['archivo_pdf'] = $nombrePdf;
     }
 
-    // Los movimientos vienen siempre en el formulario: vacío = sin movimiento vinculado
-    $vinculos = [
-        'id_mov_egreso'     => !empty($_POST['id_mov_egreso']) ? (int)$_POST['id_mov_egreso'] : null,
-        'id_mov_devolucion' => !empty($_POST['id_mov_devolucion']) ? (int)$_POST['id_mov_devolucion'] : null,
-    ];
-
-    $odtModel->update($idOdt, $datos, operariosDesdePost(), $vinculos);
+    $odtModel->update($idOdt, $datos, operariosDesdePost());
 
     echo json_encode([
         'success' => true,

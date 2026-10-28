@@ -54,21 +54,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'detalle') {
 }
 
 // =========================================================================
-// ACCIÓN AJAX: MOVIMIENTOS DISPONIBLES PARA VINCULAR (entrega y devolución, ambos opcionales)
-// =========================================================================
-if (isset($_GET['action']) && $_GET['action'] === 'movimientos_disponibles') {
-    requireRole(['admin', 'panolero']);
-    header('Content-Type: application/json; charset=utf-8');
-    $idOdt = isset($_GET['id_odt']) ? (int)$_GET['id_odt'] : 0;
-    echo json_encode([
-        'success'     => true,
-        'entregas'    => $odtModel->getMovimientosDisponibles('Entrega', $idOdt),
-        'devoluciones' => $odtModel->getMovimientosDisponibles('Devolución', $idOdt)
-    ]);
-    exit;
-}
-
-// =========================================================================
 // ACCIÓN AJAX: CAMBIAR ESTADO DE UNA ORDEN
 // =========================================================================
 if (isset($_GET['action']) && $_GET['action'] === 'cambiar_estado') {
@@ -411,21 +396,6 @@ include_once __DIR__ . '/../layout/header.php';
                 <small style="color:#64748b;">Mantenga presionada la tecla Ctrl para seleccionar varios operarios.</small>
             </div>
 
-            <div class="form-grid-2">
-                <div>
-                    <label class="modal-label" for="crear-mov-egreso">Movimiento de entrega (opcional)</label>
-                    <select id="crear-mov-egreso" name="id_mov_egreso" class="modal-select">
-                        <option value="">Sin movimiento de entrega</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="modal-label" for="crear-mov-devolucion">Movimiento de devolución (opcional)</label>
-                    <select id="crear-mov-devolucion" name="id_mov_devolucion" class="modal-select">
-                        <option value="">Sin movimiento de devolución</option>
-                    </select>
-                </div>
-            </div>
-
             <div style="margin-bottom: 1rem;">
                 <label class="modal-label" for="crear-trabajo">Trabajo a Realizar / Descripción</label>
                 <textarea id="crear-trabajo" name="trabajo_a_realizar" class="modal-textarea" placeholder="Describa las tareas a ejecutar..."></textarea>
@@ -640,35 +610,12 @@ document.getElementById('filtro-registro').addEventListener('change', function()
     cargarOrdenes(1);
 });
 
-// Modal: Nueva / Editar Orden de Trabajo (FormData con PDF, operarios y movimientos opcionales)
-function llenarSelectMovimientos(idSelect, movimientos, seleccionado, textoVacio) {
-    const select = document.getElementById(idSelect);
-    let html = `<option value="">${escaparHtml(textoVacio)}</option>`;
-    (movimientos || []).forEach(m => {
-        const operario = m.nombre_operario ? ` - ${escaparHtml(m.nombre_operario)}` : '';
-        const hora = m.hora ? String(m.hora).substring(0, 5) : '';
-        html += `<option value="${parseInt(m.id_movimiento, 10)}">#${parseInt(m.id_movimiento, 10)} - ${escaparHtml(m.fecha)} ${hora}${operario}</option>`;
-    });
-    select.innerHTML = html;
-    select.value = seleccionado ? String(seleccionado) : '';
-}
-
-function cargarMovimientosDisponibles(idOdt, idEgreso, idDevolucion) {
-    return fetch(`dashboard.php?action=movimientos_disponibles&id_odt=${idOdt}`, { credentials: 'same-origin' })
-        .then(response => response.json())
-        .then(res => {
-            if (!res.success) throw new Error(res.error || 'No se pudieron cargar los movimientos.');
-            llenarSelectMovimientos('crear-mov-egreso', res.entregas, idEgreso, 'Sin movimiento de entrega');
-            llenarSelectMovimientos('crear-mov-devolucion', res.devoluciones, idDevolucion, 'Sin movimiento de devolución');
-        });
-}
-
+// Modal: Nueva / Editar Orden de Trabajo (FormData con PDF y operarios)
 function abrirModalCrear() {
     document.getElementById('form-crear-odt').reset();
     document.getElementById('crear-id-odt').value = '';
     document.getElementById('crear-odt-titulo').innerText = 'Nueva Orden de Trabajo';
     document.getElementById('btn-submit-crear').innerText = 'Guardar Orden';
-    cargarMovimientosDisponibles(0, null, null).catch(err => mostrarAlerta(err.message, false));
     abrirModal('modal-crear-odt');
 }
 
@@ -701,8 +648,6 @@ function abrirModalEditar(idOdt) {
             Array.from(document.getElementById('crear-operarios').options).forEach(opt => {
                 opt.selected = asignados.includes(opt.value);
             });
-
-            return cargarMovimientosDisponibles(idOdt, o.id_mov_egreso, o.id_mov_devolucion);
         })
         .then(() => abrirModal('modal-crear-odt'))
         .catch(err => mostrarAlerta(err.message, false));

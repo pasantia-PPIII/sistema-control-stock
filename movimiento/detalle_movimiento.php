@@ -66,6 +66,20 @@ $css_modulo = 'movimientos';
 $titulo_vista = 'Detalle de Movimiento #' . $idMovimiento;
 $titulo_pagina = 'Movimiento #' . $idMovimiento . ' - Sistema DeControl';
 
+// Orden de Trabajo del movimiento (RF-27): editable por admin/pañolero en entregas y devoluciones activas
+$tipoVinculable = in_array($movimiento['nombre_tipo_movimiento'], [Movimiento::TIPO_ENTREGA, Movimiento::TIPO_DEVOLUCION], true);
+$movActivo = !empty($movimiento['activo']) && $movimiento['activo'] !== 'f';
+$puedeVincular = $tipoVinculable && $movActivo && canEdit();
+$ordenesVinculables = [];
+if ($puedeVincular) {
+    require_once __DIR__ . '/../clases/orden_de_trabajo.php';
+    $esEntrega = ($movimiento['nombre_tipo_movimiento'] === Movimiento::TIPO_ENTREGA);
+    $ordenesVinculables = array_values(array_filter((new OrdenDeTrabajo())->getAll(), function ($o) use ($movimiento, $esEntrega) {
+        $esActual = (int)$o['id_odt'] === (int)($movimiento['id_odt'] ?? 0);
+        return $esActual || !$esEntrega || !in_array($o['estado'] ?? '', ['Finalizada', 'Anulada'], true);
+    }));
+}
+
 include_once __DIR__ . '/../layout/header.php';
 ?>
 
@@ -92,6 +106,35 @@ include_once __DIR__ . '/../layout/header.php';
             <input type="text" class="form-control" value="<?= htmlspecialchars($movimiento['nombre_usuario']) ?> (DNI: <?= htmlspecialchars($movimiento['dni_usuario']) ?>)" readonly>
         </div>
     </div>
+
+    <?php if ($puedeVincular): ?>
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label for="id_odt">Orden de Trabajo (opcional)</label>
+        <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <select id="id_odt" class="form-control" style="flex: 1;">
+                <option value="">Sin OT / Uso general</option>
+                <?php foreach ($ordenesVinculables as $ot):
+                    $trabajoOt = trim((string)($ot['trabajo_a_realizar'] ?? ''));
+                    if (mb_strlen($trabajoOt) > 60) {
+                        $trabajoOt = mb_substr($trabajoOt, 0, 60) . '...';
+                    }
+                    $textoOt = $ot['numero_ot'] . ($trabajoOt !== '' ? ' - ' . $trabajoOt : '') . ' [' . ($ot['estado'] ?? 'Pendiente') . ']';
+                ?>
+                    <option value="<?= (int)$ot['id_odt'] ?>" <?= ((int)($movimiento['id_odt'] ?? 0) === (int)$ot['id_odt']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($textoOt) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <button type="button" class="btn-submit-form" id="btn-guardar-odt" onclick="guardarOrdenMovimiento(<?= (int)$idMovimiento ?>)">Guardar</button>
+        </div>
+        <div id="msg-odt" style="font-size: 0.85rem; margin-top: 0.4rem; font-weight: 600;"></div>
+    </div>
+    <?php elseif (!empty($movimiento['numero_ot'])): ?>
+    <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label>Orden de Trabajo</label>
+        <input type="text" class="form-control" value="<?= htmlspecialchars($movimiento['numero_ot']) ?>" readonly>
+    </div>
+    <?php endif; ?>
 
     <?php if (!empty($movimiento['nombre_motivo'])): ?>
     <div class="form-group" style="margin-bottom: 1.25rem;">
@@ -143,6 +186,33 @@ include_once __DIR__ . '/../layout/header.php';
     </table>
 </div>
 
+<?php if ($puedeVincular): ?>
+<script>
+function guardarOrdenMovimiento(idMovimiento) {
+    const btn = document.getElementById('btn-guardar-odt');
+    const msg = document.getElementById('msg-odt');
+    const formData = new FormData();
+    formData.append('id_movimiento', idMovimiento);
+    formData.append('id_odt', document.getElementById('id_odt').value);
+    btn.disabled = true;
+
+    fetch('editar_movimiento.php', { method: 'POST', body: formData, credentials: 'same-origin' })
+        .then(response => response.json())
+        .then(res => {
+            if (!res.success) throw new Error(res.error || 'No se pudo guardar la Orden de Trabajo.');
+            msg.style.color = '#166534';
+            msg.innerText = res.message;
+        })
+        .catch(err => {
+            msg.style.color = '#991b1b';
+            msg.innerText = err.message;
+        })
+        .finally(() => { btn.disabled = false; });
+}
+</script>
+<?php endif; ?>
+
 <?php
 include_once __DIR__ . '/../layout/footer.php';
 ?>
+
