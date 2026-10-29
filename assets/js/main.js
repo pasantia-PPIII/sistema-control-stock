@@ -56,6 +56,8 @@ window.addEventListener('click', function(event) {
  *  - si no, se llama a cambiarPagina(n), definida por la vista (listados que se actualizan por AJAX).
  * Una página puede tener varios contenedores; cada uno usa su propio parámetro.
  */
+const PAGINACION_CELULAR_PX = 560;
+
 function renderizarPaginacion(totalPaginas, actual, ventana, contenedor) {
     contenedor = contenedor || document.getElementById('contenedor-paginacion');
     if (!contenedor) return;
@@ -63,6 +65,11 @@ function renderizarPaginacion(totalPaginas, actual, ventana, contenedor) {
     totalPaginas = parseInt(totalPaginas, 10) || 1;
     actual = Math.min(Math.max(parseInt(actual, 10) || 1, 1), totalPaginas);
     ventana = ventana || 10;
+
+    // Se guarda el estado pedido para volver a dibujar si cambia el tamaño de la pantalla
+    contenedor._paginacion = { total: totalPaginas, actual: actual, ventana: ventana };
+    // En celulares caben menos botones: la ventana baja a 5
+    if (window.innerWidth <= PAGINACION_CELULAR_PX) ventana = Math.min(ventana, 5);
 
     if (totalPaginas <= 1) {
         contenedor.innerHTML = '';
@@ -117,4 +124,63 @@ document.addEventListener('click', function (e) {
     if (window.getSelection && window.getSelection().toString() !== '') return; // se está seleccionando texto
     const ver = fila.querySelector('.btn-action-icon.view');
     if (ver) ver.click();
+});
+
+/**
+ * Navegación responsive: control de apertura y cierre de sidebar en móviles y tablets.
+ */
+function toggleSidebar(forzar) {
+    const sidebar = document.getElementById('app-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const body = document.body;
+
+    const estaAbierto = body.classList.contains('sidebar-open');
+    const debeAbrir = (typeof forzar === 'boolean') ? forzar : !estaAbierto;
+
+    if (debeAbrir) {
+        body.classList.add('sidebar-open');
+        if (sidebar) sidebar.classList.add('is-open');
+        if (backdrop) backdrop.classList.add('is-active');
+    } else {
+        body.classList.remove('sidebar-open');
+        if (sidebar) sidebar.classList.remove('is-open');
+        if (backdrop) backdrop.classList.remove('is-active');
+    }
+}
+
+// Cerrar sidebar al presionar tecla ESC
+window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
+        toggleSidebar(false);
+    }
+});
+
+// Cerrar sidebar al hacer clic en un enlace de navegación en móvil
+document.addEventListener('DOMContentLoaded', function () {
+    const enlacesMenu = document.querySelectorAll('.sidebar-menu .menu-item');
+    enlacesMenu.forEach(function (enlace) {
+        enlace.addEventListener('click', function () {
+            if (window.innerWidth <= 992) {
+                toggleSidebar(false);
+            }
+        });
+    });
+});
+
+// Al cruzar el ancho de celular, redibujar la paginación con la ventana que corresponda
+let eraCelular = window.innerWidth <= PAGINACION_CELULAR_PX;
+window.addEventListener('resize', function () {
+    const esCelular = window.innerWidth <= PAGINACION_CELULAR_PX;
+    if (esCelular === eraCelular) return;
+    eraCelular = esCelular;
+    document.querySelectorAll('.pagination-container').forEach(function (c) {
+        if (c._paginacion) renderizarPaginacion(c._paginacion.total, c._paginacion.actual, c._paginacion.ventana, c);
+    });
+});
+
+// Al pasar a escritorio, cerrar el menú para no dejar el body bloqueado
+window.addEventListener('resize', function () {
+    if (window.innerWidth > 992 && document.body.classList.contains('sidebar-open')) {
+        toggleSidebar(false);
+    }
 });

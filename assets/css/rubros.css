@@ -514,3 +514,42 @@
     text-decoration-color: #cbd5e1;
 }
 
+/* Responsivo Rubros */
+@media (min-width: 769px) and (max-width: 992px) {
+    .table-header-row,
+    .rubro-card-row {
+        min-width: 780px;
+    }
+}
+
+@media (max-width: 768px) {
+    .rubro-det {
+        padding: 1.25rem 1rem !important;
+    }
+    .rubro-det__encabezado {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .rubro-det__acciones {
+        flex-direction: column;
+        width: 100%;
+    }
+    .rubro-det__acciones a,
+    .rubro-det__acciones button {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+    .rubro-det__tabla {
+        min-width: 620px;
+    }
+}
+
+
+
+/* Títulos de las tarjetas en celular (ver global.css) */
+.rubro-card-row > div:nth-child(1) { --et: "ID"; }
+.rubro-card-row > div:nth-child(2) { --et: "Nombre"; }
+.rubro-card-row > div:nth-child(3) { --et: "Descripción"; }
+.rubro-card-row > div:nth-child(4) { --et: "Insumos vinculados"; }
+.rubro-card-row > div:nth-child(5) { --et: "Estado"; }

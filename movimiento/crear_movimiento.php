@@ -260,26 +260,28 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
 
         <!-- Tabla de Ítems Agregados -->
-        <table class="items-table" id="tabla-items">
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Insumo / Herramienta</th>
-                    <th>Tipo</th>
-                    <th>Stock en Pañol</th>
-                    <th class="col-cantidad">Cantidad</th>
-                    <?php if ($esDevolucion): ?>
-                        <th class="col-estado">Estado al Devolver</th>
-                    <?php endif; ?>
-                    <th class="col-accion">Acción</th>
-                </tr>
-            </thead>
-            <tbody id="tbody-items">
-                <tr id="fila-vacia">
-                    <td colspan="<?= $esDevolucion ? 7 : 6 ?>" class="estado-vacio">No se han agregado ítems todavía. Seleccione un insumo arriba para comenzar.</td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="items-table-wrap">
+            <table class="items-table" id="tabla-items">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Insumo / Herramienta</th>
+                        <th>Tipo</th>
+                        <th>Stock en Pañol</th>
+                        <th class="col-cantidad">Cantidad</th>
+                        <?php if ($esDevolucion): ?>
+                            <th class="col-estado">Estado al Devolver</th>
+                        <?php endif; ?>
+                        <th class="col-accion">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-items">
+                    <tr id="fila-vacia">
+                        <td colspan="<?= $esDevolucion ? 7 : 6 ?>" class="estado-vacio">No se han agregado ítems todavía. Seleccione un insumo arriba para comenzar.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
         <!-- Botones de Acción -->
         <div class="form-actions-bottom">

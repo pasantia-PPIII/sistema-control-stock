@@ -536,3 +536,63 @@
 .mov-items-tabla .mov-num { text-align: right; }
 .mov-items-tabla td.mov-codigo { font-weight: 600; }
 .mov-items-tabla td.mov-num { font-weight: 700; }
+
+.items-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 1.5rem;
+}
+
+/* Responsivo Movimientos */
+@media (min-width: 769px) and (max-width: 992px) {
+    .table-header-row,
+    .movimiento-card-row {
+        min-width: 900px;
+    }
+}
+
+@media (max-width: 768px) {
+    .form-grid-3--items {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+    .form-grid-3--items .btn-add-row {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+    .items-table {
+        min-width: 620px;
+    }
+    .mov-resumen {
+        grid-template-columns: 1fr;
+    }
+    .fila-odt {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .fila-odt .btn-submit-form {
+        width: 100%;
+    }
+    .mov-header-detalle {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    .btn-volver-mov {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+
+/* Títulos de las tarjetas en celular (ver global.css) */
+.movimiento-card-row > div:nth-child(1) { --et: "ID"; }
+.movimiento-card-row > div:nth-child(2) { --et: "Fecha"; }
+.movimiento-card-row > div:nth-child(3) { --et: "Hora"; }
+.movimiento-card-row > div:nth-child(4) { --et: "Tipo"; }
+.movimiento-card-row > div:nth-child(5) { --et: "Operario"; }
+.movimiento-card-row > div:nth-child(6) { --et: "Registrado por"; }
+.movimiento-card-row > div:nth-child(7) { --et: "Ítems"; }

@@ -242,3 +242,35 @@ a.au-pag:focus-visible { outline: 3px solid #93c5fd; outline-offset: 1px; }
 /* Filtro de usuario con búsqueda predictiva (la lista usa .autocomplete-list de global.css) */
 .au-campo--usuario { flex: 1; min-width: 240px; }
 .au-campo--usuario .au-input { width: 100%; box-sizing: border-box; }
+
+/* ---------- Responsivo Auditoría ---------- */
+.au-tabla { min-width: 720px; }
+
+@media (max-width: 768px) {
+    .au-panel { padding: 1rem; }
+
+    .au-filtros { flex-direction: column; align-items: stretch; }
+    .au-campo,
+    .au-campo--buscar,
+    .au-campo--usuario { flex: none; width: 100%; min-width: 0; }
+    .au-input { width: 100%; box-sizing: border-box; }
+    .au-filtros .au-btn { width: 100%; }
+
+    .au-paginacion { justify-content: center; text-align: center; }
+
+    .au-modal { padding: 0.75rem; }
+    .au-modal__caja { padding: 1.1rem 1rem; max-height: 92vh; }
+    .au-modal__tabla { display: block; overflow-x: auto; }
+}
+
+@media (max-width: 560px) {
+    .au-kpis { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+    .au-kpi { padding: 0.8rem 0.9rem; }
+    .au-kpi__valor { font-size: 1.5rem; }
+    .au-tabs { gap: 1rem; }
+    .au-tab { font-size: 0.85rem; }
+}
+
+@media (max-width: 380px) {
+    .au-kpis { grid-template-columns: 1fr; }
+}

@@ -12,7 +12,7 @@ $baseUrl = rtrim(BASE_URL, '/');
     </main><!-- /.app-content -->
 
     <!-- Script Global del Sistema (Control de Modales y Utilidades AJAX) -->
-    <script src="<?= $baseUrl ?>/assets/js/main.js"></script>
+    <script src="<?= $baseUrl ?>/assets/js/main.js?v=<?= @filemtime(__DIR__ . "/../assets/js/main.js") ?>"></script>
 
     <!-- Script Opcional Específico de Módulo -->
     <?php if (isset($js_modulo)): ?>
