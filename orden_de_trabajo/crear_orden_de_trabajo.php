@@ -41,7 +41,7 @@ try {
     }
 
     $odtModel = new OrdenDeTrabajo();
-    $orden = $odtModel->create($datos, operariosDesdePost());
+    $orden = $odtModel->create($datos, operariosDesdePost(), rubrosDesdePost());
 
     echo json_encode([
         'success'   => true,

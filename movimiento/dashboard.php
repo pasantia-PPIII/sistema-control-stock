@@ -120,6 +120,7 @@ include_once __DIR__ . '/../layout/header.php';
     <?php if (canEdit()): ?>
     <a href="crear_movimiento.php?tipo=entrega" class="btn-pill-action">Registrar Entrega</a>
     <a href="crear_movimiento.php?tipo=devolucion" class="btn-pill-secondary">Registrar Devolución</a>
+    <a href="crear_movimiento.php?tipo=ingreso" class="btn-pill-secondary">Registrar Ingreso</a>
     <?php endif; ?>
 </div>
 

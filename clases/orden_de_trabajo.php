@@ -197,8 +197,12 @@ class OrdenDeTrabajo {
     private const CAMPOS_EDITABLES = [
         'numero_ot', 'pa', 'trabajo_a_realizar', 'id_localidad', 'id_jurisdiccion',
         'fecha_inicio', 'fecha_final', 'hora_inicio', 'hora_final',
-        'estado', 'observaciones', 'archivo_pdf'
+        'estado', 'observaciones', 'archivo_pdf',
+        'tipo_trabajo', 'dependencia_solicitante', 'fecha_solicitud'
     ];
+
+    // RF-45: tipos de trabajo de una orden
+    public const TIPOS_TRABAJO = ['Reparación', 'Construcción', 'Mantenimiento edilicio'];
 
     /**
      * Normaliza los datos del formulario: solo campos permitidos, vacíos a NULL, claves foráneas a int.
@@ -207,13 +211,13 @@ class OrdenDeTrabajo {
     private function limpiarDatos(array $data) {
         $out = array_intersect_key($data, array_flip(self::CAMPOS_EDITABLES));
 
-        foreach (['pa', 'observaciones', 'trabajo_a_realizar', 'archivo_pdf', 'numero_ot'] as $campo) {
+        foreach (['pa', 'observaciones', 'trabajo_a_realizar', 'archivo_pdf', 'numero_ot', 'tipo_trabajo', 'dependencia_solicitante'] as $campo) {
             if (array_key_exists($campo, $out)) {
                 $v = trim((string)$out[$campo]);
                 $out[$campo] = ($v !== '') ? $v : null;
             }
         }
-        foreach (['fecha_inicio', 'fecha_final', 'hora_inicio', 'hora_final'] as $campo) {
+        foreach (['fecha_inicio', 'fecha_final', 'hora_inicio', 'hora_final', 'fecha_solicitud'] as $campo) {
             if (array_key_exists($campo, $out)) {
                 $out[$campo] = !empty($out[$campo]) ? $out[$campo] : null;
             }
@@ -238,7 +242,7 @@ class OrdenDeTrabajo {
      * @param array $ids_operarios id_operario de los operarios asignados (comisión)
      * @return array El registro insertado con su ID generado
      */
-    public function create($data, $ids_operarios = []) {
+    public function create($data, $ids_operarios = [], $ids_rubros = []) {
         $this->db->beginTransaction();
         try {
             $data = $this->limpiarDatos($data);
@@ -249,18 +253,34 @@ class OrdenDeTrabajo {
             if (empty($data['trabajo_a_realizar'])) {
                 throw new Exception("La descripción del trabajo a realizar es obligatoria.");
             }
+            // RF-45: tipo, dependencia solicitante, fecha de solicitud y rubro(s) son obligatorios al registrar
+            if (empty($data['tipo_trabajo'])) {
+                throw new Exception("El tipo de trabajo es obligatorio.");
+            }
+            if (empty($data['dependencia_solicitante'])) {
+                throw new Exception("La dependencia solicitante es obligatoria.");
+            }
+            if (empty($data['fecha_solicitud'])) {
+                throw new Exception("La fecha de solicitud es obligatoria.");
+            }
+            if (empty($this->normalizarIds($ids_rubros))) {
+                throw new Exception("Debe indicar al menos un rubro involucrado en la orden.");
+            }
             $data['estado'] = $data['estado'] ?? 'Pendiente';
             $data['activo'] = true;
+
+            $this->validarDatos($data);
 
             $orden = $this->db->insert('orden_de_trabajo', $data);
             $id_odt = (int)$orden['id_odt'];
 
             $this->sincronizarOperarios($id_odt, $ids_operarios);
+            $this->sincronizarRubros($id_odt, $ids_rubros);
 
-            // AUDITORÍA: carga de la orden con su comisión (dentro de la misma transacción)
+            // AUDITORÍA: carga de la orden con su comisión y sus rubros (dentro de la misma transacción)
             Auditoria::registrarCambio(Auditoria::CREAR, 'orden_de_trabajo', $id_odt,
                 "Orden de trabajo #{$id_odt} (N° {$orden['numero_ot']}) cargada", null,
-                $orden + ['operarios' => $this->idsOperariosActivos($id_odt)]);
+                $orden + ['operarios' => $this->idsOperariosActivos($id_odt), 'rubros' => $this->idsRubros($id_odt)]);
 
             $this->db->commit();
             return $orden;
@@ -277,7 +297,7 @@ class OrdenDeTrabajo {
      * @param array|null $ids_operarios Comisión completa (null = no tocar la comisión)
      * @return bool true si se actualizó correctamente
      */
-    public function update($id_odt, $data, $ids_operarios = null) {
+    public function update($id_odt, $data, $ids_operarios = null, $ids_rubros = null) {
         $this->db->beginTransaction();
         try {
             $data = $this->limpiarDatos($data);
@@ -289,10 +309,27 @@ class OrdenDeTrabajo {
             if (array_key_exists('numero_ot', $data) && empty($data['numero_ot'])) {
                 throw new Exception("El número de Orden de Trabajo es obligatorio.");
             }
+            // RF-45: los campos obligatorios no se pueden vaciar al editar (solo se controlan los que llegan en $data)
+            if (array_key_exists('tipo_trabajo', $data) && empty($data['tipo_trabajo'])) {
+                throw new Exception("El tipo de trabajo es obligatorio.");
+            }
+            if (array_key_exists('dependencia_solicitante', $data) && empty($data['dependencia_solicitante'])) {
+                throw new Exception("La dependencia solicitante es obligatoria.");
+            }
+            if (array_key_exists('fecha_solicitud', $data) && empty($data['fecha_solicitud'])) {
+                throw new Exception("La fecha de solicitud es obligatoria.");
+            }
+            if (is_array($ids_rubros) && empty($this->normalizarIds($ids_rubros))) {
+                throw new Exception("Debe indicar al menos un rubro involucrado en la orden.");
+            }
 
             // AUDITORÍA: se guarda cómo estaba la orden (y su comisión) antes de tocar nada
             $antes = $this->db->fetchOne("SELECT * FROM orden_de_trabajo WHERE id_odt = :id FOR UPDATE", ['id' => (int)$id_odt]) ?? [];
             $antes['operarios'] = $this->idsOperariosActivos((int)$id_odt);
+            $antes['rubros'] = $this->idsRubros((int)$id_odt);
+
+            // Número único, estado permitido y fechas coherentes (con lo que ya tenía la orden + los cambios)
+            $this->validarDatos($data, (int)$id_odt, $antes);
 
             if (!empty($data)) {
                 $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => (int)$id_odt]);
@@ -301,6 +338,10 @@ class OrdenDeTrabajo {
             if (is_array($ids_operarios)) {
                 $this->sincronizarOperarios((int)$id_odt, $ids_operarios);
                 $despues['operarios'] = $this->idsOperariosActivos((int)$id_odt);
+            }
+            if (is_array($ids_rubros)) {
+                $this->sincronizarRubros((int)$id_odt, $ids_rubros);
+                $despues['rubros'] = $this->idsRubros((int)$id_odt);
             }
 
             // AUDITORÍA: solo lo que cambió (el cambio de estado desde el listado también pasa por acá)
@@ -314,6 +355,138 @@ class OrdenDeTrabajo {
             return true;
         } catch (Throwable $e) {
             $this->cerrarConError($e, 'actualizar la Orden de Trabajo');
+        }
+    }
+
+    /** Ids enteros positivos, sin repetir y ordenados. */
+    private function normalizarIds($ids): array {
+        $out = [];
+        foreach ((array)$ids as $id) {
+            if ((int)$id > 0) {
+                $out[(int)$id] = true;
+            }
+        }
+        $out = array_keys($out);
+        sort($out);
+        return $out;
+    }
+
+    /**
+     * Validaciones de los datos de una orden (RF-45, RF-48). Solo controla lo que llega en $data:
+     *  - número de OT único (sin distinguir mayúsculas ni espacios de los extremos),
+     *  - estado dentro de los permitidos,
+     *  - tipo de trabajo del catálogo,
+     *  - fechas válidas, fecha final no anterior a la inicial y, si es el mismo día, hora final no anterior a la inicial.
+     * En una edición, $actual trae la fila previa para completar los campos que no se envían.
+     */
+    private function validarDatos(array $data, ?int $idActual = null, array $actual = []): void {
+        if (!empty($data['numero_ot'])) {
+            $repetida = $this->db->fetchOne(
+                "SELECT numero_ot FROM orden_de_trabajo
+                 WHERE lower(btrim(numero_ot)) = lower(btrim(:numero)) AND id_odt <> :id",
+                ['numero' => $data['numero_ot'], 'id' => (int)$idActual]
+            );
+            if ($repetida) {
+                throw new Exception("Ya existe una Orden de Trabajo con el número '{$repetida['numero_ot']}'. El número debe ser único.");
+            }
+        }
+
+        if (!empty($data['estado']) && !array_key_exists($data['estado'], $this->getEstadosPosibles())) {
+            throw new Exception("El estado '{$data['estado']}' no es válido. Estados permitidos: " . implode(', ', array_keys($this->getEstadosPosibles())) . '.');
+        }
+
+        if (!empty($data['tipo_trabajo']) && !in_array($data['tipo_trabajo'], self::TIPOS_TRABAJO, true)) {
+            throw new Exception("El tipo de trabajo '{$data['tipo_trabajo']}' no es válido. Tipos permitidos: " . implode(', ', self::TIPOS_TRABAJO) . '.');
+        }
+
+        $etiquetas = [
+            'fecha_inicio' => 'fecha de inicio', 'fecha_final' => 'fecha final', 'fecha_solicitud' => 'fecha de solicitud',
+        ];
+        foreach ($etiquetas as $campo => $etiqueta) {
+            if (!empty($data[$campo])) {
+                $f = DateTime::createFromFormat('!Y-m-d', (string)$data[$campo]);
+                if (!$f || $f->format('Y-m-d') !== (string)$data[$campo]) {
+                    throw new Exception("La {$etiqueta} no es una fecha válida.");
+                }
+            }
+        }
+        foreach (['hora_inicio', 'hora_final'] as $campo) {
+            if (!empty($data[$campo]) && !preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', (string)$data[$campo])) {
+                throw new Exception("La " . str_replace('_', ' ', $campo) . " no es una hora válida.");
+            }
+        }
+
+        // Coherencia entre inicio y final: solo si en esta edición se tocó alguno de los cuatro campos
+        $tocados = array_intersect(['fecha_inicio', 'fecha_final', 'hora_inicio', 'hora_final'], array_keys($data));
+        if ($tocados) {
+            $dato = fn($campo) => array_key_exists($campo, $data) ? $data[$campo] : ($actual[$campo] ?? null);
+            $fi = $dato('fecha_inicio');
+            $ff = $dato('fecha_final');
+            if ($fi && $ff && $ff < $fi) {
+                throw new Exception("La fecha final no puede ser anterior a la fecha de inicio.");
+            }
+            $hi = $dato('hora_inicio');
+            $hf = $dato('hora_final');
+            if ($fi && $ff && $fi === $ff && $hi && $hf && substr((string)$hf, 0, 5) < substr((string)$hi, 0, 5)) {
+                throw new Exception("La hora final no puede ser anterior a la hora de inicio cuando el trabajo empieza y termina el mismo día.");
+            }
+        }
+    }
+
+    /** id_rubro de los rubros involucrados en la orden, ordenados (para auditar cambios). */
+    private function idsRubros($id_odt): array {
+        $filas = $this->db->fetchAll(
+            "SELECT id_rubro FROM orden_rubro WHERE id_odt = :id_odt ORDER BY id_rubro",
+            ['id_odt' => (int)$id_odt]
+        );
+        return array_map(fn($f) => (int)$f['id_rubro'], $filas);
+    }
+
+    /**
+     * Rubros involucrados en la orden, con su nombre (para mostrar en las vistas).
+     * @return array Filas id_rubro y nombre
+     */
+    public function getRubrosDeOrden($id_odt): array {
+        return $this->db->fetchAll(
+            "SELECT r.id_rubro, r.nombre
+             FROM orden_rubro orr INNER JOIN rubro r ON orr.id_rubro = r.id_rubro
+             WHERE orr.id_odt = :id_odt ORDER BY r.nombre",
+            ['id_odt' => (int)$id_odt]
+        );
+    }
+
+    /**
+     * Rubros habilitados para elegir en el formulario de la orden.
+     * @return array Filas id_rubro y nombre
+     */
+    public function getRubrosDisponibles(): array {
+        return $this->db->fetchAll("SELECT id_rubro, nombre FROM rubro WHERE activo = TRUE ORDER BY nombre");
+    }
+
+    /**
+     * Deja asignados a la orden exactamente los rubros indicados (deben existir y estar habilitados;
+     * un rubro que la orden ya tenía se conserva aunque se haya deshabilitado después).
+     * Debe llamarse dentro de una transacción.
+     */
+    private function sincronizarRubros($id_odt, $ids_rubros): void {
+        $ids = $this->normalizarIds($ids_rubros);
+        $actuales = $this->idsRubros($id_odt);
+
+        foreach (array_diff($ids, $actuales) as $id) {
+            $rubro = $this->db->fetchOne("SELECT activo FROM rubro WHERE id_rubro = :id", ['id' => $id]);
+            if (!$rubro || !$rubro['activo']) {
+                throw new Exception("El rubro indicado (#{$id}) no existe o está deshabilitado.");
+            }
+            $this->db->execute(
+                "INSERT INTO orden_rubro (id_odt, id_rubro) VALUES (:odt, :rubro)",
+                ['odt' => (int)$id_odt, 'rubro' => $id]
+            );
+        }
+        foreach (array_diff($actuales, $ids) as $id) {
+            $this->db->execute(
+                "DELETE FROM orden_rubro WHERE id_odt = :odt AND id_rubro = :rubro",
+                ['odt' => (int)$id_odt, 'rubro' => $id]
+            );
         }
     }
 
@@ -342,14 +515,20 @@ class OrdenDeTrabajo {
                 $cDespues[$campo] = substr((string)$cDespues[$campo], 0, 5);
             }
         }
-        if (isset($cDespues['operarios'])) {
-            $cAntes['operarios'] = implode(',', $antes['operarios'] ?? []);
-            $cDespues['operarios'] = implode(',', $despues['operarios']);
+        // La comisión y los rubros son listas de ids: se comparan como texto y se devuelven como listas
+        $listas = ['operarios', 'rubros'];
+        foreach ($listas as $lista) {
+            if (isset($cDespues[$lista])) {
+                $cAntes[$lista] = implode(',', $antes[$lista] ?? []);
+                $cDespues[$lista] = implode(',', $despues[$lista]);
+            }
         }
         [$a, $d] = Auditoria::diferencias($cAntes, $cDespues);
-        if (isset($d['operarios'])) {
-            $a['operarios'] = $antes['operarios'] ?? [];
-            $d['operarios'] = $despues['operarios'];
+        foreach ($listas as $lista) {
+            if (isset($d[$lista])) {
+                $a[$lista] = $antes[$lista] ?? [];
+                $d[$lista] = $despues[$lista];
+            }
         }
         return [$a, $d];
     }

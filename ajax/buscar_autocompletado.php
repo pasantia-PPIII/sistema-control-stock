@@ -9,8 +9,9 @@
  *   q       : texto a buscar (vacío = todos)
  *   pagina  : número de página, de a 10 resultados (por defecto 1)
  *   excluir : ids separados por coma que no deben aparecer (solo para 'operario': los ya elegidos)
- *   tipo    : 'entrega' | 'devolucion' (solo para 'insumo': al entregar no se pueden elegir
- *             materiales sin stock ni herramientas que no estén Disponibles)
+ *   tipo    : 'entrega' | 'devolucion' | 'ingreso' (solo para 'insumo': al entregar no se pueden elegir
+ *             materiales sin stock ni herramientas que no estén Disponibles; al ingresar solo se listan materiales)
+ *   operario: id del operario (solo para 'insumo' en devoluciones): lista únicamente lo que ese operario tiene en su poder
  *
  * Respuesta: { success, items: [...], hay_mas }
  */
@@ -39,6 +40,7 @@ try {
     $termino = trim((string)($_GET['q'] ?? ''));
     $pagina = max(1, (int)($_GET['pagina'] ?? 1));
     $esDevolucion = (($_GET['tipo'] ?? '') === 'devolucion');
+    $esIngreso = (($_GET['tipo'] ?? '') === 'ingreso');
 
     $offset = ($pagina - 1) * AUTOCOMPLETADO_POR_PAGINA;
     // Se pide uno de más para saber si hay otra página sin hacer un COUNT
@@ -55,7 +57,9 @@ try {
             ];
         }
     } elseif ($recurso === 'insumo') {
-        $filas = (new Insumo())->buscarParaSelect($termino, $limite, $offset);
+        // Devolución con operario elegido: solo lo que ese operario tiene en su poder. Ingreso: solo materiales
+        $idOperarioFiltro = ($esDevolucion && !empty($_GET['operario'])) ? (int)$_GET['operario'] : null;
+        $filas = (new Insumo())->buscarParaSelect($termino, $limite, $offset, $esIngreso, $idOperarioFiltro);
         $estados = array_column((new Movimiento())->getEstadosHerramienta(), 'estado', 'id_estado_herramienta');
 
         foreach ($filas as $ins) {
@@ -69,9 +73,15 @@ try {
                 $idEstado = (int)($ins['id_estado_herramienta'] ?? 0) ?: 1;
                 $noSeleccionable = !$esDevolucion && ($idEstado !== 1 || $stock < 1);
                 $detalle = 'Estado: ' . ($estados[$idEstado] ?? 'Desconocido') . " - Stock: {$stock}";
+                if (isset($ins['en_poder'])) {
+                    $detalle = 'En poder del operario';
+                }
             } else {
-                $noSeleccionable = !$esDevolucion && $stock <= 0;
+                $noSeleccionable = !$esDevolucion && !$esIngreso && $stock <= 0;
                 $detalle = "Stock: {$stock} {$unidad}";
+                if (isset($ins['en_poder'])) {
+                    $detalle = 'En poder del operario: ' . (float)$ins['en_poder'] . " {$unidad}";
+                }
             }
 
             $items[] = [
@@ -80,6 +90,7 @@ try {
                 'tipo'            => $tipo,
                 'unidad'          => $unidad,
                 'stock'           => $stock,
+                'en_poder'        => isset($ins['en_poder']) ? (float)$ins['en_poder'] : null,
                 'deshabilitado'   => $noSeleccionable,
                 'texto'           => "{$ins['codigo']} - {$ins['nombre']} ({$tipo}) - {$detalle}",
             ];

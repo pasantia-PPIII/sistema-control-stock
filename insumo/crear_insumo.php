@@ -82,6 +82,7 @@ try {
     $datosInsumo = [
         'codigo'            => $codigo,
         'nombre'            => $nombre,
+        'descripcion'       => isset($input['descripcion']) ? trim((string)$input['descripcion']) : null,
         'id_rubro'          => $id_rubro,
         'id_tipo'           => $id_tipo,
         'id_unidad_medida'  => $id_unidad_medida,

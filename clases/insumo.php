@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/reportes.php';
 require_once __DIR__ . '/auditoria.php';
+require_once __DIR__ . '/movimiento.php';
 
 class Insumo {
     private $db;
@@ -106,6 +107,89 @@ class Insumo {
     }
 
     /**
+     * Igual que getByCodigo() pero también devuelve los insumos deshabilitados o dados de baja:
+     * su ficha y su historial de movimientos siguen consultables (RF-10).
+     * @param string $codigo Código del insumo
+     * @return array|false Datos del insumo (incluye motivo y fecha de baja si corresponde)
+     */
+    public function getByCodigoAny($codigo) {
+        $sql = "SELECT i.*,
+                       um.unidad_medida,
+                       t.tipo as nombre_tipo,
+                       r.nombre as nombre_rubro,
+                       u.ubicacion as nombre_ubicacion,
+                       s.stock_actual,
+                       eh.estado as nombre_estado_herramienta
+                FROM insumos i
+                LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
+                LEFT JOIN tipo t ON i.id_tipo = t.id_tipo
+                LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
+                LEFT JOIN ubicacion u ON i.id_ubicacion = u.id_ubicacion
+                LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
+                LEFT JOIN estado_herramienta eh ON i.id_estado_herramienta = eh.id_estado_herramienta
+                WHERE i.codigo = :codigo";
+
+        return $this->db->fetchOne($sql, ['codigo' => $codigo]);
+    }
+
+    /**
+     * Kardex del insumo (RF-36): todos sus movimientos, del más nuevo al más viejo, paginados en la base.
+     * Incluye tipo, cantidad, fecha, usuario que lo cargó, operario y orden de trabajo.
+     * @return array filas, total, pagina, paginas, desde y hasta (ver Reportes::paginado)
+     */
+    public function getKardexPaginado($codigo, $pagina = 1, $porPagina = 10) {
+        $sql = "SELECT m.id_movimiento, m.id_operario, m.fecha, m.hora, md.cantidad,
+                       tm.tipo as nombre_tipo_movimiento,
+                       o.apellido || ', ' || o.nombre as nombre_operario,
+                       us.apellido || ', ' || us.nombre as nombre_usuario,
+                       odt.id_odt, odt.numero_ot
+                FROM movimiento_detalle md
+                INNER JOIN insumos i ON md.id_insumo = i.id_insumo
+                INNER JOIN movimiento m ON md.id_movimiento = m.id_movimiento
+                INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                INNER JOIN usuario us ON m.dni_usuario = us.dni
+                LEFT JOIN operario o ON m.id_operario = o.id_operario
+                LEFT JOIN orden_de_trabajo odt ON m.id_odt = odt.id_odt
+                WHERE i.codigo = :codigo AND m.activo = TRUE
+                ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC, md.id_detalle DESC";
+
+        return Reportes::paginado($sql, ['codigo' => $codigo], (int)$pagina, (int)$porPagina);
+    }
+
+    /**
+     * Historial de asignaciones de una herramienta (RF-20): cada entrega con su operario, fecha de entrega,
+     * fecha de devolución (la primera devolución posterior del mismo operario; vacía si sigue prestada)
+     * y la orden de trabajo asociada. Paginado en la base.
+     * @return array filas, total, pagina, paginas, desde y hasta (ver Reportes::paginado)
+     */
+    public function getHistorialAsignacionesPaginado($codigo, $pagina = 1, $porPagina = 10) {
+        $sql = "SELECT e.id_movimiento, e.id_operario, e.fecha AS fecha_entrega, e.hora AS hora_entrega,
+                       op.apellido || ', ' || op.nombre AS nombre_operario,
+                       odt.id_odt, odt.numero_ot,
+                       d.id_movimiento AS id_mov_devolucion, d.fecha AS fecha_devolucion, d.hora AS hora_devolucion
+                FROM movimiento e
+                INNER JOIN tipo_movimiento te ON e.id_tipo_mov = te.id_tipo_mov AND te.tipo = 'Entrega'
+                INNER JOIN movimiento_detalle de ON de.id_movimiento = e.id_movimiento
+                INNER JOIN insumos i ON de.id_insumo = i.id_insumo AND i.codigo = :codigo
+                LEFT JOIN operario op ON e.id_operario = op.id_operario
+                LEFT JOIN orden_de_trabajo odt ON e.id_odt = odt.id_odt
+                LEFT JOIN LATERAL (
+                    SELECT m2.id_movimiento, m2.fecha, m2.hora
+                    FROM movimiento m2
+                    INNER JOIN tipo_movimiento t2 ON m2.id_tipo_mov = t2.id_tipo_mov AND t2.tipo = 'Devolución'
+                    INNER JOIN movimiento_detalle d2 ON d2.id_movimiento = m2.id_movimiento AND d2.id_insumo = i.id_insumo
+                    WHERE m2.activo = TRUE AND m2.id_operario = e.id_operario
+                      AND (m2.fecha, m2.hora, m2.id_movimiento) > (e.fecha, e.hora, e.id_movimiento)
+                    ORDER BY m2.fecha, m2.hora, m2.id_movimiento
+                    LIMIT 1
+                ) d ON TRUE
+                WHERE e.activo = TRUE
+                ORDER BY e.fecha DESC, e.hora DESC, e.id_movimiento DESC, de.id_detalle DESC";
+
+        return Reportes::paginado($sql, ['codigo' => $codigo], (int)$pagina, (int)$porPagina);
+    }
+
+    /**
      * Obtiene un insumo activo por su clave primaria (id_insumo), con sus relaciones.
      * Equivale a getByCodigo() pero buscando por id (p. ej. enlaces ?editar=ID desde Reportes).
      * @param int $id_insumo ID del insumo
@@ -152,15 +236,33 @@ class Insumo {
      * Busca por código o nombre. Con $termino vacío devuelve todos.
      * @return array Hasta $limite insumos desde $offset, con unidad, stock y estado de herramienta
      */
-    public function buscarParaSelect(string $termino = '', int $limite = 10, int $offset = 0): array {
+    public function buscarParaSelect(string $termino = '', int $limite = 10, int $offset = 0, bool $soloMateriales = false, ?int $idOperario = null): array {
+        // Lo que el operario tiene en su poder (entregado menos devuelto): sirve para filtrar y mostrar las devoluciones
+        $saldoOperario = "SELECT md.id_insumo, SUM(CASE WHEN tm.tipo = 'Entrega' THEN md.cantidad
+                                                       WHEN tm.tipo = 'Devolución' THEN -md.cantidad ELSE 0 END) AS en_poder
+                          FROM movimiento m
+                          INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+                          INNER JOIN movimiento_detalle md ON m.id_movimiento = md.id_movimiento
+                          WHERE m.id_operario = :id_operario AND m.activo = TRUE
+                          GROUP BY md.id_insumo
+                          HAVING SUM(CASE WHEN tm.tipo = 'Entrega' THEN md.cantidad
+                                          WHEN tm.tipo = 'Devolución' THEN -md.cantidad ELSE 0 END) > 0";
+
         $sql = "SELECT i.id_insumo, i.codigo, i.nombre, i.id_tipo, i.id_estado_herramienta,
                        um.unidad_medida,
-                       s.stock_actual
+                       s.stock_actual" . ($idOperario ? ", po.en_poder" : "") . "
                 FROM insumos i
                 LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
-                LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
+                LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual"
+                . ($idOperario ? " INNER JOIN ({$saldoOperario}) po ON po.id_insumo = i.id_insumo" : "") . "
                 WHERE i.activo = TRUE";
         $params = [];
+        if ($idOperario) {
+            $params['id_operario'] = $idOperario;
+        }
+        if ($soloMateriales) {
+            $sql .= " AND i.id_tipo <> 2";
+        }
         if ($termino !== '') {
             $sql .= " AND (" . sqlBusquedaSinTildes('i.codigo') . " OR " . sqlBusquedaSinTildes('i.nombre') . ")";
             $params['termino'] = '%' . addcslashes($termino, '%_\\') . '%';
@@ -203,6 +305,15 @@ class Insumo {
     // 2. CREAR, ACTUALIZAR Y DESHABILITAR (CREATE / UPDATE / SOFT DELETE)
     // =========================================================
 
+    /** Descripción del insumo (RF-08): sin espacios sobrantes, NULL si queda vacía y de hasta 500 caracteres. */
+    private function normalizarDescripcion($valor) {
+        $texto = trim((string)$valor);
+        if (mb_strlen($texto, 'UTF-8') > 500) {
+            throw new Exception("La descripción no puede superar los 500 caracteres.");
+        }
+        return $texto !== '' ? $texto : null;
+    }
+
     /**
      * Crea un nuevo insumo en la base de datos.
      * El stock inicial es OBLIGATORIO para los materiales y viaja en $data['stock_inicial'] (no es una
@@ -229,11 +340,21 @@ class Insumo {
             // Whitelist de campos permitidos para el INSERT
             // Evita que campos extra del formulario (ej: csrf_token) rompan el query
             $camposPermitidos = [
-                'codigo', 'nombre', 'id_unidad_medida', 'id_tipo', 'id_rubro',
+                'codigo', 'nombre', 'descripcion', 'id_unidad_medida', 'id_tipo', 'id_rubro',
                 'id_ubicacion', 'stock_minimo', 'es_perecedero',
                 'fecha_vencimiento', 'serie_modelo', 'fecha_registro', 'activo'
             ];
             $data = array_intersect_key($data, array_flip($camposPermitidos));
+
+            if (empty($data['id_rubro'])) {
+                throw new Exception("El rubro del insumo es obligatorio.");
+            }
+            if (empty($data['id_tipo'])) {
+                throw new Exception("El tipo de insumo es obligatorio.");
+            }
+            if (array_key_exists('descripcion', $data)) {
+                $data['descripcion'] = $this->normalizarDescripcion($data['descripcion']);
+            }
 
             // OJO: el endpoint envía false cuando no es perecedero, por eso se usa !empty y no isset
             $data['es_perecedero'] = !empty($data['es_perecedero']);
@@ -302,11 +423,15 @@ class Insumo {
             // Whitelist de campos permitidos para el UPDATE
             // Excluye 'activo' (solo por deshabilitar/habilitar) y 'codigo' (PK inmutable)
             $camposPermitidos = [
-                'nombre', 'id_unidad_medida', 'id_tipo', 'id_rubro',
+                'nombre', 'descripcion', 'id_unidad_medida', 'id_tipo', 'id_rubro',
                 'id_ubicacion', 'stock_minimo', 'es_perecedero',
                 'fecha_vencimiento', 'serie_modelo'
             ];
             $data = array_intersect_key($data, array_flip($camposPermitidos));
+
+            if (array_key_exists('descripcion', $data)) {
+                $data['descripcion'] = $this->normalizarDescripcion($data['descripcion']);
+            }
 
             // El tipo no se puede cambiar: convertir un material en herramienta (o al revés)
             // dejaría stock y estado inconsistentes. Se deshabilita el insumo y se crea otro.
@@ -417,19 +542,80 @@ class Insumo {
      * @param string $codigo Código del insumo a deshabilitar
      * @return bool true si se deshabilitó correctamente
      */
-    public function deshabilitar($codigo) {
+    public function deshabilitar($codigo, $motivoBaja = null, $observacionBaja = null) {
         try {
             // AUDITORÍA: el cambio y su registro se guardan juntos
-            return Auditoria::transaccion(function () use ($codigo) {
-                $ok = $this->db->update('insumos', ['activo' => false], 'codigo = :codigo', ['codigo' => $codigo]);
+            return Auditoria::transaccion(function () use ($codigo, $motivoBaja, $observacionBaja) {
+                $insumo = $this->db->fetchOne(
+                    "SELECT i.id_insumo, i.nombre, i.id_tipo, i.id_estado_herramienta, i.id_stock_actual,
+                            s.stock_actual
+                     FROM insumos i LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
+                     WHERE i.codigo = :codigo FOR UPDATE OF i",
+                    ['codigo' => $codigo]
+                );
+                if (!$insumo) {
+                    throw new Exception("El insumo con código '{$codigo}' no existe.");
+                }
+
+                // Materiales: baja lógica simple
+                if ((int)$insumo['id_tipo'] !== self::ID_TIPO_HERRAMIENTA) {
+                    $ok = $this->db->update('insumos', ['activo' => false], 'codigo = :codigo', ['codigo' => $codigo]);
+                    Auditoria::registrarCambio(Auditoria::DESHABILITAR, 'insumo', $codigo,
+                        "Insumo {$codigo} deshabilitado", ['activo' => true], ['activo' => false]);
+                    return $ok;
+                }
+
+                // Herramientas (RF-18): baja con motivo y fecha; si está prestada, primero debe devolverse
+                $motivoBaja = trim((string)$motivoBaja);
+                if (!in_array($motivoBaja, self::MOTIVOS_BAJA, true)) {
+                    throw new Exception("Indique el motivo de la baja de la herramienta: " . implode(', ', self::MOTIVOS_BAJA) . ".");
+                }
+                $observacionBaja = trim((string)$observacionBaja);
+                if ($motivoBaja === 'Otro' && $observacionBaja === '') {
+                    throw new Exception("Si el motivo es 'Otro', detállelo en las observaciones.");
+                }
+                if (mb_strlen($observacionBaja, 'UTF-8') > 255) {
+                    throw new Exception("Las observaciones de la baja no pueden superar los 255 caracteres.");
+                }
+
+                $titular = (new Movimiento())->getAsignacionActual((int)$insumo['id_insumo']);
+                if ((int)$insumo['id_estado_herramienta'] === Movimiento::ESTADO_PRESTADA || $titular) {
+                    $quien = $titular ? " (la tiene {$titular['nombre_operario']})" : '';
+                    throw new Exception("La herramienta '{$insumo['nombre']}' está prestada{$quien}: no se puede dar de baja hasta que se registre su devolución.");
+                }
+
+                $stockAnterior = (float)($insumo['stock_actual'] ?? 0);
+                $datos = [
+                    'activo'                => false,
+                    'id_estado_herramienta' => self::ESTADO_DADA_DE_BAJA,
+                    'motivo_baja'           => $motivoBaja,
+                    'observacion_baja'      => $observacionBaja !== '' ? $observacionBaja : null,
+                    'fecha_baja'            => date('Y-m-d'),
+                ];
+                $ok = $this->db->update('insumos', $datos, 'codigo = :codigo', ['codigo' => $codigo]);
+                if ($stockAnterior != 0.0 && $insumo['id_stock_actual']) {
+                    Database::execute(
+                        "UPDATE stock_actual SET stock_actual = 0, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
+                        ['id' => $insumo['id_stock_actual']]
+                    );
+                    Auditoria::registrarStock((int)$insumo['id_insumo'], $stockAnterior, 0.0, Auditoria::STOCK_EDICION, null, "Baja de herramienta: {$motivoBaja}");
+                }
                 Auditoria::registrarCambio(Auditoria::DESHABILITAR, 'insumo', $codigo,
-                    "Insumo {$codigo} deshabilitado", ['activo' => true], ['activo' => false]);
+                    "Herramienta {$codigo} dada de baja ({$motivoBaja})",
+                    ['activo' => true, 'id_estado_herramienta' => (int)$insumo['id_estado_herramienta']],
+                    ['activo' => false, 'id_estado_herramienta' => self::ESTADO_DADA_DE_BAJA, 'motivo_baja' => $motivoBaja,
+                     'observacion_baja' => $datos['observacion_baja'], 'fecha_baja' => $datos['fecha_baja']]);
                 return $ok;
             });
         } catch (PDOException $e) {
             throw errorAmigable('Error al deshabilitar el insumo', $e);
         }
     }
+
+    // Tipo de insumo "Herramienta", estado "Dada de baja" y motivos de baja (RF-18)
+    const ID_TIPO_HERRAMIENTA = 2;
+    const ESTADO_DADA_DE_BAJA = 4;
+    const MOTIVOS_BAJA = ['Rotura', 'Pérdida', 'Obsolescencia', 'Otro'];
 
     /**
      * HABILITA (Reactiva) un insumo que fue deshabilitado previamente.
@@ -439,6 +625,35 @@ class Insumo {
     public function habilitar($codigo) {
         try {
             return Auditoria::transaccion(function () use ($codigo) {
+                $insumo = $this->db->fetchOne(
+                    "SELECT i.id_insumo, i.id_tipo, i.id_estado_herramienta, i.id_stock_actual, i.motivo_baja,
+                            s.stock_actual
+                     FROM insumos i LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
+                     WHERE i.codigo = :codigo FOR UPDATE OF i",
+                    ['codigo' => $codigo]
+                );
+
+                // Una herramienta dada de baja que se reactiva vuelve al pañol como Disponible
+                if ($insumo && (int)$insumo['id_tipo'] === self::ID_TIPO_HERRAMIENTA
+                    && (int)$insumo['id_estado_herramienta'] === self::ESTADO_DADA_DE_BAJA) {
+                    $ok = $this->db->update('insumos', [
+                        'activo' => true, 'id_estado_herramienta' => Movimiento::ESTADO_DISPONIBLE,
+                        'motivo_baja' => null, 'observacion_baja' => null, 'fecha_baja' => null,
+                    ], 'codigo = :codigo', ['codigo' => $codigo]);
+                    if ($insumo['id_stock_actual']) {
+                        Database::execute(
+                            "UPDATE stock_actual SET stock_actual = 1, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
+                            ['id' => $insumo['id_stock_actual']]
+                        );
+                        Auditoria::registrarStock((int)$insumo['id_insumo'], (float)($insumo['stock_actual'] ?? 0), 1.0, Auditoria::STOCK_EDICION, null, 'Herramienta reactivada tras su baja');
+                    }
+                    Auditoria::registrarCambio(Auditoria::HABILITAR, 'insumo', $codigo,
+                        "Herramienta {$codigo} reactivada (estaba dada de baja por: {$insumo['motivo_baja']})",
+                        ['activo' => false, 'id_estado_herramienta' => self::ESTADO_DADA_DE_BAJA],
+                        ['activo' => true, 'id_estado_herramienta' => Movimiento::ESTADO_DISPONIBLE]);
+                    return $ok;
+                }
+
                 $ok = $this->db->update('insumos', ['activo' => true], 'codigo = :codigo', ['codigo' => $codigo]);
                 Auditoria::registrarCambio(Auditoria::HABILITAR, 'insumo', $codigo,
                     "Insumo {$codigo} habilitado", ['activo' => false], ['activo' => true]);

@@ -124,12 +124,20 @@ class Movimiento {
             $cabecera['id_operario'] = !empty($cabecera['id_operario']) ? $cabecera['id_operario'] : null;
             $cabecera['activo'] = true;
 
+            // La fecha y la hora deben ser válidas y la fecha no puede ser futura
+            $this->validarFechaHora($cabecera['fecha'], $cabecera['hora']);
+
             // Tipo de movimiento (define el efecto sobre stock / herramientas)
             $tipoFila = $this->db->fetchOne("SELECT tipo FROM tipo_movimiento WHERE id_tipo_mov = :id", ['id' => (int)($cabecera['id_tipo_mov'] ?? 0)]);
             if (!$tipoFila) {
                 throw new Exception("El tipo de movimiento indicado no existe.");
             }
             $tipoMov = $tipoFila['tipo'];
+
+            // Entregas y devoluciones son siempre de un operario (quién retira / quién devuelve)
+            if (in_array($tipoMov, [self::TIPO_ENTREGA, self::TIPO_DEVOLUCION], true) && empty($cabecera['id_operario'])) {
+                throw new Exception("Debe indicar el operario " . ($tipoMov === self::TIPO_ENTREGA ? "que retira" : "que devuelve") . ".");
+            }
 
             // Motivo de la devolución (RF-34): obligatorio al devolver y exclusivo de las devoluciones
             $idMotivo = !empty($cabecera['id_motivo']) ? (int)$cabecera['id_motivo'] : null;
@@ -169,6 +177,11 @@ class Movimiento {
 
                 $idEstado = !empty($detalle['id_estado_herramienta']) ? (int)$detalle['id_estado_herramienta'] : null;
                 $cantidad = (float)$detalle['cantidad'];
+
+                // Una devolución solo puede ser de lo que el operario tiene en su poder (entregado menos devuelto)
+                if ($tipoMov === self::TIPO_DEVOLUCION) {
+                    $this->validarDevolucionContraSaldo((int)$cabecera['id_operario'], (int)$detalle['id_insumo'], $cantidad);
+                }
 
                 // AUDITORÍA: se pasa el id del movimiento para que el cambio de stock quede ligado a él
                 $idEstado = $this->aplicarEfecto((int)$detalle['id_insumo'], $tipoMov, $cantidad, $idEstado, 1, (int)$id_movimiento);
@@ -224,6 +237,9 @@ class Movimiento {
     const ESTADO_DISPONIBLE = 1;
     const ESTADO_PRESTADA = 2;
 
+    // Unidades de medida que se cuentan por pieza: la cantidad debe ser entera (las demás admiten decimales)
+    const UNIDADES_ENTERAS = ['Unidad', 'Plancha', 'Bolsa', 'Caja', 'Rollo'];
+
     /**
      * Aplica (o revierte) el efecto de una línea de movimiento.
      * - Materiales: Entrega descuenta stock, Devolución e Ingreso lo suman (RF-24, RF-30, RF-33).
@@ -255,8 +271,10 @@ class Movimiento {
         }
 
         $insumo = $this->db->fetchOne(
-            "SELECT i.id_insumo, i.nombre, i.activo, i.id_stock_actual, i.id_estado_herramienta, t.tipo as nombre_tipo
+            "SELECT i.id_insumo, i.nombre, i.activo, i.id_stock_actual, i.id_estado_herramienta, t.tipo as nombre_tipo,
+                    um.unidad_medida
              FROM insumos i INNER JOIN tipo t ON i.id_tipo = t.id_tipo
+             LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
              WHERE i.id_insumo = :id FOR UPDATE OF i",
             ['id' => $id_insumo]
         );
@@ -273,6 +291,9 @@ class Movimiento {
             if ($esAjuste) {
                 throw new Exception("El ajuste de inventario aplica solo a materiales; '{$insumo['nombre']}' es una herramienta.");
             }
+            if ($tipoMov === self::TIPO_INGRESO) {
+                throw new Exception("El ingreso de stock aplica solo a materiales; '{$insumo['nombre']}' es una herramienta (se da de alta como unidad individual en Insumos).");
+            }
             if ($signo > 0 && abs($cantidad - 1.0) > 0.0001) {
                 throw new Exception("La herramienta '{$insumo['nombre']}' se registra por unidad (cantidad 1).");
             }
@@ -286,7 +307,12 @@ class Movimiento {
 
             if ($entrega) {
                 if ($signo > 0 && $estadoActual !== self::ESTADO_DISPONIBLE) {
-                    throw new Exception("La herramienta '{$insumo['nombre']}' no está disponible para entregar (ya prestada, en reparación o dada de baja).");
+                    $quien = '';
+                    if ($estadoActual === self::ESTADO_PRESTADA && ($titular = $this->getAsignacionActual((int)$id_insumo))) {
+                        $desde = !empty($titular['fecha']) ? ' desde el ' . date('d/m/Y', strtotime($titular['fecha'])) : '';
+                        $quien = " Está asignada a {$titular['nombre_operario']}{$desde}: debe devolverla antes de entregarla a otro operario.";
+                    }
+                    throw new Exception("La herramienta '{$insumo['nombre']}' no está disponible para entregar (ya prestada, en reparación o dada de baja).{$quien}");
                 }
                 if ($signo > 0 && $stockActual < 1) {
                     throw new Exception("La herramienta '{$insumo['nombre']}' no tiene stock en el pañol (stock {$stockActual}): no se puede entregar.");
@@ -327,6 +353,11 @@ class Movimiento {
             return null;
         }
 
+        // Los materiales que se cuentan por pieza (unidad, plancha, bolsa, caja, rollo) no admiten fracciones
+        if ($signo > 0 && in_array($insumo['unidad_medida'] ?? '', self::UNIDADES_ENTERAS, true) && abs($cantidad - round($cantidad)) > 0.0001) {
+            throw new Exception("'{$insumo['nombre']}' se mide en {$insumo['unidad_medida']}: la cantidad debe ser un número entero.");
+        }
+
         $descuenta = ($tipoMov === self::TIPO_ENTREGA);
         if ($signo < 0) {
             $descuenta = !$descuenta;
@@ -364,6 +395,102 @@ class Movimiento {
             ['id' => $idStock]
         );
         return [$idStock, (float)$stock['stock_actual']];
+    }
+
+    /**
+     * Valida el formato de la fecha (AAAA-MM-DD) y de la hora (HH:MM o HH:MM:SS) de un movimiento,
+     * y que la fecha no sea posterior a hoy.
+     */
+    private function validarFechaHora($fecha, $hora) {
+        $f = DateTime::createFromFormat('!Y-m-d', (string)$fecha);
+        if (!$f || $f->format('Y-m-d') !== (string)$fecha) {
+            throw new Exception("La fecha del movimiento no es válida.");
+        }
+        if ($fecha > date('Y-m-d')) {
+            throw new Exception("La fecha del movimiento no puede ser posterior a hoy.");
+        }
+        if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', (string)$hora)) {
+            throw new Exception("La hora del movimiento no es válida.");
+        }
+    }
+
+    /**
+     * Cantidad que el operario tiene en su poder de un insumo: lo entregado menos lo devuelto
+     * (solo movimientos no anulados).
+     */
+    private function saldoEnPoderDelOperario($idOperario, $idInsumo): float {
+        $fila = $this->db->fetchOne(
+            "SELECT COALESCE(SUM(CASE WHEN tm.tipo = 'Entrega' THEN md.cantidad
+                                      WHEN tm.tipo = 'Devolución' THEN -md.cantidad ELSE 0 END), 0) AS saldo
+             FROM movimiento m
+             INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+             INNER JOIN movimiento_detalle md ON m.id_movimiento = md.id_movimiento
+             WHERE m.id_operario = :op AND md.id_insumo = :ins AND m.activo = TRUE",
+            ['op' => $idOperario, 'ins' => $idInsumo]
+        );
+        return (float)($fila['saldo'] ?? 0);
+    }
+
+    /**
+     * RF-32 / RF-33: una devolución no puede superar lo que ese operario tiene en su poder.
+     * - Materiales: la cantidad devuelta no puede ser mayor que lo entregado menos lo ya devuelto.
+     * - Herramientas: solo la devuelve el operario que la tiene asignada.
+     * Bloquea la fila del insumo para que dos devoluciones simultáneas no se superpongan.
+     */
+    private function validarDevolucionContraSaldo($idOperario, $idInsumo, $cantidad) {
+        $insumo = $this->db->fetchOne(
+            "SELECT i.nombre, t.tipo AS nombre_tipo
+             FROM insumos i INNER JOIN tipo t ON i.id_tipo = t.id_tipo
+             WHERE i.id_insumo = :id FOR UPDATE OF i",
+            ['id' => $idInsumo]
+        );
+        if (!$insumo) {
+            throw new Exception("El insumo indicado no existe.");
+        }
+
+        $saldo = $this->saldoEnPoderDelOperario($idOperario, $idInsumo);
+
+        if ($insumo['nombre_tipo'] === 'Herramienta') {
+            if ($saldo < 1) {
+                $titular = $this->getAsignacionActual($idInsumo);
+                $detalle = $titular
+                    ? " Figura asignada a {$titular['nombre_operario']}: la debe devolver esa persona."
+                    : "";
+                throw new Exception("La herramienta '{$insumo['nombre']}' no figura en poder de este operario.{$detalle}");
+            }
+            return;
+        }
+
+        if ($cantidad > $saldo + 0.0001) {
+            $enPoder = rtrim(rtrim(number_format($saldo, 2, '.', ''), '0'), '.');
+            $enPoder = ($enPoder === '' ? '0' : $enPoder);
+            $pedido = rtrim(rtrim(number_format($cantidad, 2, '.', ''), '0'), '.');
+            throw new Exception("No se puede devolver {$pedido} de '{$insumo['nombre']}': este operario tiene en su poder {$enPoder} (entregado menos devuelto).");
+        }
+    }
+
+    /**
+     * Operario que tiene actualmente asignado un insumo (herramienta): el que figura con saldo
+     * entregado menos devuelto mayor que cero. Devuelve null si ninguno la tiene.
+     * @param int $idInsumo
+     * @return array|null id_operario, nombre_operario, fecha (de la última entrega) y hora
+     */
+    public function getAsignacionActual($idInsumo) {
+        return $this->db->fetchOne(
+            "SELECT m.id_operario, o.apellido || ', ' || o.nombre AS nombre_operario,
+                    MAX(CASE WHEN tm.tipo = 'Entrega' THEN m.fecha END) AS fecha
+             FROM movimiento m
+             INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
+             INNER JOIN movimiento_detalle md ON m.id_movimiento = md.id_movimiento
+             INNER JOIN operario o ON m.id_operario = o.id_operario
+             WHERE md.id_insumo = :ins AND m.activo = TRUE
+             GROUP BY m.id_operario, o.apellido, o.nombre
+             HAVING SUM(CASE WHEN tm.tipo = 'Entrega' THEN md.cantidad
+                             WHEN tm.tipo = 'Devolución' THEN -md.cantidad ELSE 0 END) > 0
+             ORDER BY MAX(CASE WHEN tm.tipo = 'Entrega' THEN m.fecha END) DESC
+             LIMIT 1",
+            ['ins' => (int)$idInsumo]
+        );
     }
 
     /**

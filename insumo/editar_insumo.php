@@ -60,6 +60,10 @@ try {
         $datosActualizar['nombre'] = $nombre;
     }
 
+    if (isset($input['descripcion'])) {
+        $datosActualizar['descripcion'] = trim((string)$input['descripcion']);
+    }
+
     if (isset($input['id_rubro'])) {
         $datosActualizar['id_rubro'] = !empty($input['id_rubro']) ? (int)$input['id_rubro'] : null;
     } elseif (isset($input['rubro_id'])) {

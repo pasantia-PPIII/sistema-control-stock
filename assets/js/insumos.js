@@ -110,15 +110,19 @@ function renderizarTabla(insumos) {
         const umTxt = esHerramienta ? '-' : (ins.unidad_medida || 'Unidad');
         const stkTxt = (ins.stock_actual !== null && ins.stock_actual !== undefined) ? ins.stock_actual : 0;
         const insActivo = (ins.activo === true || ins.activo === 't' || ins.activo === 1 || ins.activo === '1');
-        const estadoVenc = !insActivo ? 'Deshabilitado' : (esHerramienta ? (ins.nombre_estado_herramienta || 'Disponible') : (ins.fecha_vencimiento ? ins.fecha_vencimiento : 'No perecedero'));
+        let estadoVenc = !insActivo ? ((esHerramienta && ins.motivo_baja) ? `Dada de baja (${ins.motivo_baja})` : 'Deshabilitado') : (esHerramienta ? (ins.nombre_estado_herramienta || 'Disponible') : (ins.fecha_vencimiento ? ins.fecha_vencimiento : 'No perecedero'));
+        if (insActivo && esHerramienta && ins.asignado_a) {
+            const [anio, mes, dia] = String(ins.asignado_desde).substring(0, 10).split('-');
+            estadoVenc += ` - ${ins.asignado_a} (desde ${dia}/${mes}/${anio})`;
+        }
         const jsonStr = JSON.stringify(ins).replace(/"/g, '&quot;');
         // Código y nombre viajan en data-* (escapados) para que un apóstrofo no rompa el onclick
-        const datosEstado = `data-codigo="${escaparHtml(ins.codigo)}" data-nombre="${escaparHtml(ins.nombre)}"`;
+        const datosEstado = `data-codigo="${escaparHtml(ins.codigo)}" data-nombre="${escaparHtml(ins.nombre)}" data-herramienta="${esHerramienta ? '1' : '0'}"`;
         const botonesEdicion = insActivo ? `
                 <button type="button" class="btn-action-icon edit" title="Editar Insumo" onclick="abrirModalEditar(${jsonStr})">
                     ${window.APP_ICONS.edit}
                 </button>
-                <button type="button" class="btn-action-icon disable" title="Deshabilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true)">
+                <button type="button" class="btn-action-icon disable" title="Deshabilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true, this.dataset.herramienta === '1')">
                     ${window.APP_ICONS.disable}
                 </button>` : `
                 <button type="button" class="btn-action-icon enable" title="Habilitar Insumo" ${datosEstado} onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, false)">
@@ -235,6 +239,7 @@ function guardarNuevoInsumo(e) {
 function abrirModalEditar(ins) {
     document.getElementById('edit-codigo').value = ins.codigo || '';
     document.getElementById('edit-nombre').value = ins.nombre || '';
+    document.getElementById('edit-descripcion').value = ins.descripcion || '';
     document.getElementById('edit-id-rubro').value = ins.id_rubro || '';
     document.getElementById('edit-id-tipo').value = ins.id_tipo || '';
     document.getElementById('edit-id-um').value = ins.id_unidad_medida || '';
@@ -298,6 +303,7 @@ function guardarEdicionInsumo(e) {
 function abrirModalDetalles(ins) {
     document.getElementById('det-codigo').innerText = ins.codigo || '-';
     document.getElementById('det-nombre').innerText = ins.nombre || '-';
+    document.getElementById('det-descripcion').innerText = ins.descripcion || '-';
     document.getElementById('det-tipo').innerText = ins.nombre_tipo || 'Material';
     document.getElementById('det-rubro').innerText = ins.nombre_rubro || 'Sin rubro';
     
@@ -313,7 +319,9 @@ function abrirModalDetalles(ins) {
     document.getElementById('det-vencimiento').innerText = ins.fecha_vencimiento ? ins.fecha_vencimiento : 'No aplica';
     
     const activo = (ins.activo === true || ins.activo === 't' || ins.activo === 1 || ins.activo === '1');
-    document.getElementById('det-activo').innerText = activo ? 'Activo' : 'Deshabilitado';
+    document.getElementById('det-activo').innerText = activo ? 'Activo' : (ins.motivo_baja ? `Dada de baja (${ins.motivo_baja})` : 'Deshabilitado');
+    // Ficha completa: kardex, asignaciones de la herramienta y datos de la baja
+    document.getElementById('det-ficha-link').href = 'detalles_insumo.php?codigo=' + encodeURIComponent(ins.codigo);
 
     abrirModal('modal-detalles-insumo');
 }
@@ -321,7 +329,7 @@ function abrirModalDetalles(ins) {
 // =========================================================================
 // MODAL: DESHABILITAR / HABILITAR INSUMO (FETCH POST)
 // =========================================================================
-function abrirModalEstado(codigo, nombre, deshabilitar) {
+function abrirModalEstado(codigo, nombre, deshabilitar, esHerramienta) {
     const caja = document.getElementById('estado-caja');
     const nota = document.getElementById('estado-nota');
     const titulo = document.getElementById('estado-titulo');
@@ -331,15 +339,24 @@ function abrirModalEstado(codigo, nombre, deshabilitar) {
     document.getElementById('estado-accion-val').value = deshabilitar ? 'deshabilitar' : 'habilitar';
     document.getElementById('estado-info').innerText = codigo + ' - ' + nombre;
 
+    // Dar de baja una herramienta pide el motivo (RF-18)
+    const pideMotivo = !!(deshabilitar && esHerramienta);
+    document.getElementById('estado-baja-bloque').style.display = pideMotivo ? 'block' : 'none';
+    document.getElementById('estado-motivo-baja').required = pideMotivo;
+    document.getElementById('estado-motivo-baja').value = '';
+    document.getElementById('estado-observacion-baja').value = '';
+
     if (deshabilitar) {
-        titulo.innerText = 'Deshabilitar Insumo';
+        titulo.innerText = esHerramienta ? 'Dar de baja la herramienta' : 'Deshabilitar Insumo';
         titulo.style.color = 'var(--btn-delete)';
         document.getElementById('estado-subtitulo').innerText = '¿Está seguro de que desea dar de baja este insumo del catálogo activo?';
         caja.style.backgroundColor = '#fef2f2';
         caja.style.border = '1px solid #fecaca';
         caja.style.color = '#991b1b';
         nota.style.color = '#b91c1c';
-        nota.innerText = 'El registro permanecerá en el sistema para fines de auditoría pero no estará disponible para nuevos movimientos.';
+        nota.innerText = esHerramienta
+            ? 'Se registra el motivo y la fecha de la baja. Si la herramienta está prestada, primero debe devolverse. El historial se conserva.'
+            : 'El registro permanecerá en el sistema para fines de auditoría pero no estará disponible para nuevos movimientos.';
         btn.style.backgroundColor = 'var(--btn-delete)';
         btn.innerText = 'Confirmar Deshabilitación';
     } else {

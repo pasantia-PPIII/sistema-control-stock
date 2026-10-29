@@ -432,3 +432,32 @@
     }
 }
 
+
+/* Selección de rubros de la orden (casillas en forma de etiqueta) */
+#crear-rubros {
+    margin: 0.4rem 0;
+}
+
+#crear-rubros:empty {
+    display: block;
+}
+
+.check-rubro {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    min-height: 36px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+.check-rubro:has(input:checked) {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1e40af;
+}

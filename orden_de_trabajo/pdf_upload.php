@@ -63,7 +63,18 @@ function datosOrdenDesdePost() {
         'hora_final'         => $texto('hora_final'),
         'estado'             => $texto('estado'),
         'observaciones'      => $texto('observaciones'),
+        'tipo_trabajo'       => $texto('tipo_trabajo'),
+        'dependencia_solicitante' => $texto('dependencia_solicitante'),
+        'fecha_solicitud'    => $texto('fecha_solicitud'),
     ];
+}
+
+/**
+ * Rubros involucrados en la orden, enviados como rubros[] (ids de rubro).
+ */
+function rubrosDesdePost() {
+    $ids = $_POST['rubros'] ?? [];
+    return is_array($ids) ? array_values(array_filter(array_map('intval', $ids))) : [];
 }
 
 /**

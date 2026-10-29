@@ -29,10 +29,12 @@ require_once __DIR__ . '/../clases/operario.php';
 require_once __DIR__ . '/../clases/insumo.php';
 require_once __DIR__ . '/../clases/orden_de_trabajo.php';
 
-// Tipos de movimiento (ids del catálogo tipo_movimiento): 1 = Entrega, 2 = Devolución
-$tipoForm = (($_POST['tipo'] ?? $_GET['tipo'] ?? 'entrega') === 'devolucion') ? 'devolucion' : 'entrega';
+// Tipos de movimiento (ids del catálogo tipo_movimiento): 1 = Entrega, 2 = Devolución, 3 = Ingreso (reposición de stock, RF-21)
+$tipoForm = $_POST['tipo'] ?? $_GET['tipo'] ?? 'entrega';
+$tipoForm = in_array($tipoForm, ['devolucion', 'ingreso'], true) ? $tipoForm : 'entrega';
 $esDevolucion = ($tipoForm === 'devolucion');
-$idTipoMov = $esDevolucion ? 2 : 1;
+$esIngreso = ($tipoForm === 'ingreso');
+$idTipoMov = $esDevolucion ? 2 : ($esIngreso ? 3 : 1);
 
 $movimientoModel = new Movimiento();
 $operarioModel = new Operario();
@@ -51,20 +53,24 @@ if ($esPost) {
         $hora = !empty($_POST['hora']) ? trim($_POST['hora']) : date('H:i:s');
         $observaciones = isset($_POST['observaciones']) ? trim((string)$_POST['observaciones']) : '';
         // Orden de Trabajo opcional (RF-27): vacío = uso general. Movimiento::create() valida que exista y esté habilitada
-        $idOdt = !empty($_POST['id_odt']) ? (int)$_POST['id_odt'] : null;
+        $idOdt = (!$esIngreso && !empty($_POST['id_odt'])) ? (int)$_POST['id_odt'] : null;
 
         // RF-34: toda devolución lleva un motivo del catálogo. Movimiento::create() lo valida
         $idMotivo = ($esDevolucion && !empty($_POST['id_motivo'])) ? (int)$_POST['id_motivo'] : null;
 
-        if ($idOperario <= 0) {
-            throw new Exception($esDevolucion
-                ? 'Debe seleccionar el operario que realiza la devolución.'
-                : 'Debe seleccionar un operario responsable para la entrega.');
-        }
+        // El ingreso de stock (compra o reposición) no tiene operario: lo registra el usuario del sistema
+        $operario = null;
+        if (!$esIngreso) {
+            if ($idOperario <= 0) {
+                throw new Exception($esDevolucion
+                    ? 'Debe seleccionar el operario que realiza la devolución.'
+                    : 'Debe seleccionar un operario responsable para la entrega.');
+            }
 
-        $operario = $operarioModel->getById($idOperario);
-        if (!$operario || !$operario['activo']) {
-            throw new Exception('El operario seleccionado no existe o no se encuentra activo.');
+            $operario = $operarioModel->getById($idOperario);
+            if (!$operario || !$operario['activo']) {
+                throw new Exception('El operario seleccionado no existe o no se encuentra activo.');
+            }
         }
 
         $items = [];
@@ -94,9 +100,12 @@ if ($esPost) {
             }
             $esHerramienta = ((int)$insumo['id_tipo'] === 2);
 
-            // Al entregar, el stock (materiales: cantidad; herramientas: 1 si está en el pañol, 0 si no)
-            // debe alcanzar. El estado de la herramienta lo valida además Movimiento::create().
-            if (!$esDevolucion && $cantidad > (float)$insumo['stock_actual']) {
+            // Al entregar un material, el stock debe alcanzar. Las herramientas se validan por estado en
+            // Movimiento::create() (informa a quién está asignada); un ingreso solo admite materiales.
+            if ($esIngreso && $esHerramienta) {
+                throw new Exception("El ingreso de stock aplica solo a materiales: '{$insumo['nombre']}' es una herramienta.");
+            }
+            if (!$esDevolucion && !$esIngreso && !$esHerramienta && $cantidad > (float)$insumo['stock_actual']) {
                 throw new Exception("Stock insuficiente para '{$insumo['nombre']}'. Disponible: {$insumo['stock_actual']}.");
             }
 
@@ -119,7 +128,7 @@ if ($esPost) {
         $cabecera = [
             'id_tipo_mov'   => $idTipoMov,
             'dni_usuario'   => $_SESSION['dni_usuario'],
-            'id_operario'   => (int)$operario['id_operario'],
+            'id_operario'   => $operario ? (int)$operario['id_operario'] : null,
             'fecha'         => $fecha,
             'hora'          => $hora,
             'observaciones' => $observaciones,
@@ -129,9 +138,10 @@ if ($esPost) {
 
         $idMovimiento = $movimientoModel->create($cabecera, $detalles);
 
+        $quien = $operario ? " para {$operario['nombre']} {$operario['apellido']}" : '';
         echo json_encode([
             'success'       => true,
-            'message'       => ($esDevolucion ? 'Devolución' : 'Entrega') . " #{$idMovimiento} registrada exitosamente para {$operario['nombre']} {$operario['apellido']}.",
+            'message'       => ($esIngreso ? 'Ingreso' : ($esDevolucion ? 'Devolución' : 'Entrega')) . " #{$idMovimiento} registrad" . ($esIngreso ? 'o' : 'a') . " exitosamente{$quien}.",
             'id_movimiento' => $idMovimiento
         ]);
     } catch (Throwable $e) {
@@ -145,8 +155,8 @@ if ($esPost) {
 // =========================================================================
 $seccion = 'movimiento';
 $css_modulo = 'movimientos';
-$titulo_vista = $esDevolucion ? 'Registrar Devolución de Pañol' : 'Registrar Entrega de Pañol';
-$titulo_pagina = ($esDevolucion ? 'Registrar Devolución' : 'Registrar Entrega') . ' - Sistema de Control de Stock';
+$titulo_vista = $esIngreso ? 'Registrar Ingreso de Stock' : ($esDevolucion ? 'Registrar Devolución de Pañol' : 'Registrar Entrega de Pañol');
+$titulo_pagina = ($esIngreso ? 'Registrar Ingreso' : ($esDevolucion ? 'Registrar Devolución' : 'Registrar Entrega')) . ' - Sistema de Control de Stock';
 
 // El operario y el insumo se buscan por AJAX (ajax/buscar_autocompletado.php) al escribir, de a 10 resultados
 $js_modulo = 'autocompletado';
@@ -177,7 +187,10 @@ include_once __DIR__ . '/../layout/header.php';
 <div class="form-card">
     <div class="form-card-header">
         <div>
-            <?php if ($esDevolucion): ?>
+            <?php if ($esIngreso): ?>
+                <h2 class="form-card-title">Nuevo Ingreso de Stock</h2>
+                <p class="form-card-subtitle">Registrar el ingreso de materiales al pañol por compra o reposición; el stock se actualiza al confirmar</p>
+            <?php elseif ($esDevolucion): ?>
                 <h2 class="form-card-title">Nueva Devolución de Insumos y Herramientas</h2>
                 <p class="form-card-subtitle">Registrar el reintegro al pañol de materiales y herramientas en custodia del personal técnico</p>
             <?php else: ?>
@@ -193,6 +206,7 @@ include_once __DIR__ . '/../layout/header.php';
 
         <!-- Cabecera del Movimiento -->
         <div class="form-grid-3">
+            <?php if (!$esIngreso): ?>
             <div class="form-group autocomplete-wrapper">
                 <label for="buscar-operario">Operario <?= $esDevolucion ? 'que Devuelve' : 'Responsable' ?> *</label>
                 <input type="text" id="buscar-operario" class="form-control" placeholder="Escriba DNI, apellido o nombre..." autocomplete="off"
@@ -200,10 +214,11 @@ include_once __DIR__ . '/../layout/header.php';
                 <input type="hidden" id="id_operario" name="id_operario" value="<?= $operarioPre ? (int)$operarioPre['id_operario'] : '' ?>">
                 <div id="lista-operarios" class="autocomplete-list"></div>
             </div>
+            <?php endif; ?>
 
             <div class="form-group">
-                <label for="fecha">Fecha de <?= $esDevolucion ? 'Devolución' : 'Entrega' ?> *</label>
-                <input type="date" id="fecha" name="fecha" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                <label for="fecha">Fecha de <?= $esIngreso ? 'Ingreso' : ($esDevolucion ? 'Devolución' : 'Entrega') ?> *</label>
+                <input type="date" id="fecha" name="fecha" class="form-control" value="<?= date('Y-m-d') ?>" max="<?= date('Y-m-d') ?>" required>
             </div>
 
             <div class="form-group">
@@ -224,6 +239,7 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
         <?php endif; ?>
 
+        <?php if (!$esIngreso): ?>
         <div class="form-group autocomplete-wrapper mb-20">
             <label for="buscar-odt">Orden de Trabajo (opcional)</label>
             <input type="text" id="buscar-odt" class="form-control" placeholder="Escriba el N° de OT, PA o trabajo... (vacío = sin OT / uso general)" autocomplete="off"
@@ -231,27 +247,28 @@ include_once __DIR__ . '/../layout/header.php';
             <input type="hidden" id="id_odt" name="id_odt" value="<?= $odtPre ? (int)$odtPre['id_odt'] : '' ?>">
             <div id="lista-odt" class="autocomplete-list"></div>
         </div>
+        <?php endif; ?>
 
         <div class="form-group mb-32">
-            <label for="observaciones"><?= $esDevolucion ? 'Observaciones' : 'Observaciones o Motivo' ?></label>
-            <textarea id="observaciones" name="observaciones" class="form-control form-control--area" placeholder="<?= $esDevolucion ? 'Detalles de la devolución, estado de los elementos, orden de trabajo...' : 'Detalles de la entrega, orden de trabajo, destino o estado al entregar...' ?>"></textarea>
+            <label for="observaciones"><?= $esIngreso ? 'Observaciones (compra o reposición)' : ($esDevolucion ? 'Observaciones' : 'Observaciones o Motivo') ?></label>
+            <textarea id="observaciones" name="observaciones" class="form-control form-control--area" placeholder="<?= $esIngreso ? 'Origen del material, motivo de la reposición...' : ($esDevolucion ? 'Detalles de la devolución, estado de los elementos, orden de trabajo...' : 'Detalles de la entrega, orden de trabajo, destino o estado al entregar...') ?>"></textarea>
         </div>
 
         <!-- Sección de Selección y Agregado de Ítems -->
         <div class="items-section-header">
-            <h3 class="items-section-title">Ítems a <?= $esDevolucion ? 'Devolver' : 'Entregar' ?></h3>
+            <h3 class="items-section-title">Ítems a <?= $esIngreso ? 'Ingresar' : ($esDevolucion ? 'Devolver' : 'Entregar') ?></h3>
         </div>
 
         <div class="form-grid-3 form-grid-3--items">
             <div class="form-group autocomplete-wrapper form-group--flex-2">
-                <label for="buscar-insumo">Buscar Insumo o Herramienta</label>
+                <label for="buscar-insumo"><?= $esIngreso ? 'Buscar Material' : 'Buscar Insumo o Herramienta' ?></label>
                 <input type="text" id="buscar-insumo" class="form-control" placeholder="Escriba código o nombre..." autocomplete="off">
                 <div id="lista-insumos" class="autocomplete-list"></div>
             </div>
 
             <div class="form-group form-group--flex-1">
-                <label for="input-cantidad">Cantidad a <?= $esDevolucion ? 'Devolver' : 'Entregar' ?></label>
-                <input type="number" id="input-cantidad" class="form-control" min="1" step="any" value="1" placeholder="Ej: 1">
+                <label for="input-cantidad">Cantidad a <?= $esIngreso ? 'Ingresar' : ($esDevolucion ? 'Devolver' : 'Entregar') ?></label>
+                <input type="number" id="input-cantidad" class="form-control" min="0.01" step="any" value="1" placeholder="Ej: 1">
             </div>
 
             <div class="form-group form-group--flex-auto">
@@ -265,9 +282,9 @@ include_once __DIR__ . '/../layout/header.php';
                 <thead>
                     <tr>
                         <th>Código</th>
-                        <th>Insumo / Herramienta</th>
+                        <th><?= $esIngreso ? 'Material' : 'Insumo / Herramienta' ?></th>
                         <th>Tipo</th>
-                        <th>Stock en Pañol</th>
+                        <th><?= $esDevolucion ? 'En poder del operario' : 'Stock en Pañol' ?></th>
                         <th class="col-cantidad">Cantidad</th>
                         <?php if ($esDevolucion): ?>
                             <th class="col-estado">Estado al Devolver</th>
@@ -286,13 +303,15 @@ include_once __DIR__ . '/../layout/header.php';
         <!-- Botones de Acción -->
         <div class="form-actions-bottom">
             <a href="dashboard.php" class="btn-cancel-form">Cancelar</a>
-            <button type="submit" class="btn-submit-form" id="btn-submit-movimiento">Registrar <?= $esDevolucion ? 'Devolución' : 'Entrega' ?></button>
+            <button type="submit" class="btn-submit-form" id="btn-submit-movimiento">Registrar <?= $esIngreso ? 'Ingreso' : ($esDevolucion ? 'Devolución' : 'Entrega') ?></button>
         </div>
     </form>
 </div>
 
 <script>
 const ES_DEVOLUCION = <?= $esDevolucion ? 'true' : 'false' ?>;
+const ES_INGRESO = <?= $esIngreso ? 'true' : 'false' ?>;
+const TIPO_FORM = <?= json_encode($tipoForm) ?>;
 const ESTADOS_HERRAMIENTA = <?= json_encode($estadosHerramienta, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 const COLUMNAS_TABLA = ES_DEVOLUCION ? 7 : 6;
 
@@ -334,17 +353,27 @@ function agregarItem() {
         return;
     }
 
-    const { codigo, nombre, tipo, unidad, stock } = insumoSeleccionado;
+    const { codigo, nombre, tipo, unidad, stock, en_poder } = insumoSeleccionado;
 
     const indexExistente = itemsMovimiento.findIndex(it => it.id_insumo === codigo);
     const cantidadTotal = (indexExistente >= 0 ? itemsMovimiento[indexExistente].cantidad : 0) + cantidad;
+
+    if (ES_INGRESO && tipo === 'Herramienta') {
+        alert('El ingreso de stock aplica solo a materiales.');
+        return;
+    }
+    // Devolución: no se puede devolver más de lo que el operario tiene en su poder
+    if (ES_DEVOLUCION && en_poder !== null && en_poder !== undefined && cantidadTotal > en_poder) {
+        alert(`El operario tiene en su poder ${en_poder} de "${nombre}": no puede devolver ${cantidadTotal}.`);
+        return;
+    }
 
     // Herramientas: siempre de a una unidad. Al entregar, no superar el stock (herramienta: 1 si está en el pañol, 0 si no).
     if (tipo === 'Herramienta' && cantidadTotal > 1) {
         alert(`La herramienta "${nombre}" se registra por unidad (cantidad 1).`);
         return;
     }
-    if (!ES_DEVOLUCION && cantidadTotal > stock) {
+    if (!ES_DEVOLUCION && !ES_INGRESO && cantidadTotal > stock) {
         alert(`Stock insuficiente para "${nombre}". Stock disponible: ${stock}, total solicitado: ${cantidadTotal}.`);
         return;
     }
@@ -358,6 +387,7 @@ function agregarItem() {
             tipo: tipo,
             unidad: unidad,
             stock: stock,
+            en_poder: en_poder,
             cantidad: cantidad,
             id_estado_herramienta: 1
         });
@@ -390,7 +420,12 @@ function actualizarCantidadItem(codigo, valor) {
         renderizarTablaItems();
         return;
     }
-    if (!ES_DEVOLUCION && cant > item.stock) {
+    if (ES_DEVOLUCION && item.en_poder !== null && item.en_poder !== undefined && cant > item.en_poder) {
+        alert(`El operario tiene en su poder ${item.en_poder} de "${item.nombre}".`);
+        renderizarTablaItems();
+        return;
+    }
+    if (!ES_DEVOLUCION && !ES_INGRESO && cant > item.stock) {
         alert(`Stock insuficiente para "${item.nombre}". Stock disponible: ${item.stock}.`);
         renderizarTablaItems();
         return;
@@ -421,8 +456,9 @@ function renderizarTablaItems() {
         const codigoAttr = escaparHtml(it.id_insumo).replace(/'/g, '&#39;');
         const esHerramienta = (it.tipo === 'Herramienta');
         // Herramienta: máximo 1 unidad siempre. Material: máximo el stock, solo al entregar
-        const maxAttr = esHerramienta ? 'max="1"' : (ES_DEVOLUCION ? '' : `max="${it.stock}"`);
-        const stockTxt = `${it.stock} ${escaparHtml(it.unidad)}`;
+        const enPoderConocido = ES_DEVOLUCION && it.en_poder !== null && it.en_poder !== undefined;
+        const maxAttr = esHerramienta ? 'max="1"' : (enPoderConocido ? `max="${it.en_poder}"` : ((ES_DEVOLUCION || ES_INGRESO) ? '' : `max="${it.stock}"`));
+        const stockTxt = `${enPoderConocido ? it.en_poder : it.stock} ${escaparHtml(it.unidad)}`;
 
         let celdaEstado = '';
         if (ES_DEVOLUCION) {
@@ -443,7 +479,7 @@ function renderizarTablaItems() {
                 <td><span class="badge ${it.tipo === 'Herramienta' ? 'badge-info' : 'badge-neutral'}">${escaparHtml(it.tipo)}</span></td>
                 <td>${stockTxt}</td>
                 <td>
-                    <input type="number" class="form-control form-control--compacto" min="1" ${maxAttr} step="any" value="${it.cantidad}" onchange="actualizarCantidadItem('${codigoAttr}', this.value)">
+                    <input type="number" class="form-control form-control--compacto" min="0.01" ${maxAttr} step="any" value="${it.cantidad}" onchange="actualizarCantidadItem('${codigoAttr}', this.value)">
                 </td>
                 ${celdaEstado}
                 <td class="celda-centro">
@@ -457,44 +493,67 @@ function renderizarTablaItems() {
 
 // Autocompletado de operario e insumo (assets/js/autocompletado.js, se carga al final de la página)
 document.addEventListener('DOMContentLoaded', function () {
-    crearAutocompletado({
-        input: document.getElementById('buscar-operario'),
-        lista: document.getElementById('lista-operarios'),
-        url: '../ajax/buscar_autocompletado.php',
-        parametros: { recurso: 'operario' },
-        alSeleccionar: function (op) { document.getElementById('id_operario').value = op.id; },
-        alLimpiar: function () { document.getElementById('id_operario').value = ''; }
-    });
+    if (!ES_INGRESO) {
+        crearAutocompletado({
+            input: document.getElementById('buscar-operario'),
+            lista: document.getElementById('lista-operarios'),
+            url: '../ajax/buscar_autocompletado.php',
+            parametros: { recurso: 'operario' },
+            alSeleccionar: function (op) {
+                document.getElementById('id_operario').value = op.id;
+                cambioDeOperario();
+            },
+            alLimpiar: function () {
+                document.getElementById('id_operario').value = '';
+                cambioDeOperario();
+            }
+        });
 
-    crearAutocompletado({
-        input: document.getElementById('buscar-odt'),
-        lista: document.getElementById('lista-odt'),
-        url: '../ajax/buscar_autocompletado.php',
-        parametros: { recurso: 'odt', tipo: ES_DEVOLUCION ? 'devolucion' : 'entrega' },
-        alSeleccionar: function (ot) { document.getElementById('id_odt').value = ot.id; },
-        alLimpiar: function () { document.getElementById('id_odt').value = ''; }
-    });
+        crearAutocompletado({
+            input: document.getElementById('buscar-odt'),
+            lista: document.getElementById('lista-odt'),
+            url: '../ajax/buscar_autocompletado.php',
+            parametros: { recurso: 'odt', tipo: TIPO_FORM },
+            alSeleccionar: function (ot) { document.getElementById('id_odt').value = ot.id; },
+            alLimpiar: function () { document.getElementById('id_odt').value = ''; }
+        });
+    }
 
     crearAutocompletado({
         input: document.getElementById('buscar-insumo'),
         lista: document.getElementById('lista-insumos'),
         url: '../ajax/buscar_autocompletado.php',
-        parametros: { recurso: 'insumo', tipo: ES_DEVOLUCION ? 'devolucion' : 'entrega' },
+        // Al devolver, se ofrece solo lo que el operario elegido tiene en su poder
+        parametros: function () {
+            const p = { recurso: 'insumo', tipo: TIPO_FORM };
+            const op = document.getElementById('id_operario');
+            if (ES_DEVOLUCION && op && op.value) p.operario = op.value;
+            return p;
+        },
         alSeleccionar: function (ins) { insumoSeleccionado = ins; },
         alLimpiar: function () { insumoSeleccionado = null; }
     });
 });
 
+// Si cambia el operario de una devolución, la lista agregada ya no corresponde a lo que tiene en su poder
+function cambioDeOperario() {
+    if (!ES_DEVOLUCION || itemsMovimiento.length === 0) return;
+    itemsMovimiento = [];
+    renderizarTablaItems();
+    insumoSeleccionado = null;
+    document.getElementById('buscar-insumo').value = '';
+}
+
 function enviarMovimiento(e) {
     e.preventDefault();
 
-    if (!document.getElementById('id_operario').value) {
+    if (!ES_INGRESO && !document.getElementById('id_operario').value) {
         alert('Debe seleccionar un operario.');
         return;
     }
 
     // Texto escrito sin elegir una opción: se avisa en lugar de registrar el movimiento sin OT sin querer
-    if (document.getElementById('buscar-odt').value.trim() !== '' && !document.getElementById('id_odt').value) {
+    if (!ES_INGRESO && document.getElementById('buscar-odt').value.trim() !== '' && !document.getElementById('id_odt').value) {
         alert('Elija una Orden de Trabajo de la lista o deje el campo vacío para registrar el movimiento sin OT.');
         return;
     }

@@ -280,6 +280,15 @@ class Operario {
      * @return bool true si se deshabilitó correctamente
      */
     public function deshabilitar($id_operario) {
+        // RF-44: si tiene herramientas prestadas, no se puede dar de baja hasta que las devuelva
+        $enPoder = $this->getHerramientasCustodia((int)$id_operario);
+        if (!empty($enPoder)) {
+            $nombres = array_map(fn($h) => $h['nombre'] . ' (' . $h['codigo'] . ')', $enPoder);
+            throw new Exception('No se puede deshabilitar al operario: tiene ' . count($enPoder)
+                . (count($enPoder) === 1 ? ' herramienta prestada' : ' herramientas prestadas')
+                . ' sin devolver: ' . implode(', ', $nombres) . '. Registre primero la devolución.');
+        }
+
         try {
             return Auditoria::transaccion(function () use ($id_operario) {
                 $ok = $this->db->update('operario', ['activo' => false], 'id_operario = :id', ['id' => (int)$id_operario]);

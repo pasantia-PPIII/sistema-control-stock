@@ -19,6 +19,10 @@ La guía de instalación resumida (WAMP + PostgreSQL local):
 3. Copiar `config/env.example.php` como `config/env.php` y completar las credenciales propias.
 4. Abrir `http://localhost/sistema-control-stock/`.
 
+## Actualizar una base ya creada
+
+Las bases creadas con una versión anterior de `bd/db_control_stock.sql` se actualizan, sin perder datos, ejecutando una vez `bd/migracion_analisis_requerimientos.sql` (descripción del insumo, baja de herramientas, datos de la orden de trabajo, rubros de la orden y número de OT único). Si hay números de OT repetidos, la migración se detiene y los lista: hay que corregirlos y volver a ejecutarla. Una base nueva no la necesita.
+
 ## Configuración (`config/env.php`)
 
 Este archivo es **personal y no se sube al repositorio**. Se crea copiando `config/env.example.php`:
@@ -51,6 +55,14 @@ Este archivo es **personal y no se sube al repositorio**. Se crea copiando `conf
 - **Cargar o corregir stock** se hace desde el módulo **Insumos**, no con movimientos: al **crear** un insumo se indica el *Stock Inicial* (obligatorio en los materiales; si no hay existencias se carga 0; las herramientas nacen con 1) y al **editarlo** se cambia el *Stock Actual* (carga de mercadería, recuento físico o corrección). El valor ingresado pasa a ser el stock del insumo. Hoy ese cambio no deja registro del valor anterior.
 - **Herramientas:** son unidades enteras. Stock **1** = está en el pañol (estado Disponible); stock **0** = no está (Prestada, En Reparación o Dada de baja). Al crearla nace con stock 1. Una Entrega exige que esté Disponible con stock 1 y pasa el stock a 0; una Devolución lo vuelve a 1 solo si regresa Disponible. La cantidad del movimiento debe ser 1 y el stock de una herramienta no se edita a mano. Las herramientas no se cuentan en el "stock bajo" del Panel ni de Reportes.
 - **Anular un movimiento** revierte su efecto sobre el stock.
+- **Devoluciones:** solo se puede devolver lo que el operario tiene en su poder (entregado menos devuelto, sin contar movimientos anulados). Una herramienta solo la devuelve quien la tiene asignada. Al elegir el operario, el formulario ofrece únicamente lo que tiene.
+- **Ingreso de stock** (compra o reposición): movimiento de tipo *Ingreso* (Movimientos > Registrar Ingreso), solo materiales, sin operario ni orden de trabajo. Suma al stock y queda en la auditoría.
+- **Fecha y cantidades de un movimiento:** la fecha no puede ser futura; los materiales que se miden en unidad, plancha, bolsa, caja o rollo admiten solo cantidades enteras (litros, metros y kilogramos admiten decimales).
+- **Baja de operario:** no se puede deshabilitar a un operario que tenga herramientas prestadas sin devolver.
+- **Baja de herramienta:** se da de baja con motivo (rotura, pérdida, obsolescencia u otro) y fecha; si está prestada, primero debe devolverse. Pasa a *Dada de baja* con stock 0 y se puede reactivar. La ficha de una herramienta muestra quién la tiene, desde cuándo y todo su historial de asignaciones.
+- **Ficha de insumo:** muestra el kardex completo (paginado) con usuario, operario y orden de trabajo de cada movimiento, y se puede consultar aunque el insumo esté deshabilitado.
+- **Órdenes de trabajo:** el número es único (sin distinguir mayúsculas). Al registrarlas son obligatorios la descripción, el tipo de trabajo (reparación, construcción, mantenimiento edilicio), la dependencia solicitante, la fecha de solicitud y al menos un rubro. La fecha final no puede ser anterior a la inicial y el estado debe ser uno de los permitidos.
+- **Reportes a PDF:** cada pestaña de Reportes tiene el botón *Exportar PDF* (con el período elegido). El PDF lo arma `clases/pdf_reporte.php`, sin librerías externas.
 - **Orden de trabajo:** puede vincularse a un movimiento de entrega y a uno de devolución (ambos opcionales) y a una comisión de operarios.
 
 ## Seguridad
