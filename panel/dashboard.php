@@ -71,9 +71,57 @@ include_once __DIR__ . '/../layout/header.php';
 
 $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
+
+// Clases de color (definidas en panel.css) según el título del KPI, el estado de la OT y el tipo de movimiento.
+$colorKpi = [
+    'Insumos activos'             => 'blue',
+    'Con stock bajo'              => 'red',
+    'Herramientas prestadas'      => 'amber',
+    'Movimientos de hoy'          => 'indigo',
+    'Órdenes de trabajo abiertas' => 'green',
+    'Operarios activos'           => 'blue',
+    'Rubros activos'              => 'green',
+    'Usuarios inactivos'          => 'red',
+    'Herramientas en reparación'  => 'amber',
+];
+$claseEstadoOt = [
+    'Pendiente'   => 'pendiente',
+    'En Proceso'  => 'proceso',
+    'En Progreso' => 'proceso',
+    'Pausada'     => 'pausada',
+    'Finalizada'  => 'finalizada',
+    'Anulada'     => 'anulada',
+];
+$claseMovimiento = [
+    'Entrega'              => 'entrega',
+    'Devolución'           => 'devolucion',
+    'Ingreso'              => 'ingreso',
+    'Ajuste de Inventario' => 'ajuste',
+];
 ?>
 
 <p class="panel-rol">Resumen para el perfil <strong><?= $h($etiquetaRol) ?></strong></p>
+
+<?php if ($esAdmin || $esPanolero): ?>
+<div class="panel-accesos">
+    <a href="../movimiento/crear_movimiento.php?tipo=entrega" class="panel-acceso panel-acceso--blue">
+        <span class="panel-acceso-icono"><?= iconoAccion('dispatch', 16) ?></span>
+        <span>Nueva entrega</span>
+    </a>
+    <a href="../movimiento/crear_movimiento.php?tipo=devolucion" class="panel-acceso panel-acceso--green">
+        <span class="panel-acceso-icono"><?= iconoAccion('return', 16) ?></span>
+        <span>Nueva devolución</span>
+    </a>
+    <a href="../insumo/dashboard.php" class="panel-acceso panel-acceso--amber">
+        <span class="panel-acceso-icono"><?= iconoAccion('box', 16) ?></span>
+        <span>Gestionar insumos</span>
+    </a>
+    <a href="../orden_de_trabajo/dashboard.php" class="panel-acceso panel-acceso--indigo">
+        <span class="panel-acceso-icono"><?= iconoAccion('clipboard', 16) ?></span>
+        <span>Órdenes de trabajo</span>
+    </a>
+</div>
+<?php endif; ?>
 
 <?php if ($errorPanel): ?>
     <div class="panel-error"><?= $h($errorPanel) ?></div>
@@ -81,7 +129,7 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
 
 <div class="panel-kpis">
     <?php foreach ($kpis as [$titulo, $valor, $enlace, $clase]): ?>
-        <a class="panel-kpi <?= $h($clase) ?><?= ($clase === 'alerta' && $valor > 0) ? ' activo' : '' ?>" href="<?= $h($enlace) ?>">
+        <a class="panel-kpi panel-kpi--<?= $h($colorKpi[$titulo] ?? 'blue') ?> <?= $h($clase) ?><?= ($clase === 'alerta' && $valor > 0) ? ' activo' : '' ?>" href="<?= $h($enlace) ?>">
             <span class="panel-kpi-valor"><?= (int)$valor ?></span>
             <span class="panel-kpi-titulo"><?= $h($titulo) ?></span>
         </a>
@@ -114,9 +162,23 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
     <section class="panel-card">
         <h2>Órdenes de trabajo</h2>
         <?php if (!empty($ordenesPorEstado)): ?>
+            <?php $totalOrdenes = array_sum($ordenesPorEstado); ?>
+            <div class="panel-barras">
+                <?php foreach ($ordenesPorEstado as $estado => $cantidad):
+                    $porc = $totalOrdenes > 0 ? round(($cantidad / $totalOrdenes) * 100) : 0;
+                ?>
+                    <div class="panel-barra-fila">
+                        <span class="panel-barra-label"><?= $h($estado) ?></span>
+                        <div class="panel-barra-track">
+                            <div class="panel-barra-fill panel-barra-fill--<?= $h($claseEstadoOt[$estado] ?? 'pausada') ?>" style="--ancho: <?= (int)$porc ?>%;"></div>
+                        </div>
+                        <span class="panel-barra-valor"><?= (int)$cantidad ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
             <div class="panel-chips">
                 <?php foreach ($ordenesPorEstado as $estado => $cantidad): ?>
-                    <span class="panel-chip"><?= $h($estado) ?>: <strong><?= (int)$cantidad ?></strong></span>
+                    <span class="panel-chip panel-chip--<?= $h($claseEstadoOt[$estado] ?? 'pausada') ?>"><?= $h($estado) ?>: <strong><?= (int)$cantidad ?></strong></span>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
@@ -151,8 +213,8 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
                     <tr>
                         <td><a href="../movimiento/detalle_movimiento.php?id=<?= (int)$m['id_movimiento'] ?>">#<?= (int)$m['id_movimiento'] ?></a></td>
                         <td><?= $h($fecha($m['fecha'])) ?> <?= $h(substr($m['hora'], 0, 5)) ?></td>
-                        <td><?= $h($m['nombre_tipo_movimiento']) ?></td>
-                        <td><?= !empty($m['nombre_operario']) ? $h($m['nombre_operario']) : '-' ?></td>
+                        <td><span class="panel-badge-mov panel-badge-mov--<?= $h($claseMovimiento[$m['nombre_tipo_movimiento']] ?? 'otro') ?>"><?= $h($m['nombre_tipo_movimiento']) ?></span></td>
+                        <td><?= enlaceOperario($m['id_operario'] ?? null, $m['nombre_operario'] ?? null) ?></td>
                         <td class="num"><?= (int)$m['total_items'] ?></td>
                     </tr>
                 <?php endforeach; ?>
@@ -173,7 +235,7 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
                 <?php foreach ($vencimientos as $v):
                     $vencido = strtotime($v['fecha_vencimiento']) < strtotime('today');
                 ?>
-                    <tr>
+                    <tr class="<?= $vencido ? 'panel-fila-vencida' : '' ?>">
                         <td><a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($v['codigo']) ?>"><?= $h($v['codigo']) ?></a></td>
                         <td><?= $h($v['nombre']) ?></td>
                         <td><?= $h($fecha($v['fecha_vencimiento'])) ?><?= $vencido ? ' <span class="panel-vencido">vencido</span>' : '' ?></td>

@@ -267,7 +267,7 @@ function permisosActuales() {
 
 /**
  * Retorna el SVG de un icono de acción del sistema (estilo unificado Feather / Lucide).
- * Tipos admitidos: 'view', 'edit', 'delete', 'disable', 'enable', 'dispatch' (entrega), 'return' (devolución).
+ * Tipos admitidos: 'view', 'edit', 'delete', 'disable', 'enable', 'dispatch' (entrega), 'return' (devolución), 'box' (insumos), 'clipboard' (órdenes), 'close' (cerrar modal).
  */
 function iconoAccion($tipo, $size = 15) {
     switch ($tipo) {
@@ -284,9 +284,31 @@ function iconoAccion($tipo, $size = 15) {
             return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path></svg>';
         case 'return':
             return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>';
+        case 'box':
+            return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>';
+        case 'clipboard':
+            return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>';
+        case 'close':
+            return '<svg width="' . $size . '" height="' . $size . '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
         default:
             return '';
 
     }
 }
 
+
+/**
+ * Nombre de un operario como enlace a su ficha (operario/detalle_operario.php), escapado para HTML.
+ * Sin id (movimiento sin operario o dato viejo) devuelve el texto sin enlace; sin nombre, el texto de relleno.
+ * Las vistas que viven en una carpeta de primer nivel (movimiento/, panel/, reporte/, insumo/) usan la ruta relativa por defecto.
+ */
+function enlaceOperario($idOperario, $nombre, $vacio = '-') {
+    if ($nombre === null || $nombre === '') {
+        return htmlspecialchars((string)$vacio, ENT_QUOTES, 'UTF-8');
+    }
+    $texto = htmlspecialchars((string)$nombre, ENT_QUOTES, 'UTF-8');
+    if (empty($idOperario)) {
+        return $texto;
+    }
+    return '<a href="../operario/detalle_operario.php?id=' . (int)$idOperario . '" class="enlace-nombre">' . $texto . '</a>';
+}

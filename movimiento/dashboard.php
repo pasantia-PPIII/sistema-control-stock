@@ -94,7 +94,7 @@ include_once __DIR__ . '/../layout/header.php';
 ?>
 
 <!-- Contenedor de Alertas Dinámicas -->
-<div id="alerta-movimientos" style="display: none; padding: 0.85rem 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.9rem; font-weight: 600;"></div>
+<div id="alerta-movimientos" class="alerta-inline"></div>
 
 <!-- Barra de Filtros, Búsqueda y Botones de Acción -->
 <div class="action-bar-filters">
@@ -147,11 +147,11 @@ include_once __DIR__ . '/../layout/header.php';
                 elseif ($m['id_tipo_mov'] == 3) $tipoClass = 'badge-ingreso';
                 elseif ($m['id_tipo_mov'] == 4) $tipoClass = 'badge-ajuste';
 
-                $operarioTxt = !empty($m['nombre_operario']) ? htmlspecialchars($m['nombre_operario']) : 'No asignado';
+                $operarioTxt = enlaceOperario($m['id_operario'] ?? null, $m['nombre_operario'] ?? null, 'No asignado');
                 $usuarioTxt = !empty($m['dni_usuario']) ? htmlspecialchars($m['dni_usuario']) : '-';
                 $cantItems = (int)($m['total_items'] ?? 0);
             ?>
-            <div class="movimiento-card-row">
+            <div class="movimiento-card-row fila-clic">
                 <div><strong>#<?= htmlspecialchars($m['id_movimiento']) ?></strong></div>
                 <div><?= htmlspecialchars($m['fecha']) ?></div>
                 <div><?= htmlspecialchars(substr($m['hora'], 0, 5)) ?></div>
@@ -177,28 +177,14 @@ include_once __DIR__ . '/../layout/header.php';
 </div>
 
 <!-- Paginación -->
-<div class="pagination-container" id="contenedor-paginacion">
-    <?php if ($totalPaginas > 1): ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= max(1, $paginaActual - 1) ?>)" <?= ($paginaActual <= 1) ? 'disabled' : '' ?>>
-            Anterior
-        </button>
-        <?php for ($p = 1; $p <= $totalPaginas; $p++): ?>
-            <button type="button" class="pagination-btn <?= ($p === $paginaActual) ? 'active' : '' ?>" onclick="cambiarPagina(<?= $p ?>)">
-                <?= $p ?>
-            </button>
-        <?php endfor; ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= min($totalPaginas, $paginaActual + 1) ?>)" <?= ($paginaActual >= $totalPaginas) ? 'disabled' : '' ?>>
-            Siguiente
-        </button>
-    <?php endif; ?>
-</div>
+<div class="pagination-container" id="contenedor-paginacion" data-total="<?= (int)$totalPaginas ?>" data-actual="<?= (int)$paginaActual ?>"></div>
 
 <!-- ========================================================================= -->
 <!-- MODAL DE DETALLE DE MOVIMIENTO (FETCH ASÍNCRONO) -->
 <!-- ========================================================================= -->
 <div id="modal-detalle-movimiento" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-detalle-movimiento')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-detalle-movimiento')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         
         <div class="modal-header-text">
             <h2 id="modal-mov-titulo">Detalle del Movimiento</h2>
@@ -207,12 +193,11 @@ include_once __DIR__ . '/../layout/header.php';
 
         <div id="modal-mov-contenido">
             <!-- Cargado dinámicamente vía fetch() -->
-            <p style="text-align: center; color: #64748b; padding: 2rem;">Cargando información...</p>
+            <p class="estado-vacio">Cargando información...</p>
         </div>
 
         <div class="modal-actions-row">
-            <a id="modal-btn-ver-ficha" href="#" target="_blank" class="btn-action-text view" style="display: none; align-self: center;">Abrir Ficha Completa</a>
-            <button type="button" class="btn-modal-cancel" onclick="cerrarModal('modal-detalle-movimiento')">Cerrar</button>
+            <a id="modal-btn-ver-ficha" href="#" target="_blank" class="btn-action-text view btn-ver-ficha">Abrir Ficha Completa</a>
         </div>
     </div>
 </div>
@@ -296,13 +281,15 @@ function renderizarTabla(movimientos) {
         else if (m.id_tipo_mov == 3) tipoClass = 'badge-ingreso';
         else if (m.id_tipo_mov == 4) tipoClass = 'badge-ajuste';
 
-        const operarioTxt = m.nombre_operario ? escaparHtml(m.nombre_operario) : 'No asignado';
+        const operarioTxt = m.nombre_operario
+            ? (m.id_operario ? `<a href="../operario/detalle_operario.php?id=${encodeURIComponent(m.id_operario)}" class="enlace-nombre">${escaparHtml(m.nombre_operario)}</a>` : escaparHtml(m.nombre_operario))
+            : 'No asignado';
         const usuarioTxt = m.dni_usuario ? escaparHtml(m.dni_usuario) : '-';
         const cantItems = parseInt(m.total_items || 0, 10);
         const horaTxt = m.hora ? escaparHtml(m.hora.substring(0, 5)) : '';
 
         html += `
-        <div class="movimiento-card-row">
+        <div class="movimiento-card-row fila-clic">
             <div><strong>#${escaparHtml(String(m.id_movimiento))}</strong></div>
             <div>${escaparHtml(m.fecha)}</div>
             <div>${horaTxt}</div>
@@ -326,26 +313,6 @@ function renderizarTabla(movimientos) {
     contenedor.innerHTML = html;
 }
 
-function renderizarPaginacion(totalPaginas, pagina) {
-    const contenedor = document.getElementById('contenedor-paginacion');
-    if (!contenedor) return;
-
-    if (totalPaginas <= 1) {
-        contenedor.innerHTML = '';
-        return;
-    }
-
-    let html = '';
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.max(1, pagina - 1)})" ${pagina <= 1 ? 'disabled' : ''}>Anterior</button>`;
-
-    for (let p = 1; p <= totalPaginas; p++) {
-        html += `<button type="button" class="pagination-btn ${p === pagina ? 'active' : ''}" onclick="cambiarPagina(${p})">${p}</button>`;
-    }
-
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.min(totalPaginas, pagina + 1)})" ${pagina >= totalPaginas ? 'disabled' : ''}>Siguiente</button>`;
-
-    contenedor.innerHTML = html;
-}
 
 // Búsqueda en Vivo y Filtros
 document.getElementById('buscador-movimiento').addEventListener('input', function() {
@@ -385,7 +352,7 @@ function anularMovimiento(idMovimiento) {
 function abrirModalDetalle(idMovimiento) {
     document.getElementById('modal-mov-titulo').innerText = `Movimiento #${idMovimiento}`;
     const contenedor = document.getElementById('modal-mov-contenido');
-    contenedor.innerHTML = '<p style="text-align: center; color: #64748b; padding: 2rem;">Cargando información del movimiento...</p>';
+    contenedor.innerHTML = '<p class="estado-vacio">Cargando información del movimiento...</p>';
 
     const btnVerFicha = document.getElementById('modal-btn-ver-ficha');
     btnVerFicha.href = `detalle_movimiento.php?id=${idMovimiento}`;
@@ -407,8 +374,8 @@ function abrirModalDetalle(idMovimiento) {
             document.getElementById('modal-mov-subtitulo').innerText = `${m.nombre_tipo_movimiento} - ${m.fecha} a las ${m.hora.substring(0, 5)}`;
 
             let html = `
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; background-color: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.85rem;">
-                    <div><strong>Operario:</strong> ${escaparHtml(m.nombre_operario || 'No asignado')}</div>
+                <div class="mov-resumen">
+                    <div><strong>Operario:</strong> ${m.nombre_operario ? (m.id_operario ? `<a href="../operario/detalle_operario.php?id=${encodeURIComponent(m.id_operario)}" class="enlace-nombre">${escaparHtml(m.nombre_operario)}</a>` : escaparHtml(m.nombre_operario)) : 'No asignado'}</div>
                     <div><strong>Registrado Por:</strong> ${escaparHtml(m.dni_usuario || 'Sistema')}</div>
                     <div><strong>Fecha y Hora:</strong> ${escaparHtml(m.fecha)} ${escaparHtml(m.hora.substring(0, 5))}</div>
                     <div><strong>Estado Registro:</strong> ${m.activo ? '<span class="badge badge-success">Activo</span>' : '<span class="badge badge-danger">Anulado</span>'}</div>
@@ -416,53 +383,53 @@ function abrirModalDetalle(idMovimiento) {
 
             if (m.numero_ot) {
                 html += `
-                    <div style="margin-bottom: 0.75rem; font-size: 0.85rem; color: #475569;">
+                    <div class="mov-campo">
                         <strong>Orden de Trabajo:</strong> ${escaparHtml(m.numero_ot)}
                     </div>`;
             }
 
             if (m.nombre_motivo) {
                 html += `
-                    <div style="margin-bottom: 0.75rem; font-size: 0.85rem; color: #475569;">
+                    <div class="mov-campo">
                         <strong>Motivo de la devolución:</strong> ${escaparHtml(m.nombre_motivo)}
                     </div>`;
             }
 
             if (m.observaciones) {
                 html += `
-                    <div style="margin-bottom: 1.25rem; font-size: 0.85rem; color: #475569;">
+                    <div class="mov-campo mov-campo--ultimo">
                         <strong>Observaciones:</strong> ${escaparHtml(m.observaciones)}
                     </div>`;
             }
 
             html += `
-                <div style="font-weight: 700; color: #0b1536; font-size: 0.9rem; margin-bottom: 0.5rem;">Ítems Involucrados (${detalles.length})</div>
-                <div style="max-height: 250px; overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                <div class="mov-items-titulo">Ítems Involucrados (${detalles.length})</div>
+                <div class="mov-items-scroll">
+                    <table class="mov-items-tabla">
                         <thead>
-                            <tr style="border-bottom: 2px solid #e2e8f0; color: #0b1536; background-color: #f1f5f9;">
-                                <th style="padding: 0.5rem; text-align: left;">Código</th>
-                                <th style="padding: 0.5rem; text-align: left;">Insumo / Herramienta</th>
-                                <th style="padding: 0.5rem; text-align: left;">Tipo</th>
-                                <th style="padding: 0.5rem; text-align: right;">Cantidad</th>
-                                <th style="padding: 0.5rem; text-align: left;">Estado</th>
+                            <tr>
+                                <th>Código</th>
+                                <th>Insumo / Herramienta</th>
+                                <th>Tipo</th>
+                                <th class="mov-num">Cantidad</th>
+                                <th>Estado</th>
                             </tr>
                         </thead>
                         <tbody>`;
 
             if (detalles.length === 0) {
-                html += `<tr><td colspan="5" style="text-align: center; color: #64748b; padding: 1.5rem;">Sin ítems registrados.</td></tr>`;
+                html += `<tr><td colspan="5" class="estado-vacio estado-vacio--compacto">Sin ítems registrados.</td></tr>`;
             } else {
                 detalles.forEach(d => {
                     const cant = parseFloat(d.cantidad || 0);
                     const estadoH = d.nombre_estado_herramienta ? `<span class="badge badge-neutral">${escaparHtml(d.nombre_estado_herramienta)}</span>` : '-';
                     html += `
-                        <tr style="border-bottom: 1px solid #f1f5f9;">
-                            <td style="padding: 0.5rem; font-weight: 600;">${escaparHtml(d.codigo)}</td>
-                            <td style="padding: 0.5rem;">${escaparHtml(d.nombre_insumo)}</td>
-                            <td style="padding: 0.5rem;">${escaparHtml(d.tipo_insumo || 'Material')}</td>
-                            <td style="padding: 0.5rem; text-align: right; font-weight: 700;">${cant} ${escaparHtml(d.unidad_medida || '')}</td>
-                            <td style="padding: 0.5rem;">${estadoH}</td>
+                        <tr>
+                            <td class="mov-codigo">${escaparHtml(d.codigo)}</td>
+                            <td>${escaparHtml(d.nombre_insumo)}</td>
+                            <td>${escaparHtml(d.tipo_insumo || 'Material')}</td>
+                            <td class="mov-num">${cant} ${escaparHtml(d.unidad_medida || '')}</td>
+                            <td>${estadoH}</td>
                         </tr>`;
                 });
             }
@@ -471,7 +438,7 @@ function abrirModalDetalle(idMovimiento) {
             contenedor.innerHTML = html;
         })
         .catch(err => {
-            contenedor.innerHTML = `<p style="color: #dc2626; text-align: center; padding: 2rem;">Error al cargar detalle: ${escaparHtml(err.message)}</p>`;
+            contenedor.innerHTML = `<p class="estado-vacio estado-vacio--error">Error al cargar detalle: ${escaparHtml(err.message)}</p>`;
         });
 }
 

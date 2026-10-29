@@ -8,7 +8,6 @@
 sistema-control-stock/
 ├── index.php                          Punto de entrada: redirige al panel (con sesión) o al login
 ├── README.md                          Descripción general, roles, reglas del sistema y pendientes
-├── INSTALACION_LOCAL.txt              Guía de primera instalación (WAMP + PostgreSQL)
 ├── estructura.txt                     Este archivo
 ├── AUDITORIA_PASO_A_PASO.txt          Guía para agregar la auditoría (accesos, cambios y stock); todavía no aplicada
 ├── .gitignore                         Excluye config/env.php y uploads/
@@ -19,7 +18,11 @@ sistema-control-stock/
 │   ├── img/
 │   │   └── logo.jpeg                  Logo institucional
 │   └── js/
-│       └── main.js                    Modales y token CSRF automático en los fetch no-GET
+│       ├── main.js                    Modales, token CSRF automático en los fetch no-GET y paginación común de los listados
+│       └── autocompletado.js          Autocompletado por AJAX (un resultado o varios con etiquetas), con mouse y teclado
+│
+├── ajax/                              Endpoints JSON compartidos por varios módulos
+│   └── buscar_autocompletado.php      Búsqueda de operarios, insumos y órdenes de trabajo (de a 10 resultados)
 │
 ├── auth/                              Autenticación
 │   ├── login.php                      Inicio de sesión por DNI (CSRF + límite de 5 intentos fallidos)
@@ -31,6 +34,8 @@ sistema-control-stock/
 │   ├── seed_data.sql                  2) Datos base obligatorios: roles, tipos, estados, unidades,
 │   │                                     ubicaciones, tipos de movimiento, localidades, rubros
 │   ├── test_data.sql                  3) Datos de prueba y usuarios de ejemplo (solo desarrollo)
+│   ├── mas_datos.sql                  4) Opcional: volumen alto de datos ficticios (100 operarios, 300 insumos, 150 movimientos);
+│   │                                  se carga una sola vez, después de test_data.sql
 │   └── migracion_stock_herramientas.sql  Solo para bases ya cargadas: stock de herramientas
 │                                         1 si están Disponibles, 0 en otro estado (repetible)
 │
@@ -49,7 +54,7 @@ sistema-control-stock/
 │   ├── database.php                   Clase Database: conexión PDO a PostgreSQL
 │   ├── env.example.php                Plantilla de configuración (viene en el repositorio)
 │   └── env.php                        [LOCAL] Credenciales propias de la base; se crea copiando
-│                                      env.example.php (ver INSTALACION_LOCAL.txt, paso 5)
+│                                      env.example.php
 │
 ├── layout/                            Plantilla común de todas las pantallas internas
 │   ├── header.php                     Exige sesión; menú lateral, barra superior, meta CSRF
@@ -98,7 +103,6 @@ sistema-control-stock/
 │   ├── dashboard.php
 │   ├── crear_usuario.php
 │   ├── editar_usuario.php
-│   ├── detalle_usuario.php
 │   └── deshabilitar_usuario.php       Deshabilita / vuelve a habilitar
 │
 ├── reporte/

@@ -54,6 +54,16 @@ if ($esAjax) {
     exit;
 }
 
+// Operarios y movimientos se muestran de a 10 (?pagina_op=N y ?pagina_mov=N); cada lista pagina por separado
+$paginar = function (array $filas, string $param): array {
+    $porPagina = 10;
+    $totalPaginas = max(1, (int)ceil(count($filas) / $porPagina));
+    $pagina = min(max(1, (int)($_GET[$param] ?? 1)), $totalPaginas);
+    return ['filas' => array_slice($filas, ($pagina - 1) * $porPagina, $porPagina), 'paginas' => $totalPaginas, 'pagina' => $pagina];
+};
+$pgOperarios = $paginar($operarios, 'pagina_op');
+$pgMovimientos = $paginar($movimientos, 'pagina_mov');
+
 $seccion = 'orden_de_trabajo';
 $css_modulo = 'orden_de_trabajo';
 $titulo_vista = 'Detalle de Orden de Trabajo #' . $idOdt;
@@ -76,7 +86,7 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
                 <span class="badge <?= $badgeClass ?>"><?= $h($estado) ?></span>
             </div>
         </div>
-        <a href="dashboard.php" class="btn-modal-cancel" style="text-decoration:none;">Volver al Listado</a>
+        <a href="dashboard.php" class="btn-modal-cancel btn-volver-listado">Volver al Listado</a>
     </div>
 
     <div class="detail-grid">
@@ -110,43 +120,45 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
         </div>
     </div>
 
-    <div style="margin-bottom: 1.5rem;">
+    <div class="mb-24">
         <label class="modal-label">Trabajo a Realizar / Descripción</label>
-        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem; color: #334155; line-height: 1.6;">
+        <div class="caja-texto caja-texto--amplia">
             <?= !empty($orden['trabajo_a_realizar']) ? nl2br($h($orden['trabajo_a_realizar'])) : 'Sin descripción detallada.' ?>
         </div>
     </div>
 
-    <div style="margin-bottom: 1.5rem;">
+    <div class="mb-24">
         <label class="modal-label">Observaciones</label>
-        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem; color: #334155; line-height: 1.6;">
+        <div class="caja-texto caja-texto--amplia">
             <?= !empty($orden['observaciones']) ? nl2br($h($orden['observaciones'])) : 'Sin observaciones registradas.' ?>
         </div>
     </div>
 
-    <div style="margin-bottom: 1.5rem;">
+    <div class="mb-24" id="operarios-asignados">
         <label class="modal-label">Operarios Asignados (<?= count($operarios) ?>)</label>
         <?php if (empty($operarios)): ?>
-            <div style="color: #64748b;">No hay operarios asignados a esta orden.</div>
+            <div class="texto-tenue">No hay operarios asignados a esta orden.</div>
         <?php else: ?>
-            <ul style="margin: 0.3rem 0 0 1.2rem; color: #334155; line-height: 1.7;">
-                <?php foreach ($operarios as $op): ?>
+            <ul class="lista-detalle lista-detalle--legible">
+                <?php foreach ($pgOperarios['filas'] as $op): ?>
                     <li>
                         <?= $h($op['apellido'] . ', ' . $op['nombre']) ?> (DNI <?= $h($op['dni']) ?>)
                         <?= !empty($op['nombre_rubro']) ? ' - ' . $h($op['nombre_rubro']) : '' ?>
                     </li>
                 <?php endforeach; ?>
             </ul>
+            <div class="pagination-container" data-total="<?= $pgOperarios['paginas'] ?>" data-actual="<?= $pgOperarios['pagina'] ?>"
+                data-param="pagina_op" data-ancla="operarios-asignados"></div>
         <?php endif; ?>
     </div>
 
-    <div style="margin-bottom: 1.5rem;">
-        <label class="modal-label">Movimientos Vinculados</label>
+    <div class="mb-24" id="movimientos-vinculados">
+        <label class="modal-label">Movimientos Vinculados (<?= count($movimientos) ?>)</label>
         <?php if (empty($movimientos)): ?>
-            <div style="color: #64748b;">No hay entregas ni devoluciones vinculadas.</div>
+            <div class="texto-tenue">No hay entregas ni devoluciones vinculadas.</div>
         <?php else: ?>
-            <ul style="margin: 0.3rem 0 0 1.2rem; color: #334155; line-height: 1.7;">
-                <?php foreach ($movimientos as $mv): ?>
+            <ul class="lista-detalle lista-detalle--legible">
+                <?php foreach ($pgMovimientos['filas'] as $mv): ?>
                     <li>
                         <?= $mv['rol_en_odt'] === 'egreso' ? 'Entrega' : 'Devolución' ?>:
                         <a href="../movimiento/detalle_movimiento.php?id=<?= (int)$mv['id_movimiento'] ?>">Movimiento #<?= (int)$mv['id_movimiento'] ?></a>
@@ -154,6 +166,8 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
                     </li>
                 <?php endforeach; ?>
             </ul>
+            <div class="pagination-container" data-total="<?= $pgMovimientos['paginas'] ?>" data-actual="<?= $pgMovimientos['pagina'] ?>"
+                data-param="pagina_mov" data-ancla="movimientos-vinculados"></div>
         <?php endif; ?>
     </div>
 
@@ -163,7 +177,7 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
             <a href="<?= rtrim(BASE_URL, '/') ?>/uploads/pa_pdfs/<?= rawurlencode($orden['archivo_pdf']) ?>" target="_blank" rel="noopener" class="btn-pdf-view">
                 Ver PDF Adjunto
             </a>
-            <span style="font-size: 0.8rem; color: #64748b; margin-left: 0.5rem;">(<?= $h($orden['archivo_pdf']) ?>)</span>
+            <span class="pdf-nombre">(<?= $h($orden['archivo_pdf']) ?>)</span>
         <?php else: ?>
             <span class="btn-pdf-none">No se ha adjuntado ningún documento PDF a esta orden.</span>
         <?php endif; ?>

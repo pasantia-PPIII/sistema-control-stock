@@ -193,48 +193,6 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
-/* Paginación */
-.pagination-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.4rem;
-    margin-top: 1.5rem;
-}
-
-.pagination-btn {
-    background-color: #ffffff;
-    border: 1px solid var(--border-color);
-    padding: 0.45rem 0.85rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-decoration: none;
-}
-
-.pagination-btn:hover:not(:disabled) {
-    background-color: #f8fafc;
-    border-color: #94a3b8;
-}
-
-.pagination-btn.active {
-    background-color: var(--primary-blue);
-    color: #ffffff;
-    border-color: var(--primary-blue);
-}
-
-.pagination-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.pagination-btn.text-label {
-    padding: 0.45rem 1rem;
-}
-
 /* Modales */
 .modal-backdrop {
     position: fixed;
@@ -262,25 +220,6 @@
     padding: 2.2rem 2.5rem;
     position: relative;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-}
-
-.modal-close-btn {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.2rem;
-    background: transparent;
-    border: none;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #64748b;
-    cursor: pointer;
-    padding: 0.3rem 0.6rem;
-    border-radius: 4px;
-}
-
-.modal-close-btn:hover {
-    color: #0b1536;
-    background-color: #f1f5f9;
 }
 
 .modal-header-text {
@@ -384,6 +323,12 @@
 .form-control[readonly] {
     background-color: #f8fafc;
     cursor: not-allowed;
+}
+
+/* Dato de solo lectura con el mismo aspecto que un campo bloqueado, para poder llevar un enlace adentro */
+.form-control--texto {
+    background-color: #f8fafc;
+    min-height: 2.6rem;
 }
 
 /* Sección de Ítems Dinámicos */
@@ -525,3 +470,69 @@
     margin-bottom: 1.5rem;
     line-height: 1.45;
 }
+
+/* Formulario de nuevo movimiento y ficha del movimiento */
+.form-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.25rem;
+}
+
+.detalle-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.form-control--area { min-height: 70px; resize: vertical; }
+.form-control--compacto { padding: 0.35rem 0.5rem; }
+.form-control--fluido { flex: 1; }
+
+.form-grid-3--items {
+    background-color: #f8fafc;
+    padding: 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    align-items: flex-end;
+}
+
+.form-group--flex-2 { flex: 2; }
+.form-group--flex-1 { flex: 1; }
+.form-group--flex-auto { flex: 0 0 auto; }
+
+.col-cantidad { width: 140px; }
+.col-estado { width: 170px; }
+.col-accion { width: 90px; text-align: center; }
+
+.fila-odt { display: flex; gap: 0.75rem; align-items: center; }
+.msg-odt { font-size: 0.85rem; margin-top: 0.4rem; font-weight: 600; }
+
+/* Modal de detalle de movimiento (se arma por JavaScript en dashboard.php) */
+.btn-ver-ficha { display: none; align-self: center; }
+
+.mov-resumen {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    background-color: #f8fafc;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    font-size: 0.85rem;
+}
+
+.mov-campo { margin-bottom: 0.75rem; font-size: 0.85rem; color: #475569; }
+.mov-campo--ultimo { margin-bottom: 1.25rem; }
+
+.mov-items-titulo { font-weight: 700; color: #0b1536; font-size: 0.9rem; margin-bottom: 0.5rem; }
+.mov-items-scroll { max-height: 250px; overflow-y: auto; }
+.mov-items-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.mov-items-tabla thead tr { border-bottom: 2px solid #e2e8f0; color: #0b1536; background-color: #f1f5f9; }
+.mov-items-tabla tbody tr { border-bottom: 1px solid #f1f5f9; }
+.mov-items-tabla th,
+.mov-items-tabla td { padding: 0.5rem; text-align: left; }
+.mov-items-tabla .mov-num { text-align: right; }
+.mov-items-tabla td.mov-codigo { font-weight: 600; }
+.mov-items-tabla td.mov-num { font-weight: 700; }

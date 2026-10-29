@@ -61,7 +61,7 @@ $pgOper = rp_paginar($htasPorOperario, 'hop');
                         <tr>
                             <td><a href="<?= $h($linkInsumo($t['codigo'])) ?>"><strong><?= $h($t['codigo']) ?></strong></a></td>
                             <td><?= $h($t['nombre']) ?></td>
-                            <td><?= $h($t['operario']) ?></td>
+                            <td><?= enlaceOperario($t['id_operario'] ?? null, $t['operario'] ?? null) ?></td>
                             <td><?= $h(rp_fecha($t['fecha_entrega'])) ?></td>
                             <td class="num">
                                 <span class="rp-pastilla <?= $clase ?>"><?= $dias === null ? 'Sin dato' : $h(rp_dias($dias)) ?></span>

@@ -218,23 +218,6 @@
     overflow-y: auto;
 }
 
-.modal-close-btn {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.5rem;
-    background: none;
-    border: none;
-    font-size: 0.85rem;
-    font-weight: 700;
-    cursor: pointer;
-    color: #64748b;
-    text-decoration: underline;
-}
-
-.modal-close-btn:hover {
-    color: #0b1536;
-}
-
 .modal-title {
     text-align: center;
     font-size: 1.5rem;
@@ -370,46 +353,6 @@
     font-size: 0.95rem;
 }
 
-/* Paginación */
-.pagination-container {
-    display: flex;
-    justify-content: center;
-    gap: 0.4rem;
-    margin-top: 1.5rem;
-}
-
-.pagination-btn {
-    background-color: #ffffff;
-    border: 1px solid #d1d5db;
-    padding: 0.45rem 0.85rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.pagination-btn:hover:not(:disabled) {
-    background-color: #f8fafc;
-    border-color: #94a3b8;
-}
-
-.pagination-btn.active {
-    background-color: var(--primary-blue);
-    color: #ffffff;
-    border-color: var(--primary-blue);
-}
-
-.pagination-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.pagination-btn.text-label {
-    padding: 0.45rem 1rem;
-}
-
 /* Ficha de Detalle (ver_detalle.php) */
 .detail-card {
     background-color: #ffffff;
@@ -459,3 +402,8 @@
     color: #1e293b;
     font-weight: 600;
 }
+
+
+/* Modales y ficha de la orden (clases compartidas en global.css: caja-texto, lista-detalle, mb-*) */
+.btn-volver-listado { text-decoration: none; }
+.pdf-nombre { font-size: 0.8rem; color: #64748b; margin-left: 0.5rem; }

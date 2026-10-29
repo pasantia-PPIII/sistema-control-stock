@@ -36,6 +36,42 @@ class OrdenDeTrabajo {
     }
 
     /**
+     * Texto con el que se muestra una orden en los autocompletados: "OT-001 - Trabajo a realizar [Estado]".
+     * @param array $ot Fila con numero_ot, trabajo_a_realizar y estado
+     */
+    public static function textoParaSelect(array $ot): string {
+        $trabajo = trim((string)($ot['trabajo_a_realizar'] ?? ''));
+        if (mb_strlen($trabajo) > 60) {
+            $trabajo = mb_substr($trabajo, 0, 60) . '...';
+        }
+        return $ot['numero_ot'] . ($trabajo !== '' ? ' - ' . $trabajo : '') . ' [' . ($ot['estado'] ?? 'Pendiente') . ']';
+    }
+
+    /**
+     * Órdenes habilitadas para el autocompletado de los formularios, paginadas en la base (LIMIT/OFFSET).
+     * Busca por número de OT, PA o trabajo a realizar. Con $solo_abiertas excluye las Finalizadas y Anuladas
+     * (una entrega no puede vincularse a ellas).
+     * @return array Hasta $limite órdenes desde $offset
+     */
+    public function buscarParaSelect(string $termino = '', int $limite = 10, int $offset = 0, bool $solo_abiertas = false): array {
+        $sql = "SELECT o.id_odt, o.numero_ot, o.pa, o.trabajo_a_realizar, o.estado
+                FROM orden_de_trabajo o
+                WHERE o.activo = TRUE";
+        $params = [];
+        if ($solo_abiertas) {
+            $sql .= " AND COALESCE(o.estado, 'Pendiente') NOT IN ('Finalizada', 'Anulada')";
+        }
+        if ($termino !== '') {
+            $sql .= " AND (o.numero_ot ILIKE :termino OR o.pa ILIKE :termino OR o.trabajo_a_realizar ILIKE :termino)";
+            $params['termino'] = '%' . addcslashes($termino, '%_\\') . '%';
+        }
+        // De la más reciente a la más vieja; las que no tienen fecha de inicio van al final
+        $sql .= " ORDER BY o.fecha_inicio DESC NULLS LAST, o.id_odt DESC
+                  LIMIT " . max(1, $limite) . " OFFSET " . max(0, $offset);
+        return $this->db->fetchAll($sql, $params);
+    }
+
+    /**
      * Órdenes de Trabajo filtradas y paginadas en la base (LIMIT/OFFSET), igual que reportes y auditoría.
      * @param string $busqueda Texto a buscar en id, número de OT, PA y trabajo a realizar
      * @param string $estado Estado del trabajo ('' = todos)

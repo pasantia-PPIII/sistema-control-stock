@@ -235,25 +235,6 @@
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
 }
 
-.modal-close-btn {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.2rem;
-    background: transparent;
-    border: none;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #64748b;
-    cursor: pointer;
-    padding: 0.3rem 0.6rem;
-    border-radius: 4px;
-}
-
-.modal-close-btn:hover {
-    color: #0b1536;
-    background-color: #f1f5f9;
-}
-
 .modal-header-text {
     text-align: center;
     margin-bottom: 1.5rem;
@@ -334,50 +315,6 @@
     background-color: #1e293b;
 }
 
-/* Paginación limpia */
-.pagination-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.4rem;
-    margin-top: 1.5rem;
-}
-
-.pagination-container:empty {
-    display: none !important;
-}
-
-.pagination-btn {
-    background-color: #ffffff;
-    border: 1px solid var(--border-color, #cbd5e1);
-    padding: 0.45rem 0.85rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.pagination-btn:hover:not(:disabled) {
-    background-color: #f8fafc;
-    border-color: #94a3b8;
-}
-
-.pagination-btn.active {
-    background-color: var(--primary-blue, #0b1536);
-    color: #ffffff;
-    border-color: var(--primary-blue, #0b1536);
-}
-
-.pagination-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.pagination-btn.text-label {
-    padding: 0.45rem 1rem;
-}
 /* ==========================================================================
    Utilidades de la vista y estilos extraídos del HTML/JS inline
    ========================================================================== */
@@ -408,3 +345,102 @@
 .modal-card--estado { max-width: 480px; }
 .estado-caja { border-radius: 8px; padding: 1.1rem; margin-bottom: 1.5rem; font-size: 0.9rem; }
 .estado-nota { margin-top: 0.5rem; font-size: 0.82rem; }
+
+
+/* Ficha del operario */
+
+.ficha-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.ficha-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.ficha-title { font-size: 1.5rem; font-weight: 800; color: #0b1536; }
+.ficha-subtitle { font-size: 0.85rem; color: #64748b; margin-top: 0.25rem; }
+
+.btn-volver-ficha {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-volver-ficha:hover { background-color: #e2e8f0; }
+
+.ficha-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.ficha-dato strong {
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.25rem;
+}
+
+.ficha-dato span { font-size: 0.95rem; color: #1e293b; font-weight: 600; }
+
+.ficha-seccion { margin-bottom: 2rem; }
+.ficha-seccion--ultima { margin-bottom: 0; }
+
+.ficha-seccion__titulo {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #64748b;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.ficha-tabla-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background-color: #ffffff;
+}
+
+.ficha-tabla { width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left; }
+
+.ficha-tabla th {
+    background-color: #f8fafc;
+    color: #0b1536;
+    font-weight: 700;
+    padding: 0.85rem 1rem;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.ficha-tabla td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    vertical-align: middle;
+}
+
+.ficha-tabla tbody tr:hover { background-color: #f8fafc; }
+.ficha-tabla tbody tr:last-child td { border-bottom: none; }
+.ficha-tabla a { color: #1d4ed8; text-decoration: none; }
+.ficha-tabla a:hover { text-decoration: underline; }

@@ -26,18 +26,6 @@ require_once __DIR__ . '/../clases/rubro.php';
 
 $rubroModel = new Rubro();
 
-// ACCIÓN AJAX: OBTENER INSUMOS DE UN RUBRO ESPECÍFICO
-if (isset($_GET['action']) && $_GET['action'] === 'insumos' && !empty($_GET['id_rubro'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    $idRubro = (int) $_GET['id_rubro'];
-    $insumos = $rubroModel->getInsumosByRubro($idRubro);
-    echo json_encode([
-        'success' => true,
-        'data' => $insumos
-    ]);
-    exit;
-}
-
 // FILTROS Y PAGINACIÓN
 $porPagina = 10;
 $paginaActual = isset($_GET['pagina']) ? max(1, (int) $_GET['pagina']) : 1;
@@ -121,7 +109,7 @@ include_once __DIR__ . '/../layout/header.php';
                 $descEscapada = !empty($r['descripcion']) ? htmlspecialchars($r['descripcion']) : 'Sin descripción';
                 $cantInsumos = (int) ($r['total_insumos'] ?? 0);
                 $badgeInsumos = $cantInsumos > 0
-                    ? "<button type='button' class='badge badge-info badge-boton' onclick='verInsumosRubro({$r['id_rubro']}, \"{$nombreEscapado}\")'>{$cantInsumos} insumos</button>"
+                    ? "<span class='badge badge-info'>{$cantInsumos} insumos</span>"
                     : "<span class='badge badge-neutral'>0 insumos</span>";
 
                 $esActivo = !empty($r['activo']) && $r['activo'] !== 'f';
@@ -129,7 +117,7 @@ include_once __DIR__ . '/../layout/header.php';
                     ? "<span class='badge badge-success'>Activo</span>"
                     : "<span class='badge badge-danger'>Inactivo</span>";
                 ?>
-                <div class="rubro-card-row">
+                <div class="rubro-card-row fila-clic">
                     <div><strong>#<?= htmlspecialchars($r['id_rubro']) ?></strong></div>
                     <div class="rubro-name-cell"><?= $nombreEscapado ?></div>
                     <div class="rubro-desc-cell" title="<?= $descEscapada ?>"><?= $descEscapada ?></div>
@@ -164,29 +152,12 @@ include_once __DIR__ . '/../layout/header.php';
 </div>
 
 <!-- Paginación -->
-<div class="pagination-container" id="contenedor-paginacion">
-    <?php if ($totalPaginas > 1): ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= max(1, $paginaActual - 1) ?>)"
-            <?= ($paginaActual <= 1) ? 'disabled' : '' ?>>
-            Anterior
-        </button>
-        <?php for ($p = 1; $p <= $totalPaginas; $p++): ?>
-            <button type="button" class="pagination-btn <?= ($p === $paginaActual) ? 'active' : '' ?>"
-                onclick="cambiarPagina(<?= $p ?>)">
-                <?= $p ?>
-            </button>
-        <?php endfor; ?>
-        <button type="button" class="pagination-btn text-label"
-            onclick="cambiarPagina(<?= min($totalPaginas, $paginaActual + 1) ?>)" <?= ($paginaActual >= $totalPaginas) ? 'disabled' : '' ?>>
-            Siguiente
-        </button>
-    <?php endif; ?>
-</div>
+<div class="pagination-container" id="contenedor-paginacion" data-total="<?= (int)$totalPaginas ?>" data-actual="<?= (int)$paginaActual ?>"></div>
 
 <!-- Modales -->
 <div id="modal-cargar-rubro" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-cargar-rubro')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-cargar-rubro')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2>Nuevo Rubro</h2>
             <p>Registrar una nueva categoría o rubro de insumos</p>
@@ -216,7 +187,7 @@ include_once __DIR__ . '/../layout/header.php';
 
 <div id="modal-editar-rubro" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-editar-rubro')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-editar-rubro')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2>Editar Rubro</h2>
             <p>Actualizar datos del rubro seleccionado</p>
@@ -246,7 +217,7 @@ include_once __DIR__ . '/../layout/header.php';
 
 <div id="modal-deshabilitar-rubro" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-deshabilitar-rubro')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-deshabilitar-rubro')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2>Deshabilitar Rubro</h2>
             <p>Confirmar la baja del rubro seleccionado</p>
@@ -265,22 +236,6 @@ include_once __DIR__ . '/../layout/header.php';
                 <button type="submit" class="btn-modal-danger" id="btn-submit-deshabilitar">Deshabilitar</button>
             </div>
         </form>
-    </div>
-</div>
-
-<div id="modal-insumos-rubro" class="modal-backdrop">
-    <div class="modal-card modal-card--insumos">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-insumos-rubro')">Cerrar</button>
-        <div class="modal-header-text">
-            <h2 id="insumos-rubro-titulo">Insumos Asociados</h2>
-            <p id="insumos-rubro-subtitulo">Listado de insumos vinculados a este rubro</p>
-        </div>
-
-        <div id="lista-insumos-rubro" class="lista-insumos-rubro"></div>
-
-        <div class="modal-actions-row">
-            <button type="button" class="btn-modal-cancel" onclick="cerrarModal('modal-insumos-rubro')">Cerrar</button>
-        </div>
     </div>
 </div>
 

@@ -70,21 +70,24 @@ $titulo_pagina = 'Movimiento #' . $idMovimiento . ' - Sistema DeControl';
 $tipoVinculable = in_array($movimiento['nombre_tipo_movimiento'], [Movimiento::TIPO_ENTREGA, Movimiento::TIPO_DEVOLUCION], true);
 $movActivo = !empty($movimiento['activo']) && $movimiento['activo'] !== 'f';
 $puedeVincular = $tipoVinculable && $movActivo && canEdit();
-$ordenesVinculables = [];
+$odtActual = '';
+$tipoBusquedaOdt = 'devolucion';
 if ($puedeVincular) {
+    // La OT se busca por AJAX (ajax/buscar_autocompletado.php). Una entrega no puede vincularse a una orden Finalizada o Anulada
+    $js_modulo = 'autocompletado';
     require_once __DIR__ . '/../clases/orden_de_trabajo.php';
-    $esEntrega = ($movimiento['nombre_tipo_movimiento'] === Movimiento::TIPO_ENTREGA);
-    $ordenesVinculables = array_values(array_filter((new OrdenDeTrabajo())->getAll(), function ($o) use ($movimiento, $esEntrega) {
-        $esActual = (int)$o['id_odt'] === (int)($movimiento['id_odt'] ?? 0);
-        return $esActual || !$esEntrega || !in_array($o['estado'] ?? '', ['Finalizada', 'Anulada'], true);
-    }));
+    $tipoBusquedaOdt = ($movimiento['nombre_tipo_movimiento'] === Movimiento::TIPO_ENTREGA) ? 'entrega' : 'devolucion';
+    if (!empty($movimiento['id_odt'])) {
+        $otActual = (new OrdenDeTrabajo())->getById((int)$movimiento['id_odt']);
+        $odtActual = $otActual ? OrdenDeTrabajo::textoParaSelect($otActual) : (string)($movimiento['numero_ot'] ?? '');
+    }
 }
 
 include_once __DIR__ . '/../layout/header.php';
 ?>
 
 <div class="form-card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div class="detalle-cabecera">
         <div>
             <h2 class="form-card-title">Movimiento #<?= htmlspecialchars($movimiento['id_movimiento']) ?></h2>
             <p class="form-card-subtitle"><?= htmlspecialchars($movimiento['nombre_tipo_movimiento']) ?> - Registrado el <?= htmlspecialchars($movimiento['fecha']) ?> a las <?= htmlspecialchars(substr($movimiento['hora'], 0, 5)) ?></p>
@@ -99,7 +102,7 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
         <div class="form-group">
             <label>Operario Responsable</label>
-            <input type="text" class="form-control" value="<?= !empty($movimiento['nombre_operario']) ? htmlspecialchars($movimiento['nombre_operario']) : 'No aplica' ?>" readonly>
+            <div class="form-control form-control--texto"><?= enlaceOperario($movimiento['id_operario'] ?? null, $movimiento['nombre_operario'] ?? null, 'No aplica') ?></div>
         </div>
         <div class="form-group">
             <label>Registrado Por (Usuario)</label>
@@ -108,44 +111,36 @@ include_once __DIR__ . '/../layout/header.php';
     </div>
 
     <?php if ($puedeVincular): ?>
-    <div class="form-group" style="margin-bottom: 1.25rem;">
-        <label for="id_odt">Orden de Trabajo (opcional)</label>
-        <div style="display: flex; gap: 0.75rem; align-items: center;">
-            <select id="id_odt" class="form-control" style="flex: 1;">
-                <option value="">Sin OT / Uso general</option>
-                <?php foreach ($ordenesVinculables as $ot):
-                    $trabajoOt = trim((string)($ot['trabajo_a_realizar'] ?? ''));
-                    if (mb_strlen($trabajoOt) > 60) {
-                        $trabajoOt = mb_substr($trabajoOt, 0, 60) . '...';
-                    }
-                    $textoOt = $ot['numero_ot'] . ($trabajoOt !== '' ? ' - ' . $trabajoOt : '') . ' [' . ($ot['estado'] ?? 'Pendiente') . ']';
-                ?>
-                    <option value="<?= (int)$ot['id_odt'] ?>" <?= ((int)($movimiento['id_odt'] ?? 0) === (int)$ot['id_odt']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($textoOt) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+    <div class="form-group mb-20">
+        <label for="buscar-odt">Orden de Trabajo (opcional)</label>
+        <div class="fila-odt">
+            <div class="autocomplete-wrapper form-control--fluido">
+                <input type="text" id="buscar-odt" class="form-control" placeholder="Escriba el N° de OT, PA o trabajo... (vacío = sin OT / uso general)" autocomplete="off"
+                       value="<?= htmlspecialchars($odtActual) ?>">
+                <input type="hidden" id="id_odt" value="<?= (int)($movimiento['id_odt'] ?? 0) ?: '' ?>">
+                <div id="lista-odt" class="autocomplete-list"></div>
+            </div>
             <button type="button" class="btn-submit-form" id="btn-guardar-odt" onclick="guardarOrdenMovimiento(<?= (int)$idMovimiento ?>)">Guardar</button>
         </div>
-        <div id="msg-odt" style="font-size: 0.85rem; margin-top: 0.4rem; font-weight: 600;"></div>
+        <div id="msg-odt" class="msg-odt"></div>
     </div>
     <?php elseif (!empty($movimiento['numero_ot'])): ?>
-    <div class="form-group" style="margin-bottom: 1.25rem;">
+    <div class="form-group mb-20">
         <label>Orden de Trabajo</label>
         <input type="text" class="form-control" value="<?= htmlspecialchars($movimiento['numero_ot']) ?>" readonly>
     </div>
     <?php endif; ?>
 
     <?php if (!empty($movimiento['nombre_motivo'])): ?>
-    <div class="form-group" style="margin-bottom: 1.25rem;">
+    <div class="form-group mb-20">
         <label>Motivo de la Devolución</label>
         <input type="text" class="form-control" value="<?= htmlspecialchars($movimiento['nombre_motivo']) ?>" readonly>
     </div>
     <?php endif; ?>
 
-    <div class="form-group" style="margin-bottom: 2rem;">
+    <div class="form-group mb-32">
         <label>Observaciones</label>
-        <textarea class="form-control" style="min-height: 70px; resize: vertical;" readonly><?= !empty($movimiento['observaciones']) ? htmlspecialchars($movimiento['observaciones']) : 'Sin observaciones registradas.' ?></textarea>
+        <textarea class="form-control form-control--area" readonly><?= !empty($movimiento['observaciones']) ? htmlspecialchars($movimiento['observaciones']) : 'Sin observaciones registradas.' ?></textarea>
     </div>
 
     <div class="items-section-header">
@@ -158,7 +153,7 @@ include_once __DIR__ . '/../layout/header.php';
                 <th>Código</th>
                 <th>Insumo / Herramienta</th>
                 <th>Tipo</th>
-                <th style="text-align: right;">Cantidad</th>
+                <th class="celda-derecha">Cantidad</th>
                 <th>Unidad</th>
                 <th>Estado Herramienta</th>
             </tr>
@@ -166,17 +161,17 @@ include_once __DIR__ . '/../layout/header.php';
         <tbody>
             <?php if (empty($detalles)): ?>
                 <tr>
-                    <td colspan="6" style="text-align: center; color: #64748b; padding: 2rem;">No hay detalles registrados para este movimiento.</td>
+                    <td colspan="6" class="estado-vacio">No hay detalles registrados para este movimiento.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($detalles as $d): 
                     $estadoHerramienta = !empty($d['nombre_estado_herramienta']) ? htmlspecialchars($d['nombre_estado_herramienta']) : 'No aplica';
                 ?>
                 <tr>
-                    <td style="font-weight: 700;"><?= htmlspecialchars($d['codigo']) ?></td>
+                    <td class="celda-fuerte"><?= htmlspecialchars($d['codigo']) ?></td>
                     <td><?= htmlspecialchars($d['nombre_insumo']) ?></td>
                     <td><?= htmlspecialchars($d['tipo_insumo'] ?? 'Material') ?></td>
-                    <td style="text-align: right; font-weight: 700;"><?= (float)$d['cantidad'] ?></td>
+                    <td class="celda-derecha celda-fuerte"><?= (float)$d['cantidad'] ?></td>
                     <td><?= htmlspecialchars($d['unidad_medida'] ?? 'unidades') ?></td>
                     <td><span class="badge badge-neutral"><?= $estadoHerramienta ?></span></td>
                 </tr>
@@ -188,9 +183,29 @@ include_once __DIR__ . '/../layout/header.php';
 
 <?php if ($puedeVincular): ?>
 <script>
+// Autocompletado de la OT (assets/js/autocompletado.js, se carga al final de la página)
+document.addEventListener('DOMContentLoaded', function () {
+    crearAutocompletado({
+        input: document.getElementById('buscar-odt'),
+        lista: document.getElementById('lista-odt'),
+        url: '../ajax/buscar_autocompletado.php',
+        parametros: { recurso: 'odt', tipo: '<?= $tipoBusquedaOdt ?>' },
+        alSeleccionar: function (ot) { document.getElementById('id_odt').value = ot.id; },
+        alLimpiar: function () { document.getElementById('id_odt').value = ''; }
+    });
+});
+
 function guardarOrdenMovimiento(idMovimiento) {
     const btn = document.getElementById('btn-guardar-odt');
     const msg = document.getElementById('msg-odt');
+
+    // Texto escrito sin elegir una opción: se avisa en lugar de quitar la OT sin querer
+    if (document.getElementById('buscar-odt').value.trim() !== '' && !document.getElementById('id_odt').value) {
+        msg.style.color = '#991b1b';
+        msg.innerText = 'Elija una Orden de Trabajo de la lista o deje el campo vacío para dejar el movimiento sin OT.';
+        return;
+    }
+
     const formData = new FormData();
     formData.append('id_movimiento', idMovimiento);
     formData.append('id_odt', document.getElementById('id_odt').value);

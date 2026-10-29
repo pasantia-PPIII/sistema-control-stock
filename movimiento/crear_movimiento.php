@@ -148,28 +148,34 @@ $css_modulo = 'movimientos';
 $titulo_vista = $esDevolucion ? 'Registrar Devolución de Pañol' : 'Registrar Entrega de Pañol';
 $titulo_pagina = ($esDevolucion ? 'Registrar Devolución' : 'Registrar Entrega') . ' - Sistema de Control de Stock';
 
-$operarios = $operarioModel->getParaSelect();
-$insumos = $insumoModel->getAll();
-$estadosHerramienta = $movimientoModel->getEstadosHerramienta();
-$nombresEstadoHerramienta = array_column($estadosHerramienta, 'estado', 'id_estado_herramienta');
+// El operario y el insumo se buscan por AJAX (ajax/buscar_autocompletado.php) al escribir, de a 10 resultados
+$js_modulo = 'autocompletado';
 
+$estadosHerramienta = $movimientoModel->getEstadosHerramienta();
+
+// Operario preseleccionado (?id_operario=): se muestra su texto y se envía su id en el campo oculto
 $idOperarioPre = !empty($_GET['id_operario']) ? (int)$_GET['id_operario'] : 0;
+$operarioPre = $idOperarioPre ? $operarioModel->getById($idOperarioPre) : null;
+if ($operarioPre && empty($operarioPre['activo'])) {
+    $operarioPre = null;
+}
 $motivosDevolucion = $esDevolucion ? $movimientoModel->getMotivosDevolucion() : [];
 
-// Órdenes de Trabajo habilitadas para vincular (RF-27). Una entrega no se puede asociar a una orden Finalizada o Anulada
+// Orden de Trabajo preseleccionada (?id_odt=, RF-27). Una entrega no se puede asociar a una orden Finalizada o Anulada
 $idOdtPre = !empty($_GET['id_odt']) ? (int)$_GET['id_odt'] : 0;
-$ordenesVinculables = array_values(array_filter($odtModel->getAll(), function ($o) use ($esDevolucion) {
-    return $esDevolucion || !in_array($o['estado'] ?? '', ['Finalizada', 'Anulada'], true);
-}));
+$odtPre = $idOdtPre ? $odtModel->getById($idOdtPre) : null;
+if ($odtPre && !$esDevolucion && in_array($odtPre['estado'] ?? '', ['Finalizada', 'Anulada'], true)) {
+    $odtPre = null;
+}
 
 include_once __DIR__ . '/../layout/header.php';
 ?>
 
 <!-- Contenedor de Alertas Dinámicas -->
-<div id="alerta-movimiento" style="display: none; padding: 0.85rem 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.9rem; font-weight: 600;"></div>
+<div id="alerta-movimiento" class="alerta-inline"></div>
 
 <div class="form-card">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem;">
+    <div class="form-card-header">
         <div>
             <?php if ($esDevolucion): ?>
                 <h2 class="form-card-title">Nueva Devolución de Insumos y Herramientas</h2>
@@ -187,16 +193,12 @@ include_once __DIR__ . '/../layout/header.php';
 
         <!-- Cabecera del Movimiento -->
         <div class="form-grid-3">
-            <div class="form-group">
-                <label for="id_operario">Operario <?= $esDevolucion ? 'que Devuelve' : 'Responsable' ?> *</label>
-                <select id="id_operario" name="id_operario" class="form-control" required>
-                    <option value="">-- Seleccionar Operario --</option>
-                    <?php foreach ($operarios as $op): ?>
-                        <option value="<?= (int)$op['id_operario'] ?>" <?= ($idOperarioPre === (int)$op['id_operario']) ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($op['apellido'] . ', ' . $op['nombre'] . ' - DNI: ' . $op['dni']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="form-group autocomplete-wrapper">
+                <label for="buscar-operario">Operario <?= $esDevolucion ? 'que Devuelve' : 'Responsable' ?> *</label>
+                <input type="text" id="buscar-operario" class="form-control" placeholder="Escriba DNI, apellido o nombre..." autocomplete="off"
+                       value="<?= $operarioPre ? htmlspecialchars($operarioPre['apellido'] . ', ' . $operarioPre['nombre'] . ' - DNI: ' . $operarioPre['dni']) : '' ?>">
+                <input type="hidden" id="id_operario" name="id_operario" value="<?= $operarioPre ? (int)$operarioPre['id_operario'] : '' ?>">
+                <div id="lista-operarios" class="autocomplete-list"></div>
             </div>
 
             <div class="form-group">
@@ -211,7 +213,7 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
 
         <?php if ($esDevolucion): ?>
-        <div class="form-group" style="margin-bottom: 1.25rem;">
+        <div class="form-group mb-20">
             <label for="id_motivo">Motivo de la Devolución *</label>
             <select id="id_motivo" name="id_motivo" class="form-control" required>
                 <option value="">-- Seleccionar Motivo --</option>
@@ -222,27 +224,17 @@ include_once __DIR__ . '/../layout/header.php';
         </div>
         <?php endif; ?>
 
-        <div class="form-group" style="margin-bottom: 1.25rem;">
-            <label for="id_odt">Orden de Trabajo (opcional)</label>
-            <select id="id_odt" name="id_odt" class="form-control">
-                <option value="">Sin OT / Uso general</option>
-                <?php foreach ($ordenesVinculables as $ot):
-                    $trabajoOt = trim((string)($ot['trabajo_a_realizar'] ?? ''));
-                    if (mb_strlen($trabajoOt) > 60) {
-                        $trabajoOt = mb_substr($trabajoOt, 0, 60) . '...';
-                    }
-                    $textoOt = $ot['numero_ot'] . ($trabajoOt !== '' ? ' - ' . $trabajoOt : '') . ' [' . ($ot['estado'] ?? 'Pendiente') . ']';
-                ?>
-                    <option value="<?= (int)$ot['id_odt'] ?>" <?= ($idOdtPre === (int)$ot['id_odt']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($textoOt) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+        <div class="form-group autocomplete-wrapper mb-20">
+            <label for="buscar-odt">Orden de Trabajo (opcional)</label>
+            <input type="text" id="buscar-odt" class="form-control" placeholder="Escriba el N° de OT, PA o trabajo... (vacío = sin OT / uso general)" autocomplete="off"
+                   value="<?= $odtPre ? htmlspecialchars(OrdenDeTrabajo::textoParaSelect($odtPre)) : '' ?>">
+            <input type="hidden" id="id_odt" name="id_odt" value="<?= $odtPre ? (int)$odtPre['id_odt'] : '' ?>">
+            <div id="lista-odt" class="autocomplete-list"></div>
         </div>
 
-        <div class="form-group" style="margin-bottom: 2rem;">
+        <div class="form-group mb-32">
             <label for="observaciones"><?= $esDevolucion ? 'Observaciones' : 'Observaciones o Motivo' ?></label>
-            <textarea id="observaciones" name="observaciones" class="form-control" style="min-height: 70px; resize: vertical;" placeholder="<?= $esDevolucion ? 'Detalles de la devolución, estado de los elementos, orden de trabajo...' : 'Detalles de la entrega, orden de trabajo, destino o estado al entregar...' ?>"></textarea>
+            <textarea id="observaciones" name="observaciones" class="form-control form-control--area" placeholder="<?= $esDevolucion ? 'Detalles de la devolución, estado de los elementos, orden de trabajo...' : 'Detalles de la entrega, orden de trabajo, destino o estado al entregar...' ?>"></textarea>
         </div>
 
         <!-- Sección de Selección y Agregado de Ítems -->
@@ -250,45 +242,19 @@ include_once __DIR__ . '/../layout/header.php';
             <h3 class="items-section-title">Ítems a <?= $esDevolucion ? 'Devolver' : 'Entregar' ?></h3>
         </div>
 
-        <div class="form-grid-3" style="background-color: #f8fafc; padding: 1.25rem; border-radius: 8px; margin-bottom: 1.25rem; align-items: flex-end;">
-            <div class="form-group" style="flex: 2;">
-                <label for="selector-insumo">Seleccionar Insumo o Herramienta</label>
-                <select id="selector-insumo" class="form-control">
-                    <option value="">-- Buscar por código o nombre --</option>
-                    <?php foreach ($insumos as $ins):
-                        $esHerramienta = ((int)$ins['id_tipo'] === 2);
-                        $tipo = $esHerramienta ? 'Herramienta' : 'Material';
-                        $unidad = $ins['unidad_medida'] ?? 'unidades';
-
-                        $stock = (float)($ins['stock_actual'] ?? 0);
-                        if ($esHerramienta) {
-                            // Una herramienta es una unidad: stock 1 = en el pañol, 0 = no está. Se entrega solo si está Disponible
-                            $idEstadoHerr = (int)($ins['id_estado_herramienta'] ?? 0) ?: 1;
-                            $noSeleccionable = !$esDevolucion && ($idEstadoHerr !== 1 || $stock < 1);
-                            $detalleOpcion = 'Estado: ' . ($nombresEstadoHerramienta[$idEstadoHerr] ?? 'Desconocido') . " - Stock: {$stock}";
-                        } else {
-                            $noSeleccionable = !$esDevolucion && $stock <= 0;
-                            $detalleOpcion = "Stock: {$stock} {$unidad}";
-                        }
-                    ?>
-                        <option value="<?= htmlspecialchars($ins['codigo']) ?>"
-                                data-nombre="<?= htmlspecialchars($ins['nombre']) ?>"
-                                data-tipo="<?= $tipo ?>"
-                                data-unidad="<?= htmlspecialchars($unidad) ?>"
-                                data-stock="<?= $stock ?>"
-                                <?= $noSeleccionable ? 'disabled' : '' ?>>
-                            <?= htmlspecialchars("{$ins['codigo']} - {$ins['nombre']} ({$tipo}) - {$detalleOpcion}") ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+        <div class="form-grid-3 form-grid-3--items">
+            <div class="form-group autocomplete-wrapper form-group--flex-2">
+                <label for="buscar-insumo">Buscar Insumo o Herramienta</label>
+                <input type="text" id="buscar-insumo" class="form-control" placeholder="Escriba código o nombre..." autocomplete="off">
+                <div id="lista-insumos" class="autocomplete-list"></div>
             </div>
 
-            <div class="form-group" style="flex: 1;">
+            <div class="form-group form-group--flex-1">
                 <label for="input-cantidad">Cantidad a <?= $esDevolucion ? 'Devolver' : 'Entregar' ?></label>
                 <input type="number" id="input-cantidad" class="form-control" min="1" step="any" value="1" placeholder="Ej: 1">
             </div>
 
-            <div class="form-group" style="flex: 0 0 auto;">
+            <div class="form-group form-group--flex-auto">
                 <button type="button" class="btn-add-row" onclick="agregarItem()">Agregar a la Lista</button>
             </div>
         </div>
@@ -301,16 +267,16 @@ include_once __DIR__ . '/../layout/header.php';
                     <th>Insumo / Herramienta</th>
                     <th>Tipo</th>
                     <th>Stock en Pañol</th>
-                    <th style="width: 140px;">Cantidad</th>
+                    <th class="col-cantidad">Cantidad</th>
                     <?php if ($esDevolucion): ?>
-                        <th style="width: 170px;">Estado al Devolver</th>
+                        <th class="col-estado">Estado al Devolver</th>
                     <?php endif; ?>
-                    <th style="width: 90px; text-align: center;">Acción</th>
+                    <th class="col-accion">Acción</th>
                 </tr>
             </thead>
             <tbody id="tbody-items">
                 <tr id="fila-vacia">
-                    <td colspan="<?= $esDevolucion ? 7 : 6 ?>" style="text-align: center; color: #64748b; padding: 2rem;">No se han agregado ítems todavía. Seleccione un insumo arriba para comenzar.</td>
+                    <td colspan="<?= $esDevolucion ? 7 : 6 ?>" class="estado-vacio">No se han agregado ítems todavía. Seleccione un insumo arriba para comenzar.</td>
                 </tr>
             </tbody>
         </table>
@@ -349,14 +315,14 @@ function escaparHtml(texto) {
     return div.innerHTML;
 }
 
-function agregarItem() {
-    const select = document.getElementById('selector-insumo');
-    const inputCant = document.getElementById('input-cantidad');
+// Insumo elegido en el autocompletado (null = ninguno o texto editado a mano)
+let insumoSeleccionado = null;
 
-    const codigo = select.value;
+function agregarItem() {
+    const inputCant = document.getElementById('input-cantidad');
     const cantidad = parseFloat(inputCant.value);
 
-    if (!codigo) {
+    if (!insumoSeleccionado) {
         alert('Por favor, seleccione un insumo o herramienta de la lista.');
         return;
     }
@@ -366,11 +332,7 @@ function agregarItem() {
         return;
     }
 
-    const opt = select.options[select.selectedIndex];
-    const nombre = opt.getAttribute('data-nombre');
-    const tipo = opt.getAttribute('data-tipo');
-    const unidad = opt.getAttribute('data-unidad');
-    const stock = parseFloat(opt.getAttribute('data-stock'));
+    const { codigo, nombre, tipo, unidad, stock } = insumoSeleccionado;
 
     const indexExistente = itemsMovimiento.findIndex(it => it.id_insumo === codigo);
     const cantidadTotal = (indexExistente >= 0 ? itemsMovimiento[indexExistente].cantidad : 0) + cantidad;
@@ -400,7 +362,8 @@ function agregarItem() {
     }
 
     renderizarTablaItems();
-    select.value = '';
+    insumoSeleccionado = null;
+    document.getElementById('buscar-insumo').value = '';
     inputCant.value = '1';
 }
 
@@ -446,7 +409,7 @@ function renderizarTablaItems() {
     if (itemsMovimiento.length === 0) {
         tbody.innerHTML = `
             <tr id="fila-vacia">
-                <td colspan="${COLUMNAS_TABLA}" style="text-align: center; color: #64748b; padding: 2rem;">No se han agregado ítems todavía. Seleccione un insumo arriba para comenzar.</td>
+                <td colspan="${COLUMNAS_TABLA}" class="estado-vacio">No se han agregado ítems todavía. Seleccione un insumo arriba para comenzar.</td>
             </tr>`;
         return;
     }
@@ -465,7 +428,7 @@ function renderizarTablaItems() {
                 const opciones = ESTADOS_HERRAMIENTA.map(e =>
                     `<option value="${e.id_estado_herramienta}" ${parseInt(e.id_estado_herramienta, 10) === it.id_estado_herramienta ? 'selected' : ''}>${escaparHtml(e.estado)}</option>`
                 ).join('');
-                celdaEstado = `<td><select class="form-control" style="padding: 0.35rem 0.5rem;" onchange="actualizarEstadoItem('${codigoAttr}', this.value)">${opciones}</select></td>`;
+                celdaEstado = `<td><select class="form-control form-control--compacto" onchange="actualizarEstadoItem('${codigoAttr}', this.value)">${opciones}</select></td>`;
             } else {
                 celdaEstado = '<td>-</td>';
             }
@@ -473,15 +436,15 @@ function renderizarTablaItems() {
 
         html += `
             <tr>
-                <td style="font-weight: 700;">${escaparHtml(it.id_insumo)}</td>
+                <td class="celda-fuerte">${escaparHtml(it.id_insumo)}</td>
                 <td>${escaparHtml(it.nombre)}</td>
                 <td><span class="badge ${it.tipo === 'Herramienta' ? 'badge-info' : 'badge-neutral'}">${escaparHtml(it.tipo)}</span></td>
                 <td>${stockTxt}</td>
                 <td>
-                    <input type="number" class="form-control" style="padding: 0.35rem 0.5rem;" min="1" ${maxAttr} step="any" value="${it.cantidad}" onchange="actualizarCantidadItem('${codigoAttr}', this.value)">
+                    <input type="number" class="form-control form-control--compacto" min="1" ${maxAttr} step="any" value="${it.cantidad}" onchange="actualizarCantidadItem('${codigoAttr}', this.value)">
                 </td>
                 ${celdaEstado}
-                <td style="text-align: center;">
+                <td class="celda-centro">
                     <button type="button" class="btn-remove-row" onclick="quitarItem('${codigoAttr}')">Quitar</button>
                 </td>
             </tr>`;
@@ -490,11 +453,47 @@ function renderizarTablaItems() {
     tbody.innerHTML = html;
 }
 
+// Autocompletado de operario e insumo (assets/js/autocompletado.js, se carga al final de la página)
+document.addEventListener('DOMContentLoaded', function () {
+    crearAutocompletado({
+        input: document.getElementById('buscar-operario'),
+        lista: document.getElementById('lista-operarios'),
+        url: '../ajax/buscar_autocompletado.php',
+        parametros: { recurso: 'operario' },
+        alSeleccionar: function (op) { document.getElementById('id_operario').value = op.id; },
+        alLimpiar: function () { document.getElementById('id_operario').value = ''; }
+    });
+
+    crearAutocompletado({
+        input: document.getElementById('buscar-odt'),
+        lista: document.getElementById('lista-odt'),
+        url: '../ajax/buscar_autocompletado.php',
+        parametros: { recurso: 'odt', tipo: ES_DEVOLUCION ? 'devolucion' : 'entrega' },
+        alSeleccionar: function (ot) { document.getElementById('id_odt').value = ot.id; },
+        alLimpiar: function () { document.getElementById('id_odt').value = ''; }
+    });
+
+    crearAutocompletado({
+        input: document.getElementById('buscar-insumo'),
+        lista: document.getElementById('lista-insumos'),
+        url: '../ajax/buscar_autocompletado.php',
+        parametros: { recurso: 'insumo', tipo: ES_DEVOLUCION ? 'devolucion' : 'entrega' },
+        alSeleccionar: function (ins) { insumoSeleccionado = ins; },
+        alLimpiar: function () { insumoSeleccionado = null; }
+    });
+});
+
 function enviarMovimiento(e) {
     e.preventDefault();
 
     if (!document.getElementById('id_operario').value) {
         alert('Debe seleccionar un operario.');
+        return;
+    }
+
+    // Texto escrito sin elegir una opción: se avisa en lugar de registrar el movimiento sin OT sin querer
+    if (document.getElementById('buscar-odt').value.trim() !== '' && !document.getElementById('id_odt').value) {
+        alert('Elija una Orden de Trabajo de la lista o deje el campo vacío para registrar el movimiento sin OT.');
         return;
     }
 

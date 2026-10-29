@@ -89,7 +89,7 @@ class Insumo {
      * @return array Movimientos con cantidad, tipo y operario
      */
     public function getMovimientos($codigo, $limite = 20) {
-        $sql = "SELECT m.id_movimiento, m.fecha, m.hora, md.cantidad,
+        $sql = "SELECT m.id_movimiento, m.id_operario, m.fecha, m.hora, md.cantidad,
                        tm.tipo as nombre_tipo_movimiento,
                        o.apellido || ', ' || o.nombre as nombre_operario
                 FROM movimiento_detalle md
@@ -144,6 +144,29 @@ class Insumo {
                 AND i.activo = TRUE";
         
         return $this->db->fetchAll($sql, ['termino' => '%' . $termino . '%']);
+    }
+
+    /**
+     * Insumos activos para el autocompletado de los formularios, paginados en la base (LIMIT/OFFSET).
+     * Busca por código o nombre. Con $termino vacío devuelve todos.
+     * @return array Hasta $limite insumos desde $offset, con unidad, stock y estado de herramienta
+     */
+    public function buscarParaSelect(string $termino = '', int $limite = 10, int $offset = 0): array {
+        $sql = "SELECT i.id_insumo, i.codigo, i.nombre, i.id_tipo, i.id_estado_herramienta,
+                       um.unidad_medida,
+                       s.stock_actual
+                FROM insumos i
+                LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
+                LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
+                WHERE i.activo = TRUE";
+        $params = [];
+        if ($termino !== '') {
+            $sql .= " AND (i.codigo ILIKE :termino OR i.nombre ILIKE :termino)";
+            $params['termino'] = '%' . addcslashes($termino, '%_\\') . '%';
+        }
+        $sql .= " ORDER BY i.nombre ASC, i.id_insumo ASC
+                  LIMIT " . max(1, $limite) . " OFFSET " . max(0, $offset);
+        return $this->db->fetchAll($sql, $params);
     }
 
     /**

@@ -126,7 +126,7 @@ function renderizarTabla(insumos) {
                 </button>`;
 
         html += `
-        <div class="insumo-card-row${insActivo ? '' : ' insumo-card-row--inactivo'}" onclick="abrirModalDetalles(${jsonStr})">
+        <div class="insumo-card-row fila-clic${insActivo ? '' : ' insumo-card-row--inactivo'}">
             <div><strong>${escaparHtml(ins.codigo)}</strong></div>
             <div>${escaparHtml(ins.nombre)}</div>
             <div>${escaparHtml(ins.nombre_rubro || '-')}</div>
@@ -148,26 +148,6 @@ function renderizarTabla(insumos) {
     contenedor.innerHTML = html;
 }
 
-function renderizarPaginacion(totalPaginas, actual) {
-    const contenedor = document.getElementById('contenedor-paginacion');
-    if (!contenedor) return;
-
-    if (totalPaginas <= 1) {
-        contenedor.innerHTML = '';
-        return;
-    }
-
-    let html = '';
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.max(1, actual - 1)})" ${actual <= 1 ? 'disabled' : ''}>Anterior</button>`;
-    
-    for (let p = 1; p <= totalPaginas; p++) {
-        html += `<button type="button" class="pagination-btn ${p === actual ? 'active' : ''}" onclick="cambiarPagina(${p})">${p}</button>`;
-    }
-
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.min(totalPaginas, actual + 1)})" ${actual >= totalPaginas ? 'disabled' : ''}>Siguiente</button>`;
-    
-    contenedor.innerHTML = html;
-}
 
 function escaparHtml(str) {
     if (str === null || str === undefined) return '';

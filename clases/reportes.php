@@ -677,7 +677,7 @@ class Reportes
     private static function sqlUltimosMovimientos(): string
     {
         return "
-            SELECT m.id_movimiento, m.fecha, m.hora, tm.tipo,
+            SELECT m.id_movimiento, m.id_operario, m.fecha, m.hora, tm.tipo,
                    COALESCE(o.apellido || ', ' || o.nombre, 'Sin operario') AS operario,
                    ot.numero_ot,
                    (SELECT COUNT(*) FROM movimiento_detalle md WHERE md.id_movimiento = m.id_movimiento) AS items

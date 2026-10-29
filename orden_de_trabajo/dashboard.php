@@ -24,6 +24,7 @@ if (!isAuthenticated()) {
 
 $seccion = 'orden_de_trabajo';
 $css_modulo = 'orden_de_trabajo';
+$js_modulo = 'autocompletado'; // comisión de operarios: autocompletado con etiquetas (se busca por AJAX)
 $titulo_vista = 'Gestión de Órdenes de Trabajo';
 $titulo_pagina = 'Órdenes de Trabajo - Sistema de Control de Stock';
 
@@ -135,8 +136,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     exit;
 }
 
-require_once __DIR__ . '/../clases/operario.php';
-$operariosOdt = (new Operario())->getParaSelect();
 $estadosPosibles = $odtModel->getEstadosPosibles();
 $localidades = $odtModel->getLocalidades();
 $jurisdicciones = $odtModel->getJurisdicciones();
@@ -216,7 +215,7 @@ include_once __DIR__ . '/../layout/header.php';
                     $tienePdf = !empty($ot['archivo_pdf']);
                     $nombrePdf = $tienePdf ? htmlspecialchars($ot['archivo_pdf'], ENT_QUOTES, 'UTF-8') : '';
                 ?>
-                <tr>
+                <tr class="fila-clic">
                     <td><strong><?= $numeroOt ?></strong></td>
                     <td><?= $pa ?></td>
                     <td title="<?= $trabajo ?>"><?= $trabajoCorto ?></td>
@@ -247,9 +246,9 @@ include_once __DIR__ . '/../layout/header.php';
                     <td>
                         <div class="actions-cell">
                             <?php if ($ot['activo']): ?>
-                            <button type="button" class="btn-action-icon view" title="Ver Detalle" onclick="verDetalleModal(<?= $idOdt ?>)">
+                            <a href="detalle_orden_de_trabajo.php?id=<?= $idOdt ?>" class="btn-action-icon view" title="Ver Detalle">
                                 <?= iconoAccion('view') ?>
-                            </button>
+                            </a>
                             <?php endif; ?>
                             <?php if (canEdit()): ?>
                             <?php if ($ot['activo']): ?>
@@ -281,21 +280,7 @@ include_once __DIR__ . '/../layout/header.php';
 </div>
 
 <!-- Contenedor de Paginación Dinámica -->
-<div class="pagination-container" id="contenedor-paginacion">
-    <?php if ($totalPaginas > 1): ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= max(1, $paginaActual - 1) ?>)" <?= ($paginaActual <= 1) ? 'disabled' : '' ?>>
-            Anterior
-        </button>
-        <?php for ($p = 1; $p <= $totalPaginas; $p++): ?>
-            <button type="button" class="pagination-btn <?= ($p === $paginaActual) ? 'active' : '' ?>" onclick="cambiarPagina(<?= $p ?>)">
-                <?= $p ?>
-            </button>
-        <?php endfor; ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= min($totalPaginas, $paginaActual + 1) ?>)" <?= ($paginaActual >= $totalPaginas) ? 'disabled' : '' ?>>
-            Siguiente
-        </button>
-    <?php endif; ?>
-</div>
+<div class="pagination-container" id="contenedor-paginacion" data-total="<?= (int)$totalPaginas ?>" data-actual="<?= (int)$paginaActual ?>"></div>
 
 <!-- ========================================================================= -->
 <!-- MODALES -->
@@ -304,7 +289,7 @@ include_once __DIR__ . '/../layout/header.php';
 <!-- Modal 1: Nueva Orden de Trabajo -->
 <div id="modal-crear-odt" class="modal-overlay">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-crear-odt')" title="Cerrar">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-crear-odt')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <h2 class="modal-title" id="crear-odt-titulo">Nueva Orden de Trabajo</h2>
         <p class="modal-subtitle">Complete los campos de la orden y adjunte el expediente PDF en caso de corresponder</p>
 
@@ -384,24 +369,22 @@ include_once __DIR__ . '/../layout/header.php';
                 </div>
             </div>
 
-            <div style="margin-bottom: 1rem;">
-                <label class="modal-label" for="crear-operarios">Operarios asignados (comisión)</label>
-                <select id="crear-operarios" name="operarios[]" class="modal-select" multiple size="4">
-                    <?php foreach ($operariosOdt as $op): ?>
-                        <option value="<?= (int)$op['id_operario'] ?>">
-                            <?= htmlspecialchars($op['apellido'] . ', ' . $op['nombre'] . ' (DNI ' . $op['dni'] . ')', ENT_QUOTES, 'UTF-8') ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <small style="color:#64748b;">Mantenga presionada la tecla Ctrl para seleccionar varios operarios.</small>
+            <div class="mb-16">
+                <label class="modal-label" for="crear-buscar-operarios">Operarios asignados (comisión)</label>
+                <div class="autocomplete-wrapper">
+                    <input type="text" id="crear-buscar-operarios" class="modal-input" placeholder="Escriba DNI, apellido o nombre para agregar..." autocomplete="off">
+                    <div id="crear-lista-operarios" class="autocomplete-list"></div>
+                </div>
+                <div id="crear-operarios-elegidos" class="chips-seleccion"></div>
+                <small class="texto-tenue">Busque y elija a cada operario; puede agregar varios y quitarlos con la x.</small>
             </div>
 
-            <div style="margin-bottom: 1rem;">
+            <div class="mb-16">
                 <label class="modal-label" for="crear-trabajo">Trabajo a Realizar / Descripción</label>
                 <textarea id="crear-trabajo" name="trabajo_a_realizar" class="modal-textarea" placeholder="Describa las tareas a ejecutar..."></textarea>
             </div>
 
-            <div style="margin-bottom: 1rem;">
+            <div class="mb-16">
                 <label class="modal-label" for="crear-observaciones">Observaciones</label>
                 <textarea id="crear-observaciones" name="observaciones" class="modal-textarea" placeholder="Notas o requerimientos adicionales..."></textarea>
             </div>
@@ -411,23 +394,6 @@ include_once __DIR__ . '/../layout/header.php';
                 <button type="submit" class="btn-modal-submit" id="btn-submit-crear">Guardar Orden</button>
             </div>
         </form>
-    </div>
-</div>
-
-<!-- Modal 2: Ver Detalle Completo de la Orden -->
-<div id="modal-detalle-odt" class="modal-overlay">
-    <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-detalle-odt')" title="Cerrar">Cerrar</button>
-        <h2 class="modal-title" id="detalle-ot-titulo">Detalle de la Orden</h2>
-        <p class="modal-subtitle" id="detalle-ot-subtitulo">Información completa y expediente</p>
-
-        <div id="detalle-odt-contenido">
-            <p style="text-align:center; color:#64748b; padding:2rem;">Cargando información...</p>
-        </div>
-
-        <div class="modal-actions-row">
-            <button type="button" class="btn-modal-cancel" onclick="cerrarModal('modal-detalle-odt')">Cerrar</button>
-        </div>
     </div>
 </div>
 
@@ -528,9 +494,9 @@ function renderizarTabla(ordenes) {
         let botones = '';
         if (otActiva) {
             botones = `
-                    <button type="button" class="btn-action-icon view" title="Ver Detalle" onclick="verDetalleModal(${idOdt})">
+                    <a href="detalle_orden_de_trabajo.php?id=${idOdt}" class="btn-action-icon view" title="Ver Detalle">
                         ${window.APP_ICONS.view}
-                    </button>
+                    </a>
                     ${APP_PERMISOS.editar ? `
                     ${(ot.estado === 'Finalizada' || ot.estado === 'Anulada') ? '' : `<a href="../movimiento/crear_movimiento.php?tipo=entrega&id_odt=${idOdt}" class="btn-action-icon dispatch" title="Registrar Entrega para esta orden">${window.APP_ICONS.dispatch}</a>`}
                     <a href="../movimiento/crear_movimiento.php?tipo=devolucion&id_odt=${idOdt}" class="btn-action-icon return" title="Registrar Devolución de esta orden">${window.APP_ICONS.return}</a>
@@ -555,7 +521,7 @@ function renderizarTabla(ordenes) {
         }
 
         html += `
-        <tr>
+        <tr class="fila-clic">
             <td><strong>${numeroOt}</strong></td>
             <td>${pa}</td>
             <td title="${trabajo}">${trabajoCorto}</td>
@@ -573,26 +539,6 @@ function renderizarTabla(ordenes) {
     tbody.innerHTML = html;
 }
 
-function renderizarPaginacion(totalPaginas, pagina) {
-    const contenedor = document.getElementById('contenedor-paginacion');
-    if (!contenedor) return;
-
-    if (totalPaginas <= 1) {
-        contenedor.innerHTML = '';
-        return;
-    }
-
-    let html = '';
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.max(1, pagina - 1)})" ${pagina <= 1 ? 'disabled' : ''}>Anterior</button>`;
-
-    for (let p = 1; p <= totalPaginas; p++) {
-        html += `<button type="button" class="pagination-btn ${p === pagina ? 'active' : ''}" onclick="cambiarPagina(${p})">${p}</button>`;
-    }
-
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.min(totalPaginas, pagina + 1)})" ${pagina >= totalPaginas ? 'disabled' : ''}>Siguiente</button>`;
-
-    contenedor.innerHTML = html;
-}
 
 // Filtros y Búsqueda con Debounce
 document.getElementById('buscador-odt').addEventListener('input', function() {
@@ -610,9 +556,23 @@ document.getElementById('filtro-registro').addEventListener('change', function()
     cargarOrdenes(1);
 });
 
+// Comisión de operarios: autocompletado con etiquetas (assets/js/autocompletado.js, se carga al final de la página)
+let selectorOperarios = null;
+document.addEventListener('DOMContentLoaded', function () {
+    selectorOperarios = crearAutocompletadoMultiple({
+        input: document.getElementById('crear-buscar-operarios'),
+        lista: document.getElementById('crear-lista-operarios'),
+        etiquetas: document.getElementById('crear-operarios-elegidos'),
+        nombreCampo: 'operarios[]',
+        url: '../ajax/buscar_autocompletado.php',
+        parametros: { recurso: 'operario' }
+    });
+});
+
 // Modal: Nueva / Editar Orden de Trabajo (FormData con PDF y operarios)
 function abrirModalCrear() {
     document.getElementById('form-crear-odt').reset();
+    selectorOperarios.limpiar();
     document.getElementById('crear-id-odt').value = '';
     document.getElementById('crear-odt-titulo').innerText = 'Nueva Orden de Trabajo';
     document.getElementById('btn-submit-crear').innerText = 'Guardar Orden';
@@ -627,6 +587,7 @@ function abrirModalEditar(idOdt) {
             const o = res.data;
             const form = document.getElementById('form-crear-odt');
             form.reset();
+            selectorOperarios.limpiar();
 
             document.getElementById('crear-id-odt').value = o.id_odt;
             document.getElementById('crear-odt-titulo').innerText = `Editar Orden de Trabajo ${o.numero_ot || ''}`;
@@ -644,9 +605,8 @@ function abrirModalEditar(idOdt) {
             document.getElementById('crear-trabajo').value = o.trabajo_a_realizar || '';
             document.getElementById('crear-observaciones').value = o.observaciones || '';
 
-            const asignados = (res.operarios || []).map(op => String(op.id_operario));
-            Array.from(document.getElementById('crear-operarios').options).forEach(opt => {
-                opt.selected = asignados.includes(opt.value);
+            (res.operarios || []).forEach(op => {
+                selectorOperarios.agregar(op.id_operario, `${op.apellido}, ${op.nombre} - DNI: ${op.dni}`);
             });
         })
         .then(() => abrirModal('modal-crear-odt'))
@@ -674,6 +634,7 @@ function guardarNuevaOdt(e) {
         if (!res.success) throw new Error(res.error || 'No se pudo guardar la Orden de Trabajo.');
         cerrarModal('modal-crear-odt');
         form.reset();
+        selectorOperarios.limpiar();
         mostrarAlerta(res.message, true);
         cargarOrdenes(esEdicion ? paginaActual : 1);
     })
@@ -744,108 +705,10 @@ function cambiarEstadoDirecto(select, idOdt) {
         });
 }
 
-// Modal: Ver Detalle Completo
-function verDetalleModal(idOdt) {
-    const contenedor = document.getElementById('detalle-odt-contenido');
-    contenedor.innerHTML = '<p style="text-align:center; color:#64748b; padding:2rem;">Cargando información...</p>';
-    abrirModal('modal-detalle-odt');
-
-    fetch(`dashboard.php?action=detalle&id=${idOdt}`, { credentials: 'same-origin' })
-        .then(response => {
-            if (!response.ok) throw new Error('Error al conectar con el servidor.');
-            return response.json();
-        })
-        .then(res => {
-            if (!res.success || !res.data) throw new Error(res.error || 'No se pudo cargar la orden.');
-            const o = res.data;
-
-            document.getElementById('detalle-ot-titulo').innerText = `Orden de Trabajo: ${o.numero_ot || ''}`;
-            document.getElementById('detalle-ot-subtitulo').innerText = `ID Sistema: #${o.id_odt || ''} | Estado: ${o.estado || 'Pendiente'}`;
-
-            let pdfBtn = '<span class="btn-pdf-none">Sin archivo PDF adjunto</span>';
-            if (o.archivo_pdf) {
-                const pdfUrl = `${baseUrl}/uploads/pa_pdfs/${encodeURIComponent(o.archivo_pdf)}`;
-                pdfBtn = `<a href="${pdfUrl}" target="_blank" class="btn-pdf-view">Ver PDF Adjunto</a> (${escaparHtml(o.archivo_pdf)})`;
-            }
-
-            let html = `
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <strong>Número de PA</strong>
-                    <span>${o.pa ? escaparHtml(o.pa) : 'No especificado'}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Localidad</strong>
-                    <span>${o.nombre_localidad ? escaparHtml(o.nombre_localidad) : 'No asignada'}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Jurisdicción</strong>
-                    <span>${o.nombre_jurisdiccion ? escaparHtml(o.nombre_jurisdiccion) : 'No asignada'}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Fecha Inicio</strong>
-                    <span>${o.fecha_inicio ? escaparHtml(o.fecha_inicio) : '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Fecha Final</strong>
-                    <span>${o.fecha_final ? escaparHtml(o.fecha_final) : '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <strong>Horario</strong>
-                    <span>${o.hora_inicio ? escaparHtml(o.hora_inicio.substring(0, 5)) : '--:--'} a ${o.hora_final ? escaparHtml(o.hora_final.substring(0, 5)) : '--:--'}</span>
-                </div>
-            </div>
-
-            <div style="margin-bottom: 1.25rem;">
-                <label class="modal-label">Trabajo a Realizar / Descripción</label>
-                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.85rem; color: #334155; line-height: 1.5; font-size: 0.88rem;">
-                    ${o.trabajo_a_realizar ? escaparHtml(o.trabajo_a_realizar).replace(/\n/g, '<br>') : 'Sin descripción detallada.'}
-                </div>
-            </div>
-
-            <div style="margin-bottom: 1.25rem;">
-                <label class="modal-label">Observaciones</label>
-                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.85rem; color: #334155; line-height: 1.5; font-size: 0.88rem;">
-                    ${o.observaciones ? escaparHtml(o.observaciones).replace(/\n/g, '<br>') : 'Sin observaciones registradas.'}
-                </div>
-            </div>
-
-            <div style="margin-bottom: 1rem;">
-                <label class="modal-label">Expediente Oficial PDF</label>
-                <div>${pdfBtn}</div>
-            </div>`;
-
-            const operarios = res.operarios || [];
-            const movimientos = res.movimientos || [];
-            const listaOperarios = operarios.length
-                ? '<ul style="margin: 0.3rem 0 0 1.2rem;">' + operarios.map(op => `<li>${escaparHtml(op.apellido + ', ' + op.nombre)} (DNI ${escaparHtml(op.dni)})</li>`).join('') + '</ul>'
-                : '<span style="color:#64748b;">Sin operarios asignados.</span>';
-            const listaMovimientos = movimientos.length
-                ? '<ul style="margin: 0.3rem 0 0 1.2rem;">' + movimientos.map(m => `<li>${m.rol_en_odt === 'egreso' ? 'Entrega' : 'Devolución'}: <a href="../movimiento/detalle_movimiento.php?id=${parseInt(m.id_movimiento, 10)}">Movimiento #${parseInt(m.id_movimiento, 10)}</a> - ${escaparHtml(m.fecha)}${m.nombre_operario ? ' - ' + escaparHtml(m.nombre_operario) : ''}</li>`).join('') + '</ul>'
-                : '<span style="color:#64748b;">Sin movimientos vinculados.</span>';
-
-            html += `
-            <div style="margin-bottom: 1rem;">
-                <label class="modal-label">Operarios asignados (${operarios.length})</label>
-                <div>${listaOperarios}</div>
-            </div>
-            <div style="margin-bottom: 1rem;">
-                <label class="modal-label">Movimientos vinculados</label>
-                <div>${listaMovimientos}</div>
-            </div>`;
-
-            contenedor.innerHTML = html;
-        })
-        .catch(err => {
-            contenedor.innerHTML = `<p style="text-align:center; color:#dc2626; padding:2rem;">Error: ${escaparHtml(err.message)}</p>`;
-        });
-}
-
 // Cierre de modales con tecla ESC
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         cerrarModal('modal-crear-odt');
-        cerrarModal('modal-detalle-odt');
     }
 });
 </script>

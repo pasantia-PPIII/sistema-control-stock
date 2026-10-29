@@ -135,7 +135,7 @@ $claseTipo = [
                             <td><strong>#<?= (int) $m['id_movimiento'] ?></strong></td>
                             <td><?= $h(rp_fecha($m['fecha'])) ?> <?= $h(substr((string) $m['hora'], 0, 5)) ?></td>
                             <td><span class="rp-pastilla <?= $claseTipo[$m['tipo']] ?? 'rp-pastilla--neutra' ?>"><?= $h($m['tipo']) ?></span></td>
-                            <td><?= $h($m['operario']) ?></td>
+                            <td><?= enlaceOperario($m['id_operario'] ?? null, $m['operario'] ?? null) ?></td>
                             <td><?= $m['numero_ot'] ? $h($m['numero_ot']) : '-' ?></td>
                             <td class="num"><?= (int) $m['items'] ?></td>
                         </tr>

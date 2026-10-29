@@ -131,7 +131,7 @@ include_once __DIR__ . '/../layout/header.php';
                 $esActivo = !empty($op['activo']) && $op['activo'] !== 'f';
                 $idOp = (int) $op['id_operario'];
                 ?>
-                <div class="operario-card-row" onclick="window.location.href='detalle_operario.php?id=<?= $idOp ?>'">
+                <div class="operario-card-row fila-clic">
                     <div><strong><?= $legajoTxt ?></strong></div>
                     <div><?= htmlspecialchars($op['dni']) ?></div>
                     <div class="operario-nombre"><?= $nombreCompleto ?></div>
@@ -168,29 +168,12 @@ include_once __DIR__ . '/../layout/header.php';
 </div>
 
 <!-- Paginación -->
-<div class="pagination-container" id="contenedor-paginacion">
-    <?php if ($totalPaginas > 1): ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= max(1, $paginaActual - 1) ?>)"
-            <?= ($paginaActual <= 1) ? 'disabled' : '' ?>>
-            Anterior
-        </button>
-        <?php for ($p = 1; $p <= $totalPaginas; $p++): ?>
-            <button type="button" class="pagination-btn <?= ($p === $paginaActual) ? 'active' : '' ?>"
-                onclick="cambiarPagina(<?= $p ?>)">
-                <?= $p ?>
-            </button>
-        <?php endfor; ?>
-        <button type="button" class="pagination-btn text-label"
-            onclick="cambiarPagina(<?= min($totalPaginas, $paginaActual + 1) ?>)" <?= ($paginaActual >= $totalPaginas) ? 'disabled' : '' ?>>
-            Siguiente
-        </button>
-    <?php endif; ?>
-</div>
+<div class="pagination-container" id="contenedor-paginacion" data-total="<?= (int)$totalPaginas ?>" data-actual="<?= (int)$paginaActual ?>"></div>
 
 <!-- Modales -->
 <div id="modal-cargar-operario" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-cargar-operario')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-cargar-operario')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2>Nuevo Operario</h2>
             <p>Registrar un nuevo integrante del personal técnico o pañol</p>
@@ -247,7 +230,7 @@ include_once __DIR__ . '/../layout/header.php';
 
 <div id="modal-editar-operario" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-editar-operario')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-editar-operario')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2>Editar Operario</h2>
             <p>Actualizar datos del personal técnico</p>
@@ -303,7 +286,7 @@ include_once __DIR__ . '/../layout/header.php';
 <!-- Modal: Deshabilitar / Habilitar operario -->
 <div id="modal-estado-operario" class="modal-backdrop">
     <div class="modal-card modal-card--estado">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-estado-operario')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-estado-operario')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2 id="estado-titulo">Deshabilitar Operario</h2>
             <p id="estado-subtitulo"></p>

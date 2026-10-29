@@ -230,24 +230,29 @@ summary.rp-higiene__cab:focus-visible { outline: 2px solid var(--primary-blue); 
 .rp-paginacion__info { font-size: 0.8rem; color: #64748b; }
 .rp-paginacion__botones { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
 
+/* Mismo aspecto que los botones .pagination-btn de los demás listados del sistema */
 .rp-pag {
-    min-width: 2rem;
-    padding: 0.3rem 0.6rem;
-    text-align: center;
-    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.2rem;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: #475569;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #cbd5e1);
     border-radius: 6px;
     text-decoration: none;
+    transition: all 0.2s;
 }
 
-a.rp-pag:hover { background: #e2e8f0; }
+.rp-pag--texto { padding: 0.45rem 1rem; }
+
+a.rp-pag:hover { background-color: #f8fafc; border-color: #94a3b8; }
 a.rp-pag:focus-visible { outline: 3px solid #93c5fd; outline-offset: 1px; }
-.rp-pag--actual { background: var(--primary-blue); color: #fff; border-color: var(--primary-blue); }
-.rp-pag--off { opacity: 0.45; }
-.rp-pag--puntos { background: transparent; border-color: transparent; min-width: 1rem; padding-inline: 0.1rem; }
+.rp-pag--actual { background-color: var(--primary-blue, #0b1536); color: #ffffff; border-color: var(--primary-blue, #0b1536); }
+.rp-pag--off { opacity: 0.45; cursor: not-allowed; }
 
 /* ==========================================================================
    Historial de auditoría (pestaña "Historial") y modal de detalle
@@ -333,7 +338,7 @@ a.rp-pag:focus-visible { outline: 3px solid #93c5fd; outline-offset: 1px; }
 }
 
 .rp-modal__titulo { margin: 0; font-size: 1.15rem; color: #0b1536; font-weight: 800; }
-.rp-modal__cerrar { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #64748b; }
+.rp-modal__cerrar { position: static; flex-shrink: 0; }
 .rp-modal__estado { text-align: center; padding: 1.5rem; color: #64748b; }
 
 .rp-modal__tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -341,5 +346,3 @@ a.rp-pag:focus-visible { outline: 3px solid #93c5fd; outline-offset: 1px; }
 .rp-modal__tabla th, .rp-modal__tabla td { padding: 0.5rem; }
 .rp-modal__tabla tbody tr { border-bottom: 1px solid #f1f5f9; }
 
-.rp-modal__pie { text-align: right; margin-top: 1.25rem; }
-.rp-modal__btn-cerrar { padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }

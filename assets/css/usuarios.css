@@ -150,17 +150,6 @@
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
 
-.modal-close-btn {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.5rem;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #334155;
-}
-
 .modal-title {
     text-align: center;
     font-size: 1.6rem;
@@ -307,42 +296,21 @@
     cursor: not-allowed;
 }
 
-/* Paginación */
-.pagination-container {
+/* Detalle del usuario (modal) */
+.detalle-usuario__datos {
     display: flex;
-    justify-content: center;
-    gap: 0.4rem;
-    margin-top: 1.5rem;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin: 1.25rem 0;
+    font-size: 0.95rem;
+    color: #1e293b;
 }
 
-.pagination-btn {
-    background-color: #ffffff;
-    border: 1px solid var(--border-color);
-    padding: 0.45rem 0.85rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.pagination-btn:hover:not(:disabled) {
-    background-color: #f8fafc;
-    border-color: #94a3b8;
-}
-
-.pagination-btn.active {
-    background-color: var(--primary-blue);
-    color: #ffffff;
-    border-color: var(--primary-blue);
-}
-
-.pagination-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.pagination-btn.text-label {
-    padding: 0.45rem 1rem;
+/* Mensaje de confirmación del modal de cambio de estado */
+.modal-mensaje-estado {
+    font-size: 0.95rem;
+    color: #334155;
+    margin: 1.5rem 0;
+    text-align: center;
+    line-height: 1.5;
 }

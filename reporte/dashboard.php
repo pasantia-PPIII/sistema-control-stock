@@ -117,28 +117,25 @@ function rp_paginador(array $p): void
     $ancla = 'sec-' . $p['clave'];
     $enlace = fn(int $n) => $e(rp_url(['p_' . $p['clave'] => $n > 1 ? $n : null], $ancla));
 
-    $visibles = array_unique(array_merge([1, $p['paginas']], range(max(1, $p['pagina'] - 1), min($p['paginas'], $p['pagina'] + 1))));
-    sort($visibles);
+    // Ventana de 10 botones numéricos, igual que la paginación de los demás listados del sistema
+    $ventana = 10;
+    $inicio = max(1, min($p['pagina'] - 4, $p['paginas'] - $ventana + 1));
+    $fin = min($p['paginas'], $inicio + $ventana - 1);
 
     echo '<nav class="rp-paginacion" aria-label="Paginación del listado">';
     echo '<span class="rp-paginacion__info">Mostrando ' . $p['desde'] . '-' . $p['hasta'] . ' de ' . $p['total'] . '</span>';
     echo '<span class="rp-paginacion__botones">';
     echo $p['pagina'] > 1
-        ? '<a class="rp-pag" href="' . $enlace($p['pagina'] - 1) . '">Anterior</a>'
-        : '<span class="rp-pag rp-pag--off">Anterior</span>';
-    $previa = 0;
-    foreach ($visibles as $n) {
-        if ($n - $previa > 1) {
-            echo '<span class="rp-pag rp-pag--puntos" aria-hidden="true">…</span>';
-        }
+        ? '<a class="rp-pag rp-pag--texto" href="' . $enlace($p['pagina'] - 1) . '">Anterior</a>'
+        : '<span class="rp-pag rp-pag--texto rp-pag--off">Anterior</span>';
+    for ($n = $inicio; $n <= $fin; $n++) {
         echo $n === $p['pagina']
             ? '<span class="rp-pag rp-pag--actual" aria-current="page">' . $n . '</span>'
             : '<a class="rp-pag" href="' . $enlace($n) . '" aria-label="Página ' . $n . '">' . $n . '</a>';
-        $previa = $n;
     }
     echo $p['pagina'] < $p['paginas']
-        ? '<a class="rp-pag" href="' . $enlace($p['pagina'] + 1) . '">Siguiente</a>'
-        : '<span class="rp-pag rp-pag--off">Siguiente</span>';
+        ? '<a class="rp-pag rp-pag--texto" href="' . $enlace($p['pagina'] + 1) . '">Siguiente</a>'
+        : '<span class="rp-pag rp-pag--texto rp-pag--off">Siguiente</span>';
     echo '</span></nav>';
 }
 
@@ -331,7 +328,7 @@ require_once __DIR__ . '/../layout/header.php';
                                         <?= htmlspecialchars($a['tipo_movimiento']) ?>
                                     </span>
                                 </td>
-                                <td><strong><?= htmlspecialchars($a['operario']) ?></strong></td>
+                                <td><strong><?= enlaceOperario($a['id_operario'] ?? null, $a['operario'] ?? null) ?></strong></td>
                                 <td><?= htmlspecialchars($a['usuario_responsable']) ?></td>
                                 <td class="rp-aud__obs">
                                     <?= htmlspecialchars($a['observaciones'] ?: '-') ?></td>
@@ -359,7 +356,7 @@ require_once __DIR__ . '/../layout/header.php';
             <h3 class="rp-modal__titulo">
                 Desglose de Ítems (Movimiento #<span id="txt-modal-id"></span>)
             </h3>
-            <button type="button" class="rp-modal__cerrar" onclick="cerrarModalAuditoria()">&times;</button>
+            <button type="button" class="modal-close-btn rp-modal__cerrar" onclick="cerrarModalAuditoria()" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         </div>
 
         <div id="modal-estado-carga" class="rp-modal__estado">Cargando...</div>
@@ -376,12 +373,6 @@ require_once __DIR__ . '/../layout/header.php';
                 </thead>
                 <tbody id="modal-filas"></tbody>
             </table>
-        </div>
-
-        <div class="rp-modal__pie">
-            <button type="button" class="btn btn-secondary rp-modal__btn-cerrar" onclick="cerrarModalAuditoria()">
-                Cerrar
-            </button>
         </div>
     </div>
 </div>

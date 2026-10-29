@@ -91,7 +91,7 @@ function renderizarTabla(operarios) {
         </button>`);
 
         html += `
-    <div class="operario-card-row" onclick="window.location.href='detalle_operario.php?id=${idOp}'">
+    <div class="operario-card-row fila-clic">
         <div><strong>${legajoTxt}</strong></div>
         <div>${escaparHtml(op.dni)}</div>
         <div class="operario-nombre">${nombreCompleto}</div>
@@ -113,26 +113,6 @@ function renderizarTabla(operarios) {
     contenedor.innerHTML = html;
 }
 
-function renderizarPaginacion(totalPaginas, actual) {
-    const contenedor = document.getElementById('contenedor-paginacion');
-    if (!contenedor) return;
-
-    if (totalPaginas <= 1) {
-        contenedor.innerHTML = '';
-        return;
-    }
-
-    let html = '';
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.max(1, actual - 1)})" ${actual <= 1 ? 'disabled' : ''}>Anterior</button>`;
-
-    for (let p = 1; p <= totalPaginas; p++) {
-        html += `<button type="button" class="pagination-btn ${p === actual ? 'active' : ''}" onclick="cambiarPagina(${p})">${p}</button>`;
-    }
-
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.min(totalPaginas, actual + 1)})" ${actual >= totalPaginas ? 'disabled' : ''}>Siguiente</button>`;
-
-    contenedor.innerHTML = html;
-}
 
 function escaparHtml(str) {
     if (str === null || str === undefined) return '';

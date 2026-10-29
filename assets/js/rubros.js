@@ -80,7 +80,7 @@ function renderizarTabla(rubros) {
         const descEscapada = r.descripcion ? escaparHtml(r.descripcion) : 'Sin descripción';
         const cantInsumos = parseInt(r.total_insumos || 0, 10);
         const badgeInsumos = cantInsumos > 0
-            ? `<button type="button" class="badge badge-info badge-boton" onclick="verInsumosRubro(${r.id_rubro}, '${nombreEscapado}')">${cantInsumos} insumos</button>`
+            ? `<span class="badge badge-info">${cantInsumos} insumos</span>`
             : `<span class="badge badge-neutral">0 insumos</span>`;
 
         const esActivo = Boolean(r.activo == true || r.activo == 1 || r.activo === 't');
@@ -100,7 +100,7 @@ function renderizarTabla(rubros) {
         </button>`);
 
         html += `
-    <div class="rubro-card-row">
+    <div class="rubro-card-row fila-clic">
         <div><strong>#${escaparHtml(String(r.id_rubro))}</strong></div>
         <div class="rubro-name-cell">${nombreEscapado}</div>
         <div class="rubro-desc-cell" title="${descEscapada}">${descEscapada}</div>
@@ -122,26 +122,6 @@ function renderizarTabla(rubros) {
     contenedor.innerHTML = html;
 }
 
-function renderizarPaginacion(totalPaginas, pagina) {
-    const contenedor = document.getElementById('contenedor-paginacion');
-    if (!contenedor) return;
-
-    if (totalPaginas <= 1) {
-        contenedor.innerHTML = '';
-        return;
-    }
-
-    let html = '';
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.max(1, pagina - 1)})" ${pagina <= 1 ? 'disabled' : ''}>Anterior</button>`;
-
-    for (let p = 1; p <= totalPaginas; p++) {
-        html += `<button type="button" class="pagination-btn ${p === pagina ? 'active' : ''}" onclick="cambiarPagina(${p})">${p}</button>`;
-    }
-
-    html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.min(totalPaginas, pagina + 1)})" ${pagina >= totalPaginas ? 'disabled' : ''}>Siguiente</button>`;
-
-    contenedor.innerHTML = html;
-}
 
 document.getElementById('buscador-rubro').addEventListener('input', function () {
     clearTimeout(debounceTimeout);
@@ -306,48 +286,6 @@ function habilitarRubro(idRubro, nombreRubro) {
         })
         .catch(err => {
             mostrarAlerta(err.message, false);
-        });
-}
-
-function verInsumosRubro(idRubro, nombreRubro) {
-    document.getElementById('insumos-rubro-titulo').innerText = `Insumos: ${nombreRubro}`;
-    const contenedor = document.getElementById('lista-insumos-rubro');
-    contenedor.innerHTML = '<p class="lista-insumos-msg">Cargando insumos...</p>';
-    abrirModal('modal-insumos-rubro');
-
-    fetch(`dashboard.php?action=insumos&id_rubro=${idRubro}`, { credentials: 'same-origin' })
-        .then(response => response.json())
-        .then(res => {
-            if (!res.success || !res.data || res.data.length === 0) {
-                contenedor.innerHTML = '<p class="lista-insumos-msg">No hay insumos vinculados a este rubro.</p>';
-                return;
-            }
-
-            let html = '<table class="tabla-insumos-modal">';
-            html += '<thead><tr>';
-            html += '<th>Código</th>';
-            html += '<th>Nombre</th>';
-            html += '<th>Tipo</th>';
-            html += '<th>Unidad</th>';
-            html += '<th class="col-stock">Stock</th>';
-            html += '</tr></thead><tbody>';
-
-            res.data.forEach(item => {
-                const itemActivo = Boolean(item.activo == true || item.activo == 1 || item.activo === 't');
-                html += `<tr class="${itemActivo ? '' : 'fila-inactiva'}">`;
-                html += `<td class="col-codigo">${escaparHtml(String(item.codigo))}</td>`;
-                html += `<td>${escaparHtml(item.nombre)}${itemActivo ? '' : ' <span class="badge badge-danger badge-mini">Deshabilitado</span>'}</td>`;
-                html += `<td>${escaparHtml(item.tipo_nombre || '-')}</td>`;
-                html += `<td>${escaparHtml(item.unidad_medida || '-')}</td>`;
-                html += `<td class="col-stock">${escaparHtml(String(item.stock_actual ?? 0))}</td>`;
-                html += `</tr>`;
-            });
-
-            html += '</tbody></table>';
-            contenedor.innerHTML = html;
-        })
-        .catch(err => {
-            contenedor.innerHTML = `<p class="lista-insumos-msg lista-insumos-msg--error">Error al cargar insumos: ${escaparHtml(err.message)}</p>`;
         });
 }
 
