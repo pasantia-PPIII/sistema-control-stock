@@ -93,11 +93,13 @@ try {
     }
 
     if (isset($input['es_perecedero'])) {
-        $datosActualizar['es_perecedero'] = !empty($input['es_perecedero']) && ($input['es_perecedero'] === '1' || $input['es_perecedero'] === true || $input['es_perecedero'] === 'true');
+        $datosActualizar['es_perecedero'] = in_array((string) $input['es_perecedero'], ['1', 'true', 'on'], true);
     }
 
-    if (isset($input['fecha_vencimiento'])) {
-        $datosActualizar['fecha_vencimiento'] = (!empty($input['fecha_vencimiento']) && !empty($datosActualizar['es_perecedero'])) ? trim((string)$input['fecha_vencimiento']) : null;
+    if (array_key_exists('fecha_vencimiento', $input)) {
+        $datosActualizar['fecha_vencimiento'] = (!empty($datosActualizar['es_perecedero']) && trim((string) $input['fecha_vencimiento']) !== '')
+            ? trim((string) $input['fecha_vencimiento'])
+            : null;
     }
 
     if (empty($datosActualizar)) {

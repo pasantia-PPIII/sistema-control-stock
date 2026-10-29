@@ -47,7 +47,7 @@ $insumosFiltrados = array_values(array_filter($insumoModel->getAll(true), functi
     if ($estado === 'inactivo' && $ins['activo']) {
         return false;
     }
-    if ($busqueda !== '' && stripos($ins['codigo'] . ' ' . $ins['nombre'], $busqueda) === false) {
+    if ($busqueda !== '' && mb_strpos(textoNormalizado($ins['codigo'] . ' ' . $ins['nombre']), textoNormalizado($busqueda)) === false) {
         return false;
     }
     if ($filtroTipo !== '' && (string)$ins['id_tipo'] !== $filtroTipo) {
@@ -348,7 +348,7 @@ include_once __DIR__ . '/../layout/header.php';
                 </div>
                 <div class="modal-form-group">
                     <label>Tipo de Insumo *</label>
-                    <select id="edit-id-tipo" name="id_tipo" class="modal-select" required>
+                    <select id="edit-id-tipo" name="id_tipo" class="modal-select" disabled title="El tipo no se puede cambiar después de crear el insumo">
                         <option value="">Seleccione tipo...</option>
                         <?php foreach ($tipos as $t): ?>
                             <option value="<?= htmlspecialchars($t['id_tipo']) ?>">
@@ -356,6 +356,7 @@ include_once __DIR__ . '/../layout/header.php';
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <small class="modal-hint">El tipo no se puede cambiar. Si necesitás otro tipo, deshabilitá este insumo y creá uno nuevo.</small>
                 </div>
             </div>
 

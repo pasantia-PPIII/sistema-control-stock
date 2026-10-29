@@ -239,10 +239,10 @@ class Herramienta {
                        o.apellido || ', ' || o.nombre as nombre_operario
                 FROM herramienta h
                 LEFT JOIN operario o ON h.id_operario = o.id_operario
-                WHERE (o.apellido ILIKE :termino
-                   OR o.nombre ILIKE :termino
-                   OR h.estado ILIKE :termino
-                   OR h.observaciones ILIKE :termino)
+                WHERE (" . sqlBusquedaSinTildes('o.apellido') . "
+                   OR " . sqlBusquedaSinTildes('o.nombre') . "
+                   OR " . sqlBusquedaSinTildes('h.estado') . "
+                   OR " . sqlBusquedaSinTildes('h.observaciones') . ")
                 AND h.activo = TRUE
                 ORDER BY h.fecha_entrega DESC";
 

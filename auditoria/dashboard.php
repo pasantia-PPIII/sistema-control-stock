@@ -128,6 +128,17 @@ $texto = fn(string $k) => trim((string) ($_GET[$k] ?? ''));
 $desde = $texto('desde');
 $hasta = $texto('hasta');
 $buscar = $texto('buscar');
+
+// Una fecha que no existe (p. ej. 2026-13-45) se descarta y se avisa; la clase también la ignora.
+if ($desde !== '' && !Auditoria::fechaValida($desde)) {
+    $desde = '';
+    setAlert('La fecha "desde" no es válida; se ignoró ese filtro.', 'warning');
+}
+if ($hasta !== '' && !Auditoria::fechaValida($hasta)) {
+    $hasta = '';
+    setAlert('La fecha "hasta" no es válida; se ignoró ese filtro.', 'warning');
+}
+
 $filtros = [
     'desde' => $desde,
     'hasta' => $hasta,

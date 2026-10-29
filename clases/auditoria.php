@@ -300,6 +300,14 @@ class Auditoria
         ";
         $params = [];
 
+        // Fechas inválidas se ignoran; un período desconocido equivale a no filtrar por período.
+        if (!empty($desde) && !self::fechaValida($desde)) {
+            $desde = null;
+        }
+        if (!empty($hasta) && !self::fechaValida($hasta)) {
+            $hasta = null;
+        }
+
         if (!empty($periodo) && empty($desde) && empty($hasta)) {
             if ($periodo === 'hoy') {
                 $sql .= " AND m.fecha = CURRENT_DATE";
@@ -328,8 +336,11 @@ class Auditoria
             $params[':tipo_mov'] = $tipoMov;
         }
         if (!empty($buscar)) {
-            $sql .= " AND (u.nombre ILIKE :b1 OR u.apellido ILIKE :b2 OR o.nombre ILIKE :b3 OR o.apellido ILIKE :b4
-                OR (o.nombre || ' ' || o.apellido) ILIKE :b5 OR (u.nombre || ' ' || u.apellido) ILIKE :b6 OR m.observaciones ILIKE :b7)";
+            $sql .= " AND (" . sqlBusquedaSinTildes('u.nombre', ':b1') . " OR " . sqlBusquedaSinTildes('u.apellido', ':b2')
+                . " OR " . sqlBusquedaSinTildes('o.nombre', ':b3') . " OR " . sqlBusquedaSinTildes('o.apellido', ':b4')
+                . " OR " . sqlBusquedaSinTildes("o.nombre || ' ' || o.apellido", ':b5')
+                . " OR " . sqlBusquedaSinTildes("u.nombre || ' ' || u.apellido", ':b6')
+                . " OR " . sqlBusquedaSinTildes('m.observaciones', ':b7') . ")";
             $like = '%' . $buscar . '%';
             $params += [':b1' => $like, ':b2' => $like, ':b3' => $like, ':b4' => $like, ':b5' => $like, ':b6' => $like, ':b7' => $like];
         }
@@ -399,7 +410,9 @@ class Auditoria
             $params['evento'] = $f['evento'];
         }
         if (!empty($f['busqueda'])) {
-            $where[] = "(a.dni ILIKE :b1 OR a.ip ILIKE :b2 OR u.nombre ILIKE :b3 OR u.apellido ILIKE :b4 OR a.detalle ILIKE :b5)";
+            $where[] = "(" . sqlBusquedaSinTildes('a.dni', ':b1') . " OR " . sqlBusquedaSinTildes('a.ip', ':b2')
+                . " OR " . sqlBusquedaSinTildes('u.nombre', ':b3') . " OR " . sqlBusquedaSinTildes('u.apellido', ':b4')
+                . " OR " . sqlBusquedaSinTildes('a.detalle', ':b5') . ")";
             $like = '%' . $f['busqueda'] . '%';
             $params += ['b1' => $like, 'b2' => $like, 'b3' => $like, 'b4' => $like, 'b5' => $like];
         }
@@ -424,8 +437,9 @@ class Auditoria
             $params['entidad'] = $f['entidad'];
         }
         if (!empty($f['busqueda'])) {
-            $where[] = "(c.dni_usuario ILIKE :b1 OR c.id_registro ILIKE :b2 OR c.descripcion ILIKE :b3
-                         OR u.nombre ILIKE :b4 OR u.apellido ILIKE :b5)";
+            $where[] = "(" . sqlBusquedaSinTildes('c.dni_usuario', ':b1') . " OR " . sqlBusquedaSinTildes('c.id_registro', ':b2')
+                . " OR " . sqlBusquedaSinTildes('c.descripcion', ':b3')
+                . " OR " . sqlBusquedaSinTildes('u.nombre', ':b4') . " OR " . sqlBusquedaSinTildes('u.apellido', ':b5') . ")";
             $like = '%' . $f['busqueda'] . '%';
             $params += ['b1' => $like, 'b2' => $like, 'b3' => $like, 'b4' => $like, 'b5' => $like];
         }
@@ -446,8 +460,9 @@ class Auditoria
             $params['origen'] = $f['origen'];
         }
         if (!empty($f['busqueda'])) {
-            $where[] = "(i.codigo ILIKE :b1 OR i.nombre ILIKE :b2 OR s.dni_usuario ILIKE :b3
-                         OR u.nombre ILIKE :b4 OR u.apellido ILIKE :b5)";
+            $where[] = "(" . sqlBusquedaSinTildes('i.codigo', ':b1') . " OR " . sqlBusquedaSinTildes('i.nombre', ':b2')
+                . " OR " . sqlBusquedaSinTildes('s.dni_usuario', ':b3')
+                . " OR " . sqlBusquedaSinTildes('u.nombre', ':b4') . " OR " . sqlBusquedaSinTildes('u.apellido', ':b5') . ")";
             $like = '%' . $f['busqueda'] . '%';
             $params += ['b1' => $like, 'b2' => $like, 'b3' => $like, 'b4' => $like, 'b5' => $like];
         }
@@ -457,14 +472,27 @@ class Auditoria
     /** Rango de fechas inclusivo (el día "hasta" entra completo). Las fechas con formato inválido se ignoran. */
     private static function rangoFechas(array $f, string $columna, array &$where, array &$params): void
     {
-        if (!empty($f['desde']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $f['desde'])) {
+        if (!empty($f['desde']) && self::fechaValida($f['desde'])) {
             $where[] = "$columna >= CAST(:desde AS date)";
             $params['desde'] = $f['desde'];
         }
-        if (!empty($f['hasta']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $f['hasta'])) {
+        if (!empty($f['hasta']) && self::fechaValida($f['hasta'])) {
             $where[] = "$columna < CAST(:hasta AS date) + 1";
             $params['hasta'] = $f['hasta'];
         }
+    }
+
+    /**
+     * Indica si el texto es una fecha real en formato AAAA-MM-DD (rechaza, por ejemplo, 2026-13-45).
+     * Los filtros de fecha de toda la auditoría pasan por aquí para que una fecha inválida
+     * nunca llegue a la base de datos.
+     */
+    public static function fechaValida(string $fecha): bool
+    {
+        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $fecha, $m)) {
+            return false;
+        }
+        return checkdate((int) $m[2], (int) $m[3], (int) $m[1]);
     }
 
     private static function armarWhere(array $where): string

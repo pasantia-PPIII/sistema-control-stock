@@ -20,6 +20,30 @@ function errorAmigable(string $contexto, Throwable $e): Exception
     return new Exception($contexto . ': ' . $e->getMessage());
 }
 
+/**
+ * Normaliza un texto para comparar búsquedas sin distinguir mayúsculas ni tildes.
+ * Ej.: "Pérez" y "PEREZ" quedan como "perez".
+ */
+function textoNormalizado(string $texto): string
+{
+    $texto = mb_strtolower(trim($texto), 'UTF-8');
+    return strtr($texto, [
+        'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
+        'ü' => 'u', 'ñ' => 'n',
+    ]);
+}
+
+/**
+ * Condición SQL para buscar texto sin distinguir mayúsculas ni tildes.
+ * El parámetro se normaliza en la propia consulta, así no importa cómo lo escriba el usuario.
+ * Uso: sqlBusquedaSinTildes('o.apellido')  =>  translate(lower(o.apellido), ...) LIKE translate(lower(:termino), ...)
+ */
+function sqlBusquedaSinTildes(string $expresion, string $parametro = ':termino'): string
+{
+    $normalizar = "translate(lower(%s), 'áéíóúüñ', 'aeiouun')";
+    return sprintf($normalizar, $expresion) . ' LIKE ' . sprintf($normalizar, $parametro);
+}
+
 class Database
 {
     private static ?PDO $conexion = null;
