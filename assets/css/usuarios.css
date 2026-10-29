@@ -314,3 +314,20 @@
     text-align: center;
     line-height: 1.5;
 }
+
+/* Responsivo Usuarios */
+@media (min-width: 769px) and (max-width: 992px) {
+    .table-header-row,
+    .user-card-row {
+        min-width: 760px;
+    }
+}
+
+
+/* Títulos de las tarjetas en celular (ver global.css) */
+.user-card-row > div:nth-child(1) { --et: "#"; }
+.user-card-row > div:nth-child(2) { --et: "Usuario (DNI)"; }
+.user-card-row > div:nth-child(3) { --et: "Operario vinculado"; }
+.user-card-row > div:nth-child(4) { --et: "DNI operario"; }
+.user-card-row > div:nth-child(5) { --et: "Rol"; }
+.user-card-row > div:nth-child(6) { --et: "Estado"; }

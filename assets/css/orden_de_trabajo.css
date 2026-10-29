@@ -407,3 +407,28 @@
 /* Modales y ficha de la orden (clases compartidas en global.css: caja-texto, lista-detalle, mb-*) */
 .btn-volver-listado { text-decoration: none; }
 .pdf-nombre { font-size: 0.8rem; color: #64748b; margin-left: 0.5rem; }
+
+/* Responsivo Órdenes de Trabajo */
+@media (max-width: 992px) {
+    .data-table {
+        min-width: 720px;
+    }
+}
+
+@media (max-width: 768px) {
+    .detail-card {
+        padding: 1.25rem 1rem !important;
+    }
+    .detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    .detail-header a,
+    .detail-header button {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+}
+

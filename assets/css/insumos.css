@@ -322,3 +322,36 @@
 .ficha__tabla .col-der { text-align: right; }
 .ficha__tabla .col-cantidad { font-weight: 700; }
 .ficha__tabla td.ficha__vacio { text-align: center; color: #64748b; padding: 1.5rem; }
+
+/* Responsivo Insumos */
+@media (min-width: 769px) and (max-width: 992px) {
+    .table-header-row,
+    .insumo-card-row {
+        min-width: 840px;
+    }
+}
+
+@media (max-width: 768px) {
+    .ficha {
+        padding: 1.25rem 1rem;
+    }
+    .ficha__encabezado {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    .ficha__btn-volver {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+
+/* Títulos de las tarjetas en celular (ver global.css) */
+.insumo-card-row > div:nth-child(1) { --et: "Código"; }
+.insumo-card-row > div:nth-child(2) { --et: "Nombre"; }
+.insumo-card-row > div:nth-child(3) { --et: "Rubro"; }
+.insumo-card-row > div:nth-child(4) { --et: "U. Medida"; }
+.insumo-card-row > div:nth-child(5) { --et: "Stock"; }
+.insumo-card-row > div:nth-child(6) { --et: "Tipo"; }
+.insumo-card-row > div:nth-child(7) { --et: "Estado / Venc."; }

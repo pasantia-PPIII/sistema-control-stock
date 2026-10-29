@@ -444,3 +444,35 @@
 .ficha-tabla tbody tr:last-child td { border-bottom: none; }
 .ficha-tabla a { color: #1d4ed8; text-decoration: none; }
 .ficha-tabla a:hover { text-decoration: underline; }
+
+/* Responsivo Operarios */
+@media (min-width: 769px) and (max-width: 992px) {
+    .table-header-row,
+    .operario-card-row {
+        min-width: 680px;
+    }
+}
+
+@media (max-width: 768px) {
+    .ficha-operario {
+        padding: 1.25rem 1rem !important;
+    }
+    .ficha-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .btn-volver-ficha {
+        width: 100%;
+        text-align: center;
+    }
+    .ficha-tabla {
+        min-width: 580px;
+    }
+}
+
+
+/* Títulos de las tarjetas en celular (ver global.css) */
+.operario-card-row > div:nth-child(1) { --et: "Legajo"; }
+.operario-card-row > div:nth-child(2) { --et: "DNI"; }
+.operario-card-row > div:nth-child(3) { --et: "Apellido y nombre"; }
+.operario-card-row > div:nth-child(4) { --et: "Rubro"; }
