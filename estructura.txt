@@ -34,10 +34,8 @@ sistema-control-stock/
 │   ├── seed_data.sql                  2) Datos base obligatorios: roles, tipos, estados, unidades,
 │   │                                     ubicaciones, tipos de movimiento, localidades, rubros
 │   ├── test_data.sql                  3) Datos de prueba y usuarios de ejemplo (solo desarrollo)
-│   ├── mas_datos.sql                  4) Opcional: volumen alto de datos ficticios (100 operarios, 300 insumos, 150 movimientos);
-│   │                                  se carga una sola vez, después de test_data.sql
-│   └── migracion_stock_herramientas.sql  Solo para bases ya cargadas: stock de herramientas
-│                                         1 si están Disponibles, 0 en otro estado (repetible)
+│   └── mas_datos.sql                  4) Opcional: volumen alto de datos ficticios (100 operarios, 300 insumos, 150 movimientos);
+│                                      se carga una sola vez, después de test_data.sql
 │
 ├── clases/                            Lógica de negocio y acceso a datos (una clase por entidad)
 │   ├── auditoria.php                  Registro y consulta de la auditoría (accesos, cambios, stock, historial de movimientos)
@@ -74,7 +72,7 @@ sistema-control-stock/
 ├── movimiento/                        Entregas y devoluciones
 │   ├── dashboard.php                  Listado de movimientos
 │   ├── crear_movimiento.php           Formulario y registro de entrega / devolución
-│   ├── editar_movimiento.php          Vacío: pendiente
+│   ├── editar_movimiento.php          Vincula un movimiento a una orden de trabajo (AJAX)
 │   ├── detalle_movimiento.php         Detalle de un movimiento y sus insumos
 │   └── deshabilitar_movimiento.php    Anula el movimiento y revierte el stock
 │

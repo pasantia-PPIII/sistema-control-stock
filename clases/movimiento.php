@@ -547,10 +547,10 @@ class Movimiento {
                 INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
                 INNER JOIN usuario u ON m.dni_usuario = u.dni
                 LEFT JOIN operario o ON m.id_operario = o.id_operario
-                WHERE (m.observaciones ILIKE :termino
-                   OR tm.tipo ILIKE :termino
-                   OR o.apellido ILIKE :termino
-                   OR o.nombre ILIKE :termino
+                WHERE (" . sqlBusquedaSinTildes('m.observaciones') . "
+                   OR " . sqlBusquedaSinTildes('tm.tipo') . "
+                   OR " . sqlBusquedaSinTildes('o.apellido') . "
+                   OR " . sqlBusquedaSinTildes('o.nombre') . "
                    OR CAST(m.id_movimiento AS TEXT) = :termino_exacto)
                 AND m.activo = TRUE
                 ORDER BY m.fecha DESC, m.hora DESC";

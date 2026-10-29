@@ -40,7 +40,7 @@ $rubrosFiltrados = array_values(array_filter($rubroModel->getAll(true), function
     if ($estado === 'inactivo' && $activo) {
         return false;
     }
-    if ($busqueda !== '' && stripos($r['nombre'] . ' ' . ($r['descripcion'] ?? ''), $busqueda) === false) {
+    if ($busqueda !== '' && mb_strpos(textoNormalizado($r['nombre'] . ' ' . ($r['descripcion'] ?? '')), textoNormalizado($busqueda)) === false) {
         return false;
     }
     return true;

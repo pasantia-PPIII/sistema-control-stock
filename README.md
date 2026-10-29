@@ -12,7 +12,7 @@ Desarrollado en **PHP** (páginas procedurales + clases en `clases/`) con **Post
 
 ## Instalación rápida
 
-La guía completa paso a paso (WAMP + PostgreSQL local) está en [INSTALACION_LOCAL.txt](INSTALACION_LOCAL.txt). En resumen:
+La guía de instalación resumida (WAMP + PostgreSQL local):
 
 1. Clonar el repositorio dentro de la carpeta pública del servidor (`www` en WAMP).
 2. Crear la base `db_control_stock` y ejecutar, en orden, `bd/db_control_stock.sql`, `bd/seed_data.sql` y (solo desarrollo) `bd/test_data.sql`.
@@ -50,7 +50,6 @@ Este archivo es **personal y no se sube al repositorio**. Se crea copiando `conf
 - **Stock de materiales:** una Entrega descuenta y una Devolución suma. El stock nunca queda negativo.
 - **Cargar o corregir stock** se hace desde el módulo **Insumos**, no con movimientos: al **crear** un insumo se indica el *Stock Inicial* (obligatorio en los materiales; si no hay existencias se carga 0; las herramientas nacen con 1) y al **editarlo** se cambia el *Stock Actual* (carga de mercadería, recuento físico o corrección). El valor ingresado pasa a ser el stock del insumo. Hoy ese cambio no deja registro del valor anterior.
 - **Herramientas:** son unidades enteras. Stock **1** = está en el pañol (estado Disponible); stock **0** = no está (Prestada, En Reparación o Dada de baja). Al crearla nace con stock 1. Una Entrega exige que esté Disponible con stock 1 y pasa el stock a 0; una Devolución lo vuelve a 1 solo si regresa Disponible. La cantidad del movimiento debe ser 1 y el stock de una herramienta no se edita a mano. Las herramientas no se cuentan en el "stock bajo" del Panel ni de Reportes.
-- Si tu base se cargó antes de este cambio, ejecutá una vez `bd/migracion_stock_herramientas.sql` para dejar el stock de las herramientas según su estado.
 - **Anular un movimiento** revierte su efecto sobre el stock.
 - **Orden de trabajo:** puede vincularse a un movimiento de entrega y a uno de devolución (ambos opcionales) y a una comisión de operarios.
 
@@ -91,5 +90,5 @@ Las tablas se crean con `bd/db_control_stock.sql` (sección 7); no hay script de
 
 ## Pendientes conocidos
 
-- Recuperación de contraseña (`auth/forgot_password.php`) y edición de movimientos (`movimiento/editar_movimiento.php`): archivos vacíos.
+- Recuperación de contraseña (`auth/forgot_password.php`): archivo vacío, todavía no implementado.
 - Al deshabilitar un operario no se deshabilita su usuario vinculado.

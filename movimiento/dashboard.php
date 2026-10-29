@@ -59,7 +59,7 @@ $movimientosFiltrados = array_values(array_filter($todosMovimientos, function ($
     }
     $texto = $m['id_movimiento'] . ' ' . ($m['nombre_operario'] ?? '') . ' ' . $m['dni_usuario'] . ' '
            . ($m['observaciones'] ?? '') . ' ' . $m['nombre_tipo_movimiento'];
-    if ($busqueda !== '' && stripos($texto, $busqueda) === false) {
+    if ($busqueda !== '' && mb_strpos(textoNormalizado($texto), textoNormalizado($busqueda)) === false) {
         return false;
     }
     return true;
