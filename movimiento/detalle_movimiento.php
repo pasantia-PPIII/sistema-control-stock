@@ -147,38 +147,40 @@ include_once __DIR__ . '/../layout/header.php';
         <h3 class="items-section-title">Ítems Involucrados en el Movimiento (<?= count($detalles) ?>)</h3>
     </div>
 
-    <table class="items-table">
-        <thead>
-            <tr>
-                <th>Código</th>
-                <th>Insumo / Herramienta</th>
-                <th>Tipo</th>
-                <th class="celda-derecha">Cantidad</th>
-                <th>Unidad</th>
-                <th>Estado Herramienta</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (empty($detalles)): ?>
+    <div class="items-table-wrap">
+        <table class="items-table">
+            <thead>
                 <tr>
-                    <td colspan="6" class="estado-vacio">No hay detalles registrados para este movimiento.</td>
+                    <th>Código</th>
+                    <th>Insumo / Herramienta</th>
+                    <th>Tipo</th>
+                    <th class="celda-derecha">Cantidad</th>
+                    <th>Unidad</th>
+                    <th>Estado Herramienta</th>
                 </tr>
-            <?php else: ?>
-                <?php foreach ($detalles as $d): 
-                    $estadoHerramienta = !empty($d['nombre_estado_herramienta']) ? htmlspecialchars($d['nombre_estado_herramienta']) : 'No aplica';
-                ?>
-                <tr>
-                    <td class="celda-fuerte"><?= htmlspecialchars($d['codigo']) ?></td>
-                    <td><?= htmlspecialchars($d['nombre_insumo']) ?></td>
-                    <td><?= htmlspecialchars($d['tipo_insumo'] ?? 'Material') ?></td>
-                    <td class="celda-derecha celda-fuerte"><?= (float)$d['cantidad'] ?></td>
-                    <td><?= htmlspecialchars($d['unidad_medida'] ?? 'unidades') ?></td>
-                    <td><span class="badge badge-neutral"><?= $estadoHerramienta ?></span></td>
-                </tr>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                <?php if (empty($detalles)): ?>
+                    <tr>
+                        <td colspan="6" class="estado-vacio">No hay detalles registrados para este movimiento.</td>
+                    </tr>
+                <?php else: ?>
+                    <?php foreach ($detalles as $d): 
+                        $estadoHerramienta = !empty($d['nombre_estado_herramienta']) ? htmlspecialchars($d['nombre_estado_herramienta']) : 'No aplica';
+                    ?>
+                    <tr>
+                        <td class="celda-fuerte"><?= htmlspecialchars($d['codigo']) ?></td>
+                        <td><?= htmlspecialchars($d['nombre_insumo']) ?></td>
+                        <td><?= htmlspecialchars($d['tipo_insumo'] ?? 'Material') ?></td>
+                        <td class="celda-derecha celda-fuerte"><?= (float)$d['cantidad'] ?></td>
+                        <td><?= htmlspecialchars($d['unidad_medida'] ?? 'unidades') ?></td>
+                        <td><span class="badge badge-neutral"><?= $estadoHerramienta ?></span></td>
+                    </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <?php if ($puedeVincular): ?>

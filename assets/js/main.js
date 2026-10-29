@@ -118,3 +118,45 @@ document.addEventListener('click', function (e) {
     const ver = fila.querySelector('.btn-action-icon.view');
     if (ver) ver.click();
 });
+
+/**
+ * Navegación responsive: control de apertura y cierre de sidebar en móviles y tablets.
+ */
+function toggleSidebar(forzar) {
+    const sidebar = document.getElementById('app-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const body = document.body;
+
+    const estaAbierto = body.classList.contains('sidebar-open');
+    const debeAbrir = (typeof forzar === 'boolean') ? forzar : !estaAbierto;
+
+    if (debeAbrir) {
+        body.classList.add('sidebar-open');
+        if (sidebar) sidebar.classList.add('is-open');
+        if (backdrop) backdrop.classList.add('is-active');
+    } else {
+        body.classList.remove('sidebar-open');
+        if (sidebar) sidebar.classList.remove('is-open');
+        if (backdrop) backdrop.classList.remove('is-active');
+    }
+}
+
+// Cerrar sidebar al presionar tecla ESC
+window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.body.classList.contains('sidebar-open')) {
+        toggleSidebar(false);
+    }
+});
+
+// Cerrar sidebar al hacer clic en un enlace de navegación en móvil
+document.addEventListener('DOMContentLoaded', function () {
+    const enlacesMenu = document.querySelectorAll('.sidebar-menu .menu-item');
+    enlacesMenu.forEach(function (enlace) {
+        enlace.addEventListener('click', function () {
+            if (window.innerWidth <= 992) {
+                toggleSidebar(false);
+            }
+        });
+    });
+});
+

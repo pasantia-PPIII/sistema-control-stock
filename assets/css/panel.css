@@ -363,3 +363,35 @@
 .panel-fila-vencida td {
     color: #991b1b;
 }
+
+/* Responsivo Panel de Control */
+.panel-tabla {
+    min-width: 480px;
+}
+
+@media (max-width: 560px) {
+    .panel-kpis {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+    .panel-kpi {
+        padding: 0.85rem 0.9rem;
+        border-radius: 10px;
+    }
+    .panel-kpi-valor {
+        font-size: 1.6rem;
+    }
+    .panel-kpi-titulo {
+        font-size: 0.74rem;
+    }
+    .panel-card {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .panel-kpis {
+        grid-template-columns: 1fr;
+    }
+}
+

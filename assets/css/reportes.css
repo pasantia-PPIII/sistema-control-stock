@@ -346,3 +346,38 @@ a.rp-pag:focus-visible { outline: 3px solid #93c5fd; outline-offset: 1px; }
 .rp-modal__tabla th, .rp-modal__tabla td { padding: 0.5rem; }
 .rp-modal__tabla tbody tr { border-bottom: 1px solid #f1f5f9; }
 
+/* Responsivo Reportes */
+.rp-tabla {
+    min-width: 580px;
+}
+
+@media (max-width: 560px) {
+    .rp-kpis {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+    .rp-kpi {
+        padding: 0.8rem 0.9rem;
+    }
+    .rp-kpi__valor {
+        font-size: 1.5rem;
+    }
+    .rp-tabs {
+        gap: 0.75rem;
+    }
+    .rp-tab {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.2rem;
+    }
+    .rp-card {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .rp-kpis {
+        grid-template-columns: 1fr;
+    }
+}
+
+

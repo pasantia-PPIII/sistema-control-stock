@@ -51,8 +51,19 @@ $alerta_flash = getAlert();
 </head>
 <body class="admin-layout">
 
+    <!-- Overlay oscuro para móvil al abrir sidebar -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
+
     <!-- Sidebar Institucional -->
-    <aside class="app-sidebar">
+    <aside class="app-sidebar" id="app-sidebar">
+        <!-- Botón cerrar para móvil -->
+        <button type="button" class="sidebar-close-btn" id="sidebar-close-btn" onclick="toggleSidebar(false)" aria-label="Cerrar menú">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+
         <div class="sidebar-brand">
             <img src="<?= $baseUrl ?>/assets/img/logo.jpeg" alt="Logo Taller ONABE" class="sidebar-logo">
             <div class="brand-text">Dirección de Arquitectura<br>y Mantenimiento</div>
@@ -89,7 +100,16 @@ $alerta_flash = getAlert();
     <!-- Contenedor Principal -->
     <main class="app-content">
         <header class="top-bar">
-            <h1 class="page-title"><?= htmlspecialchars($titulo_vista ?? 'Panel Principal') ?></h1>
+            <div class="top-bar-left">
+                <button type="button" class="btn-sidebar-toggle" id="btn-sidebar-toggle" onclick="toggleSidebar()" aria-label="Abrir menú de navegación" title="Menú">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <h1 class="page-title"><?= htmlspecialchars($titulo_vista ?? 'Panel Principal') ?></h1>
+            </div>
             <div class="user-profile-header">
                 <div class="avatar-circle"></div>
                 <div class="user-meta">
