@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/reportes.php';
+require_once __DIR__ . '/auditoria.php';
 
 class OrdenDeTrabajo {
     private $db;
@@ -256,6 +257,11 @@ class OrdenDeTrabajo {
 
             $this->sincronizarOperarios($id_odt, $ids_operarios);
 
+            // AUDITORÍA: carga de la orden con su comisión (dentro de la misma transacción)
+            Auditoria::registrarCambio(Auditoria::CREAR, 'orden_de_trabajo', $id_odt,
+                "Orden de trabajo #{$id_odt} (N° {$orden['numero_ot']}) cargada", null,
+                $orden + ['operarios' => $this->idsOperariosActivos($id_odt)]);
+
             $this->db->commit();
             return $orden;
         } catch (Throwable $e) {
@@ -284,11 +290,24 @@ class OrdenDeTrabajo {
                 throw new Exception("El número de Orden de Trabajo es obligatorio.");
             }
 
+            // AUDITORÍA: se guarda cómo estaba la orden (y su comisión) antes de tocar nada
+            $antes = $this->db->fetchOne("SELECT * FROM orden_de_trabajo WHERE id_odt = :id FOR UPDATE", ['id' => (int)$id_odt]) ?? [];
+            $antes['operarios'] = $this->idsOperariosActivos((int)$id_odt);
+
             if (!empty($data)) {
                 $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => (int)$id_odt]);
             }
+            $despues = $data;
             if (is_array($ids_operarios)) {
                 $this->sincronizarOperarios((int)$id_odt, $ids_operarios);
+                $despues['operarios'] = $this->idsOperariosActivos((int)$id_odt);
+            }
+
+            // AUDITORÍA: solo lo que cambió (el cambio de estado desde el listado también pasa por acá)
+            [$a, $d] = $this->diferenciasOrden($antes, $despues);
+            if ($d) {
+                Auditoria::registrarCambio(Auditoria::EDITAR, 'orden_de_trabajo', (int)$id_odt,
+                    "Orden de trabajo #{$id_odt} editada: " . implode(', ', array_keys($d)), $a, $d);
             }
 
             $this->db->commit();
@@ -296,6 +315,43 @@ class OrdenDeTrabajo {
         } catch (Throwable $e) {
             $this->cerrarConError($e, 'actualizar la Orden de Trabajo');
         }
+    }
+
+    /** id_operario de la comisión activa de la orden, ordenados (para auditar cambios de la comisión). */
+    private function idsOperariosActivos($id_odt): array {
+        $filas = $this->db->fetchAll(
+            "SELECT id_operario FROM comision WHERE id_odt = :id_odt AND activo = TRUE ORDER BY id_operario",
+            ['id_odt' => (int)$id_odt]
+        );
+        return array_map(fn($f) => (int)$f['id_operario'], $filas);
+    }
+
+    /**
+     * Campos que cambiaron entre dos versiones de una orden (para la auditoría). Las horas se comparan
+     * como HH:MM (la base devuelve HH:MM:SS y el formulario HH:MM) y la comisión como lista de ids.
+     * @return array [antes, despues]
+     */
+    private function diferenciasOrden(array $antes, array $despues): array {
+        $cAntes = $antes;
+        $cDespues = $despues;
+        foreach (['hora_inicio', 'hora_final'] as $campo) {
+            if (isset($cAntes[$campo])) {
+                $cAntes[$campo] = substr((string)$cAntes[$campo], 0, 5);
+            }
+            if (!empty($cDespues[$campo])) {
+                $cDespues[$campo] = substr((string)$cDespues[$campo], 0, 5);
+            }
+        }
+        if (isset($cDespues['operarios'])) {
+            $cAntes['operarios'] = implode(',', $antes['operarios'] ?? []);
+            $cDespues['operarios'] = implode(',', $despues['operarios']);
+        }
+        [$a, $d] = Auditoria::diferencias($cAntes, $cDespues);
+        if (isset($d['operarios'])) {
+            $a['operarios'] = $antes['operarios'] ?? [];
+            $d['operarios'] = $despues['operarios'];
+        }
+        return [$a, $d];
     }
 
     /**
@@ -421,12 +477,19 @@ class OrdenDeTrabajo {
     public function asignarMultiplesOperarios($id_odt, $ids_operarios) {
         $this->db->beginTransaction();
         try {
+            $operariosAntes = $this->idsOperariosActivos($id_odt);
             $asignados = 0;
             foreach ($ids_operarios as $id_operario) {
                 if (!$this->operarioYaAsignado($id_odt, $id_operario)) {
                     $this->asignarOperario($id_odt, $id_operario);
                     $asignados++;
                 }
+            }
+            // AUDITORÍA: queda registrada la ampliación de la comisión
+            if ($asignados > 0) {
+                Auditoria::registrarCambio(Auditoria::EDITAR, 'orden_de_trabajo', (int)$id_odt,
+                    "Orden de trabajo #{$id_odt} editada: operarios", ['operarios' => $operariosAntes],
+                    ['operarios' => $this->idsOperariosActivos($id_odt)]);
             }
             $this->db->commit();
             return $asignados;
@@ -468,8 +531,13 @@ class OrdenDeTrabajo {
      */
     public function anular($id_odt) {
         try {
-            $data = ['activo' => false];
-            return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
+            // AUDITORÍA: el cambio y su registro se guardan juntos
+            return Auditoria::transaccion(function () use ($id_odt) {
+                $ok = $this->db->update('orden_de_trabajo', ['activo' => false], 'id_odt = :id_odt', ['id_odt' => $id_odt]);
+                Auditoria::registrarCambio(Auditoria::ANULAR, 'orden_de_trabajo', (int)$id_odt,
+                    "Orden de trabajo #{$id_odt} anulada", ['activo' => true], ['activo' => false]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al anular la Orden de Trabajo', $e);
         }
@@ -495,8 +563,12 @@ class OrdenDeTrabajo {
      */
     public function reactivar($id_odt) {
         try {
-            $data = ['activo' => true];
-            return $this->db->update('orden_de_trabajo', $data, 'id_odt = :id_odt', ['id_odt' => $id_odt]);
+            return Auditoria::transaccion(function () use ($id_odt) {
+                $ok = $this->db->update('orden_de_trabajo', ['activo' => true], 'id_odt = :id_odt', ['id_odt' => $id_odt]);
+                Auditoria::registrarCambio(Auditoria::REACTIVAR, 'orden_de_trabajo', (int)$id_odt,
+                    "Orden de trabajo #{$id_odt} reactivada", ['activo' => false], ['activo' => true]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al reactivar la Orden de Trabajo', $e);
         }

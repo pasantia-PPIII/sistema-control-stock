@@ -11,12 +11,10 @@ if (!isAuthenticated()) {
 
 $seccion = 'reportes';
 $css_modulo = 'reportes';
-$js_modulo = 'reportes';
 $titulo_vista = 'Reportes';
 $titulo_pagina = 'Reportes - Sistema de Control de Stock';
 
 require_once __DIR__ . '/../clases/reportes.php';
-require_once __DIR__ . '/../clases/auditoria.php';
 
 // ---------------------------------------------------------------------------------------------
 // Pestañas (los nombres anteriores 'compras' y 'rubros' siguen funcionando)
@@ -27,11 +25,14 @@ $pestanias = [
     'herramientas' => 'Herramientas',
     'ordenes' => 'Órdenes de trabajo',
     'consumo' => 'Consumo',
-    'auditoria' => 'Historial',
 ];
 $alias = ['compras' => 'stock', 'rubros' => 'consumo'];
 $tab_reporte = $_GET['tab'] ?? 'stock';
 $tab_reporte = $alias[$tab_reporte] ?? $tab_reporte;
+// El historial de auditoría ya no está en Reportes: tiene su propia sección (solo Administrador)
+if ($tab_reporte === 'auditoria' && canViewAudit()) {
+    redirect('auditoria/dashboard.php?tab=movimientos');
+}
 if (!isset($pestanias[$tab_reporte])) {
     $tab_reporte = 'stock';
 }
@@ -197,14 +198,6 @@ switch ($tab_reporte) {
         $porJurisdiccion = Reportes::consumoPorJurisdiccion($rango);
         $pgAju = rp_clave('aju', Reportes::ajustesPorInsumoPaginado(rp_pagina('aju'), RP_POR_PAGINA, $rango));
         break;
-    case 'auditoria':
-        $periodo = $_GET['periodo'] ?? 'hoy';
-        $buscar = trim($_GET['buscar'] ?? '');
-        $desde = trim($_GET['desde'] ?? '');
-        $hasta = trim($_GET['hasta'] ?? '');
-        $tipo_mov = trim($_GET['tipo_mov'] ?? '');
-        $pgAud = rp_clave('aud', obtenerAuditoriaMovimientosPaginado(rp_pagina('aud'), RP_POR_PAGINA, $periodo, $desde ?: null, $hasta ?: null, $buscar ?: null, $tipo_mov ?: null));
-        break;
 }
 
 require_once __DIR__ . '/../layout/header.php';
@@ -258,124 +251,6 @@ require_once __DIR__ . '/../layout/header.php';
     <?php include __DIR__ . '/tabs/ordenes.php'; ?>
 <?php elseif ($tab_reporte === 'consumo'): ?>
     <?php include __DIR__ . '/tabs/consumo.php'; ?>
-<?php else: ?>
-    <!-- TABLA DE AUDITORÍA -->
-    <div class="card rp-aud" id="sec-aud">
-        <?php
-        // Botón de período activo (solo si no hay rango de fechas manual)
-        $periodoActivo = fn(string $p) => ($periodo === $p && !$desde && !$hasta) ? ' rp-aud__periodo--activo' : '';
-        ?>
-        <div class="rp-aud__periodos">
-            <span class="rp-aud__periodos-titulo">Período:</span>
-            <a class="rp-aud__periodo<?= $periodoActivo('hoy') ?>"
-                href="<?= $h(rp_url(['periodo' => 'hoy', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>">Diario
-                (Hoy)</a>
-            <a class="rp-aud__periodo<?= $periodoActivo('semana') ?>"
-                href="<?= $h(rp_url(['periodo' => 'semana', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>">Semanal</a>
-            <a class="rp-aud__periodo<?= $periodoActivo('mes') ?>"
-                href="<?= $h(rp_url(['periodo' => 'mes', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>">Mensual</a>
-            <a class="rp-aud__periodo<?= $periodoActivo('anio') ?>"
-                href="<?= $h(rp_url(['periodo' => 'anio', 'desde' => null, 'hasta' => null, 'p_aud' => null], 'sec-aud')) ?>">Anual</a>
-        </div>
-
-        <form method="GET" action="dashboard.php" class="rp-aud__filtros">
-            <input type="hidden" name="tab" value="auditoria">
-            <input type="hidden" name="periodo" value="<?= $h($periodo) ?>">
-            <input type="text" name="buscar" value="<?= htmlspecialchars($buscar) ?>"
-                placeholder="Buscar por responsable, operario o nota..." class="form-input rp-aud__input rp-aud__input--buscar">
-
-            <select name="tipo_mov" class="form-input rp-aud__input">
-                <option value="">Todos los Tipos</option>
-                <option value="Entrega" <?= $tipo_mov === 'Entrega' ? 'selected' : '' ?>>Entrega</option>
-                <option value="Devolución" <?= $tipo_mov === 'Devolución' ? 'selected' : '' ?>>Devolución</option>
-                <option value="Ingreso" <?= $tipo_mov === 'Ingreso' ? 'selected' : '' ?>>Ingreso</option>
-                <option value="Ajuste de Inventario" <?= $tipo_mov === 'Ajuste de Inventario' ? 'selected' : '' ?>>Ajuste</option>
-            </select>
-
-            <input type="date" name="desde" value="<?= htmlspecialchars($desde) ?>" class="form-input rp-aud__input rp-aud__input--fecha">
-            <input type="date" name="hasta" value="<?= htmlspecialchars($hasta) ?>" class="form-input rp-aud__input rp-aud__input--fecha">
-
-            <button type="submit" class="btn btn-primary rp-aud__btn-filtrar">Filtrar</button>
-            <a href="dashboard.php?tab=auditoria" class="btn btn-secondary rp-aud__btn-limpiar">Limpiar</a>
-        </form>
-
-        <div class="table-responsive">
-            <table class="data-table rp-aud__tabla">
-                <thead>
-                    <tr>
-                        <th>Fecha y Hora</th>
-                        <th>Operación</th>
-                        <th>Operario Destinatario</th>
-                        <th>Usuario Responsable</th>
-                        <th>Observaciones</th>
-                        <th class="rp-aud__col-der">Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($pgAud['filas'])): ?>
-                        <tr>
-                            <td colspan="6" class="rp-aud__vacio">
-                                No se encontraron registros de auditoría para los filtros aplicados.
-                            </td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($pgAud['filas'] as $a): ?>
-                            <tr>
-                                <td><?= date('d/m/Y', strtotime($a['fecha'])) ?>
-                                    <?= htmlspecialchars($a['hora']) ?></td>
-                                <td>
-                                    <span class="rp-aud__tipo">
-                                        <?= htmlspecialchars($a['tipo_movimiento']) ?>
-                                    </span>
-                                </td>
-                                <td><strong><?= enlaceOperario($a['id_operario'] ?? null, $a['operario'] ?? null) ?></strong></td>
-                                <td><?= htmlspecialchars($a['usuario_responsable']) ?></td>
-                                <td class="rp-aud__obs">
-                                    <?= htmlspecialchars($a['observaciones'] ?: '-') ?></td>
-                                <td class="rp-aud__col-der">
-                                    <button type="button" class="btn btn-secondary rp-aud__btn-items"
-                                        onclick="abrirDetallesMovimiento(<?= (int) $a['id_movimiento'] ?>)">
-                                        Ver Ítems
-                                    </button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php rp_paginador($pgAud); ?>
-    </div>
-<?php endif; ?>
-
-<?php if ($tab_reporte === 'auditoria'): ?>
-<!-- MODAL VER DETALLE DE AUDITORÍA -->
-<div id="modal-auditoria" class="rp-modal">
-    <div class="rp-modal__caja">
-        <div class="rp-modal__cabecera">
-            <h3 class="rp-modal__titulo">
-                Desglose de Ítems (Movimiento #<span id="txt-modal-id"></span>)
-            </h3>
-            <button type="button" class="modal-close-btn rp-modal__cerrar" onclick="cerrarModalAuditoria()" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
-        </div>
-
-        <div id="modal-estado-carga" class="rp-modal__estado">Cargando...</div>
-
-        <div id="modal-tabla-items" class="oculto">
-            <table class="rp-modal__tabla">
-                <thead>
-                    <tr>
-                        <th>Código</th>
-                        <th>Artículo / Insumo</th>
-                        <th>Cantidad</th>
-                        <th>Estado Hta.</th>
-                    </tr>
-                </thead>
-                <tbody id="modal-filas"></tbody>
-            </table>
-        </div>
-    </div>
-</div>
 <?php endif; ?>
 
 <?php

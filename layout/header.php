@@ -83,6 +83,11 @@ $alerta_flash = getAlert();
             <a href="<?= $baseUrl ?>/reporte/dashboard.php" class="menu-item <?= ($seccion_actual === 'reportes' || $seccion_actual === 'reporte') ? 'active' : '' ?>">
                 <span>Reportes</span>
             </a>
+            <?php if (canViewAudit()): ?>
+            <a href="<?= $baseUrl ?>/auditoria/dashboard.php" class="menu-item <?= ($seccion_actual === 'auditoria') ? 'active' : '' ?>">
+                <span>Auditoría</span>
+            </a>
+            <?php endif; ?>
         </nav>
     </aside>
 

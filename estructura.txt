@@ -9,12 +9,12 @@ sistema-control-stock/
 ├── index.php                          Punto de entrada: redirige al panel (con sesión) o al login
 ├── README.md                          Descripción general, roles, reglas del sistema y pendientes
 ├── estructura.txt                     Este archivo
-├── AUDITORIA_PASO_A_PASO.txt          Guía para agregar la auditoría (accesos, cambios y stock); todavía no aplicada
+├── AUDITORIA_PASO_A_PASO.txt          Diseño original de la auditoría (ya aplicado; ver notas al inicio del archivo)
 ├── .gitignore                         Excluye config/env.php y uploads/
 │
 ├── assets/                            Recursos estáticos
 │   ├── css/                           global.css + un CSS por módulo (panel, insumos, movimientos,
-│   │                                  operarios, rubros, usuarios, orden_de_trabajo, reportes, login, ...)
+│   │                                  operarios, rubros, usuarios, orden_de_trabajo, reportes, auditoria, login, ...)
 │   ├── img/
 │   │   └── logo.jpeg                  Logo institucional
 │   └── js/
@@ -40,6 +40,7 @@ sistema-control-stock/
 │                                         1 si están Disponibles, 0 en otro estado (repetible)
 │
 ├── clases/                            Lógica de negocio y acceso a datos (una clase por entidad)
+│   ├── auditoria.php                  Registro y consulta de la auditoría (accesos, cambios, stock, historial de movimientos)
 │   ├── herramienta.php
 │   ├── insumo.php
 │   ├── movimiento.php                 Efecto sobre el stock, herramientas prestadas y anulación
@@ -105,8 +106,12 @@ sistema-control-stock/
 │   ├── editar_usuario.php
 │   └── deshabilitar_usuario.php       Deshabilita / vuelve a habilitar
 │
+├── auditoria/                         Auditoría (solo administrador)
+│   ├── dashboard.php                  Pestañas: cambios en registros, cambios de stock, accesos y movimientos
+│   └── detalle_movimiento.php         JSON con los ítems de un movimiento (modal)
+│
 ├── reporte/
-│   └── dashboard.php                  Stock crítico y auditoría de movimientos
+│   └── dashboard.php                  Reportes y métricas (stock, movimientos, herramientas, órdenes, consumo)
 │
 └── uploads/                           [LOCAL] Se crea sola al subir el primer PDF
     └── pa_pdfs/                       PDF adjuntos de las órdenes de trabajo (no se versiona)
@@ -121,6 +126,7 @@ sistema-control-stock/
  Trabajo:     orden_de_trabajo, comision (operarios de cada OT)
  Movimientos: movimiento (cabecera), movimiento_detalle (insumos y cantidades)
  Seguridad:   intento_login (límite de intentos de inicio de sesión)
+ Auditoría:   auditoria_acceso, auditoria_cambio, auditoria_stock (solo inserción; ver README)
 
  Regla general: nada se borra; los registros se deshabilitan (activo = FALSE).
 

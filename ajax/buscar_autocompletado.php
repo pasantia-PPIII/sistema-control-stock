@@ -5,7 +5,7 @@
  * (nueva entrega/devolución, usuarios y comisión de las órdenes de trabajo).
  *
  * Parámetros:
- *   recurso : 'operario' | 'insumo' | 'odt'
+ *   recurso : 'operario' | 'insumo' | 'odt' | 'usuario' (este último solo para el administrador: filtro de la Auditoría)
  *   q       : texto a buscar (vacío = todos)
  *   pagina  : número de página, de a 10 resultados (por defecto 1)
  *   excluir : ids separados por coma que no deben aparecer (solo para 'operario': los ya elegidos)
@@ -27,6 +27,7 @@ if (!isAuthenticated()) {
 requireRole(['admin', 'panolero']);
 
 require_once __DIR__ . '/../clases/operario.php';
+require_once __DIR__ . '/../clases/usuario.php';
 require_once __DIR__ . '/../clases/insumo.php';
 require_once __DIR__ . '/../clases/movimiento.php';
 require_once __DIR__ . '/../clases/orden_de_trabajo.php';
@@ -90,6 +91,16 @@ try {
             $items[] = [
                 'id'    => (int)$ot['id_odt'],
                 'texto' => OrdenDeTrabajo::textoParaSelect($ot),
+            ];
+        }
+    } elseif ($recurso === 'usuario') {
+        // El listado de usuarios (incluidos los deshabilitados) es solo para el administrador
+        requireRole(['admin']);
+        $filas = (new Usuario())->buscarParaSelect($termino, $limite, $offset);
+        foreach ($filas as $u) {
+            $items[] = [
+                'id'    => (string)$u['dni'],
+                'texto' => $u['apellido'] . ', ' . $u['nombre'] . ' - DNI: ' . $u['dni'] . ($u['activo'] ? '' : ' (deshabilitado)'),
             ];
         }
     } else {

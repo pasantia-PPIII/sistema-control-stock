@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/auditoria.php';
 
 class Rubro
 {
@@ -117,7 +118,13 @@ class Rubro
                 'activo' => true // Usar booleano nativo de PHP/PostgreSQL
             ];
 
-            return $this->db->insert('rubro', $rubroData);
+            // AUDITORÍA: la carga y su registro se guardan juntos
+            return Auditoria::transaccion(function () use ($rubroData) {
+                $rubro = $this->db->insert('rubro', $rubroData);
+                Auditoria::registrarCambio(Auditoria::CREAR, 'rubro', $rubro['id_rubro'],
+                    "Rubro #{$rubro['id_rubro']} '{$rubro['nombre']}' cargado", null, $rubro);
+                return $rubro;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al crear el rubro', $e);
         }
@@ -142,7 +149,17 @@ class Rubro
                 'descripcion' => !empty($data['descripcion']) ? trim($data['descripcion']) : null
             ];
 
-            return $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
+            // AUDITORÍA: el cambio y su registro se guardan juntos o no se guarda ninguno
+            return Auditoria::transaccion(function () use ($id_rubro, $rubroData) {
+                $antes = $this->db->fetchOne("SELECT nombre, descripcion FROM rubro WHERE id_rubro = :id FOR UPDATE", ['id' => $id_rubro]);
+                $ok = $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
+                [$a, $d] = Auditoria::diferencias($antes ?? [], $rubroData);
+                if ($d) {
+                    Auditoria::registrarCambio(Auditoria::EDITAR, 'rubro', $id_rubro,
+                        "Rubro #{$id_rubro} '{$rubroData['nombre']}' editado: " . implode(', ', array_keys($d)), $a, $d);
+                }
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al actualizar el rubro', $e);
         }
@@ -164,7 +181,12 @@ class Rubro
     {
         try {
             $rubroData = ['activo' => false]; // Booleano nativo (no 0)
-            return $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
+            return Auditoria::transaccion(function () use ($id_rubro, $rubroData) {
+                $ok = $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
+                Auditoria::registrarCambio(Auditoria::DESHABILITAR, 'rubro', $id_rubro,
+                    "Rubro #{$id_rubro} deshabilitado", ['activo' => true], ['activo' => false]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al deshabilitar el rubro', $e);
         }
@@ -180,7 +202,12 @@ class Rubro
     {
         try {
             $rubroData = ['activo' => true]; // Booleano nativo (no 1)
-            return $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
+            return Auditoria::transaccion(function () use ($id_rubro, $rubroData) {
+                $ok = $this->db->update('rubro', $rubroData, 'id_rubro = :id', ['id' => $id_rubro]);
+                Auditoria::registrarCambio(Auditoria::HABILITAR, 'rubro', $id_rubro,
+                    "Rubro #{$id_rubro} habilitado", ['activo' => false], ['activo' => true]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al habilitar el rubro', $e);
         }
