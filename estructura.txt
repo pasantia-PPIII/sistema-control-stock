@@ -34,10 +34,8 @@ sistema-control-stock/
 │   ├── seed_data.sql                  2) Datos base obligatorios: roles, tipos, estados, unidades,
 │   │                                     ubicaciones, tipos de movimiento, localidades, rubros
 │   ├── test_data.sql                  3) Datos de prueba y usuarios de ejemplo (solo desarrollo)
-│   ├── mas_datos.sql                  4) Opcional: volumen alto de datos ficticios (100 operarios, 300 insumos, 150 movimientos);
+│   └── mas_datos.sql                  4) Opcional: volumen alto de datos ficticios (100 operarios, 300 insumos, 150 movimientos);
 │   │                                  se carga una sola vez, después de test_data.sql
-│   └── migracion_stock_herramientas.sql  Solo para bases ya cargadas: stock de herramientas
-│                                         1 si están Disponibles, 0 en otro estado (repetible)
 │
 ├── clases/                            Lógica de negocio y acceso a datos (una clase por entidad)
 │   ├── herramienta.php
@@ -73,7 +71,7 @@ sistema-control-stock/
 ├── movimiento/                        Entregas y devoluciones
 │   ├── dashboard.php                  Listado de movimientos
 │   ├── crear_movimiento.php           Formulario y registro de entrega / devolución
-│   ├── editar_movimiento.php          Vacío: pendiente
+│   ├── editar_movimiento.php          Modificación del movimiento
 │   ├── detalle_movimiento.php         Detalle de un movimiento y sus insumos
 │   └── deshabilitar_movimiento.php    Anula el movimiento y revierte el stock
 │
@@ -106,7 +104,9 @@ sistema-control-stock/
 │   └── deshabilitar_usuario.php       Deshabilita / vuelve a habilitar
 │
 ├── reporte/
-│   └── dashboard.php                  Stock crítico y auditoría de movimientos
+│   ├── dashboard.php                  Reportes: stock, movimientos, herramientas, órdenes, consumo e historial
+│   ├── detalle_auditoria.php          Endpoint JSON con el detalle de un movimiento (auditoría)
+│   └── tabs/                          Vistas parciales de cada pestaña de Reportes
 │
 └── uploads/                           [LOCAL] Se crea sola al subir el primer PDF
     └── pa_pdfs/                       PDF adjuntos de las órdenes de trabajo (no se versiona)

@@ -280,9 +280,9 @@ class Usuario {
                 FROM usuario u
                 INNER JOIN rol r ON u.id_rol = r.id_rol
                 LEFT JOIN operario o ON u.id_operario = o.id_operario
-                WHERE (u.dni ILIKE :termino
-                   OR o.nombre ILIKE :termino
-                   OR o.apellido ILIKE :termino)
+                WHERE (" . sqlBusquedaSinTildes('u.dni') . "
+                   OR " . sqlBusquedaSinTildes('o.nombre') . "
+                   OR " . sqlBusquedaSinTildes('o.apellido') . ")
                 AND u.activo = TRUE
                 ORDER BY o.apellido, o.nombre";
 

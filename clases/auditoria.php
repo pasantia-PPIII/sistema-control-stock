@@ -55,8 +55,11 @@ function sqlAuditoriaMovimientos(?string $periodo, ?string $desde, ?string $hast
     }
 
     if (!empty($buscar)) {
-        $sql .= " AND (u.nombre ILIKE :b OR u.apellido ILIKE :b OR o.nombre ILIKE :b OR o.apellido ILIKE :b
-            OR (o.nombre || ' ' || o.apellido) ILIKE :b OR (u.nombre || ' ' || u.apellido) ILIKE :b OR m.observaciones ILIKE :b)";
+        $sql .= " AND (" . sqlBusquedaSinTildes('u.nombre', ':b') . " OR " . sqlBusquedaSinTildes('u.apellido', ':b')
+            . " OR " . sqlBusquedaSinTildes('o.nombre', ':b') . " OR " . sqlBusquedaSinTildes('o.apellido', ':b')
+            . " OR " . sqlBusquedaSinTildes("o.nombre || ' ' || o.apellido", ':b')
+            . " OR " . sqlBusquedaSinTildes("u.nombre || ' ' || u.apellido", ':b')
+            . " OR " . sqlBusquedaSinTildes('m.observaciones', ':b') . ")";
         $params[':b'] = "%{$buscar}%";
     }
 

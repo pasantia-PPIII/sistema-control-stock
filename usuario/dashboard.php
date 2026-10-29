@@ -19,6 +19,8 @@ if (!isAuthenticated()) {
     redirect('auth/login.php');
 }
 
+requireRole(['admin']);
+
 $seccion = 'usuarios';
 $css_modulo = 'usuarios';
 $js_modulo = 'autocompletado'; // autocompletado de operario vinculado (se busca por AJAX)
@@ -56,7 +58,7 @@ $usuariosFiltrados = array_values(array_filter($todosUsuarios, function ($u) use
         return false;
     }
     $texto = $u['dni'] . ' ' . ($u['operario_nombre'] ?? '') . ' ' . ($u['operario_apellido'] ?? '') . ' ' . ($u['nombre_rol'] ?? '');
-    if ($busqueda !== '' && stripos($texto, $busqueda) === false) {
+    if ($busqueda !== '' && mb_strpos(textoNormalizado($texto), textoNormalizado($busqueda)) === false) {
         return false;
     }
     return true;

@@ -30,6 +30,9 @@ $pestanias = [
     'auditoria' => 'Historial',
 ];
 $alias = ['compras' => 'stock', 'rubros' => 'consumo'];
+if (!canViewAudit()) {
+    unset($pestanias['auditoria']);
+}
 $tab_reporte = $_GET['tab'] ?? 'stock';
 $tab_reporte = $alias[$tab_reporte] ?? $tab_reporte;
 if (!isset($pestanias[$tab_reporte])) {
@@ -199,9 +202,29 @@ switch ($tab_reporte) {
         break;
     case 'auditoria':
         $periodo = $_GET['periodo'] ?? 'hoy';
+        if (!in_array($periodo, ['hoy', 'semana', 'mes', 'anio'], true)) {
+            $periodo = 'hoy';
+        }
         $buscar = trim($_GET['buscar'] ?? '');
         $desde = trim($_GET['desde'] ?? '');
         $hasta = trim($_GET['hasta'] ?? '');
+
+        // Las fechas del formulario deben ser YYYY-MM-DD válidas; si no, se ignoran (evita el error SQL).
+        $fechaValida = function (string $fecha): bool {
+            if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $fecha, $m)) {
+                return false;
+            }
+            return checkdate((int) $m[2], (int) $m[3], (int) $m[1]);
+        };
+        if ($desde !== '' && !$fechaValida($desde)) {
+            $desde = '';
+            setAlert('La fecha "desde" no es válida; se ignoró ese filtro.', 'warning');
+        }
+        if ($hasta !== '' && !$fechaValida($hasta)) {
+            $hasta = '';
+            setAlert('La fecha "hasta" no es válida; se ignoró ese filtro.', 'warning');
+        }
+
         $tipo_mov = trim($_GET['tipo_mov'] ?? '');
         $pgAud = rp_clave('aud', obtenerAuditoriaMovimientosPaginado(rp_pagina('aud'), RP_POR_PAGINA, $periodo, $desde ?: null, $hasta ?: null, $buscar ?: null, $tipo_mov ?: null));
         break;

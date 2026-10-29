@@ -135,10 +135,10 @@ class Operario {
         $sql = "SELECT o.*, r.nombre as nombre_rubro
                 FROM operario o
                 LEFT JOIN rubro r ON o.id_rubro = r.id_rubro
-                WHERE (o.dni ILIKE :termino 
-                   OR o.nombre ILIKE :termino 
-                   OR o.apellido ILIKE :termino 
-                   OR o.legajo ILIKE :termino)
+                WHERE (" . sqlBusquedaSinTildes('o.dni') . "
+                   OR " . sqlBusquedaSinTildes('o.nombre') . "
+                   OR " . sqlBusquedaSinTildes('o.apellido') . "
+                   OR " . sqlBusquedaSinTildes('o.legajo') . ")
                 AND o.activo = TRUE
                 ORDER BY o.apellido ASC";
         
@@ -342,11 +342,11 @@ class Operario {
             $sql .= " AND id_operario NOT IN (" . implode(',', $excluir) . ")";
         }
         if ($termino !== '') {
-            $sql .= " AND (dni ILIKE :termino
-                        OR nombre ILIKE :termino
-                        OR apellido ILIKE :termino
-                        OR legajo ILIKE :termino
-                        OR (apellido || ', ' || nombre) ILIKE :termino)";
+            $sql .= " AND (" . sqlBusquedaSinTildes('dni') . "
+                        OR " . sqlBusquedaSinTildes('nombre') . "
+                        OR " . sqlBusquedaSinTildes('apellido') . "
+                        OR " . sqlBusquedaSinTildes('legajo') . "
+                        OR " . sqlBusquedaSinTildes("apellido || ', ' || nombre") . ")";
             $params['termino'] = '%' . addcslashes($termino, '%_\\') . '%';
         }
         $sql .= " ORDER BY apellido ASC, nombre ASC, id_operario ASC

@@ -62,7 +62,7 @@ class OrdenDeTrabajo {
             $sql .= " AND COALESCE(o.estado, 'Pendiente') NOT IN ('Finalizada', 'Anulada')";
         }
         if ($termino !== '') {
-            $sql .= " AND (o.numero_ot ILIKE :termino OR o.pa ILIKE :termino OR o.trabajo_a_realizar ILIKE :termino)";
+            $sql .= " AND (" . sqlBusquedaSinTildes('o.numero_ot') . " OR " . sqlBusquedaSinTildes('o.pa') . " OR " . sqlBusquedaSinTildes('o.trabajo_a_realizar') . ")";
             $params['termino'] = '%' . addcslashes($termino, '%_\\') . '%';
         }
         // De la más reciente a la más vieja; las que no tienen fecha de inicio van al final
@@ -98,7 +98,7 @@ class OrdenDeTrabajo {
             $params['estado'] = $estado;
         }
         if ($busqueda !== '') {
-            $sql .= " AND (CAST(o.id_odt AS TEXT) || ' ' || o.numero_ot || ' ' || COALESCE(o.pa, '') || ' ' || COALESCE(o.trabajo_a_realizar, '')) ILIKE :busqueda";
+            $sql .= " AND " . sqlBusquedaSinTildes("CAST(o.id_odt AS TEXT) || ' ' || o.numero_ot || ' ' || COALESCE(o.pa, '') || ' ' || COALESCE(o.trabajo_a_realizar, '')", ':busqueda');
             $params['busqueda'] = '%' . addcslashes($busqueda, '%_\\') . '%';
         }
 
@@ -132,9 +132,9 @@ class OrdenDeTrabajo {
         $sql = "SELECT o.*, l.localidad as nombre_localidad
                 FROM orden_de_trabajo o
                 LEFT JOIN localidad l ON o.id_localidad = l.id_localidad
-                WHERE (CAST(o.id_odt AS TEXT) ILIKE :termino 
-                   OR o.pa ILIKE :termino 
-                   OR o.trabajo_a_realizar ILIKE :termino)
+                WHERE (" . sqlBusquedaSinTildes('CAST(o.id_odt AS TEXT)') . " 
+                   OR " . sqlBusquedaSinTildes('o.pa') . " 
+                   OR " . sqlBusquedaSinTildes('o.trabajo_a_realizar') . ")
                 AND o.activo = TRUE
                 ORDER BY o.fecha_inicio DESC";
         

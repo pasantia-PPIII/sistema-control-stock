@@ -140,7 +140,7 @@ class Insumo {
                 FROM insumos i
                 LEFT JOIN rubro r ON i.id_rubro = r.id_rubro
                 LEFT JOIN stock_actual s ON i.id_stock_actual = s.id_stock_actual
-                WHERE (i.nombre ILIKE :termino OR i.codigo ILIKE :termino)
+                WHERE (" . sqlBusquedaSinTildes('i.nombre') . " OR " . sqlBusquedaSinTildes('i.codigo') . ")
                 AND i.activo = TRUE";
         
         return $this->db->fetchAll($sql, ['termino' => '%' . $termino . '%']);
@@ -161,7 +161,7 @@ class Insumo {
                 WHERE i.activo = TRUE";
         $params = [];
         if ($termino !== '') {
-            $sql .= " AND (i.codigo ILIKE :termino OR i.nombre ILIKE :termino)";
+            $sql .= " AND (" . sqlBusquedaSinTildes('i.codigo') . " OR " . sqlBusquedaSinTildes('i.nombre') . ")";
             $params['termino'] = '%' . addcslashes($termino, '%_\\') . '%';
         }
         $sql .= " ORDER BY i.nombre ASC, i.id_insumo ASC
@@ -300,9 +300,24 @@ class Insumo {
             ];
             $data = array_intersect_key($data, array_flip($camposPermitidos));
 
-            $data['es_perecedero'] = !empty($data['es_perecedero']);
-            
-            if (empty($data['fecha_vencimiento'])) {
+            // El tipo no se puede cambiar: convertir un material en herramienta (o al revés)
+            // dejaría stock y estado inconsistentes. Se deshabilita el insumo y se crea otro.
+            if (array_key_exists('id_tipo', $data)) {
+                $actual = $this->db->fetchOne(
+                    "SELECT id_tipo FROM insumos WHERE codigo = :codigo",
+                    ['codigo' => $codigo]
+                );
+                if ($actual && (int) $actual['id_tipo'] !== (int) $data['id_tipo']) {
+                    throw new Exception("El tipo de insumo no se puede cambiar después de crearlo. Deshabilite este insumo y cree uno nuevo del tipo correcto.");
+                }
+            }
+
+            // Solo normalizar los campos que realmente vienen en la petición: así una edición
+            // parcial no pisa es_perecedero / fecha_vencimiento con valores vacíos.
+            if (array_key_exists('es_perecedero', $data)) {
+                $data['es_perecedero'] = !empty($data['es_perecedero']);
+            }
+            if (array_key_exists('fecha_vencimiento', $data) && empty($data['fecha_vencimiento'])) {
                 $data['fecha_vencimiento'] = null;
             }
 

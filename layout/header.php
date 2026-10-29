@@ -62,9 +62,11 @@ $alerta_flash = getAlert();
             <a href="<?= $baseUrl ?>/panel/dashboard.php" class="menu-item <?= ($seccion_actual === 'panel') ? 'active' : '' ?>">
                 <span>Panel de Control</span>
             </a>
+            <?php if (isAdmin()): ?>
             <a href="<?= $baseUrl ?>/usuario/dashboard.php" class="menu-item <?= ($seccion_actual === 'usuarios' || $seccion_actual === 'usuario') ? 'active' : '' ?>">
                 <span>Usuarios</span>
             </a>
+            <?php endif; ?>
             <a href="<?= $baseUrl ?>/insumo/dashboard.php" class="menu-item <?= ($seccion_actual === 'insumo' || $seccion_actual === 'insumos') ? 'active' : '' ?>">
                 <span>Insumos</span>
             </a>

@@ -14,6 +14,12 @@ if (!isAuthenticated()) {
     exit;
 }
 
+if (!canViewAudit()) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'No tiene permisos para ver la auditoría.']);
+    exit;
+}
+
 require_once __DIR__ . '/../clases/auditoria.php';
 
 $id_movimiento = (int) ($_GET['id'] ?? 0);

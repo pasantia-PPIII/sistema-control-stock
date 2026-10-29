@@ -228,6 +228,14 @@ function canManageUsers() {
 }
 
 /**
+ * Verificar si el usuario puede ver la auditoría/historial (solo Administrador y Vista).
+ * El pañolero no ve la pestaña ni los datos, aunque conozca la dirección.
+ */
+function canViewAudit() {
+    return in_array(currentRole(), ['admin', 'vista'], true);
+}
+
+/**
  * Exige que el usuario autenticado tenga alguno de los roles indicados ('admin', 'panolero', 'vista').
  * - Peticiones POST / AJAX: responde 403 en JSON y corta.
  * - Páginas: guarda una alerta y redirige al Panel de Control.
@@ -261,6 +269,7 @@ function permisosActuales() {
         'rol'    => currentRole(),
         'admin'  => isAdmin(),
         'editar' => canEdit(),
+        'auditoria' => canViewAudit(),
         'dni'    => $_SESSION['dni_usuario'] ?? ''
     ];
 }

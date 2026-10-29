@@ -47,7 +47,7 @@ $operariosFiltrados = array_values(array_filter($operarioModel->getAll(true), fu
     if ($rubroId !== null && (int) $op['id_rubro'] !== $rubroId) {
         return false;
     }$texto = $op['dni'] . ' ' . $op['apellido'] . ' ' . $op['nombre'] . ' ' . ($op['legajo'] ?? '');
-    if ($busqueda !== '' && stripos($texto, $busqueda) === false) {
+    if ($busqueda !== '' && mb_strpos(textoNormalizado($texto), textoNormalizado($busqueda)) === false) {
         return false;
     }
     return true;
