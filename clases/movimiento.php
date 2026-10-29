@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/auditoria.php';
 
 class Movimiento {
     private $db;
@@ -160,6 +161,7 @@ class Movimiento {
             $id_movimiento = $nuevoMovimiento['id_movimiento']; // Asumimos que tu clase Database devuelve el ID insertado
 
             // 4. Insertar cada línea del detalle y aplicar su efecto sobre el stock / estado de la herramienta
+            $itemsAuditoria = [];
             foreach ($detalles as $detalle) {
                 if (empty($detalle['id_insumo']) || $detalle['cantidad'] < 0 || ($detalle['cantidad'] == 0 && $tipoMov !== self::TIPO_AJUSTE)) {
                     throw new Exception("Cada detalle debe tener un insumo válido y una cantidad mayor a cero.");
@@ -168,7 +170,8 @@ class Movimiento {
                 $idEstado = !empty($detalle['id_estado_herramienta']) ? (int)$detalle['id_estado_herramienta'] : null;
                 $cantidad = (float)$detalle['cantidad'];
 
-                $idEstado = $this->aplicarEfecto((int)$detalle['id_insumo'], $tipoMov, $cantidad, $idEstado, 1);
+                // AUDITORÍA: se pasa el id del movimiento para que el cambio de stock quede ligado a él
+                $idEstado = $this->aplicarEfecto((int)$detalle['id_insumo'], $tipoMov, $cantidad, $idEstado, 1, (int)$id_movimiento);
 
                 $this->db->insert('movimiento_detalle', [
                     'id_movimiento' => $id_movimiento,
@@ -176,7 +179,21 @@ class Movimiento {
                     'cantidad' => $cantidad,
                     'id_estado_herramienta' => $idEstado
                 ]);
+                $itemsAuditoria[] = ['id_insumo' => (int)$detalle['id_insumo'], 'cantidad' => $cantidad];
             }
+
+            // AUDITORÍA: queda registrada la carga del movimiento (dentro de la misma transacción)
+            Auditoria::registrarCambio(Auditoria::CREAR, 'movimiento', $id_movimiento,
+                "{$tipoMov} #{$id_movimiento} registrada (" . count($itemsAuditoria) . " ítem/s)", null, [
+                    'tipo'          => $tipoMov,
+                    'id_operario'   => $cabecera['id_operario'],
+                    'id_odt'        => $cabecera['id_odt'],
+                    'id_motivo'     => $cabecera['id_motivo'],
+                    'fecha'         => $cabecera['fecha'],
+                    'hora'          => $cabecera['hora'],
+                    'observaciones' => $cabecera['observaciones'],
+                    'items'         => $itemsAuditoria,
+                ]);
 
             // 5. Si todo salió bien, confirmamos la transacción
             $this->db->commit();
@@ -224,7 +241,10 @@ class Movimiento {
      * @param int $signo 1 = aplicar, -1 = revertir (anulación)
      * @return int|null Estado de herramienta a registrar en el detalle
      */
-    private function aplicarEfecto($id_insumo, $tipoMov, $cantidad, $idEstadoDev, $signo) {
+    private function aplicarEfecto($id_insumo, $tipoMov, $cantidad, $idEstadoDev, $signo, $idMovimiento = null) {
+        // AUDITORÍA: origen de todo cambio de stock que se registre acá
+        $origenStock = ($signo > 0) ? Auditoria::STOCK_MOVIMIENTO : Auditoria::STOCK_ANULACION;
+
         if (!in_array($tipoMov, [self::TIPO_ENTREGA, self::TIPO_DEVOLUCION, self::TIPO_INGRESO, self::TIPO_AJUSTE], true)) {
             throw new Exception("El tipo de movimiento '{$tipoMov}' todavía no admite registro con actualización de stock.");
         }
@@ -284,10 +304,13 @@ class Movimiento {
                 ['estado' => $nuevoEstado, 'id' => $id_insumo]
             );
             // Vuelve al pañol solo si queda Disponible; en cualquier otro estado no hay unidad en el pañol
+            $nuevoStockHerr = ($nuevoEstado === self::ESTADO_DISPONIBLE) ? 1 : 0;
             Database::execute(
                 "UPDATE stock_actual SET stock_actual = :stock, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
-                ['stock' => ($nuevoEstado === self::ESTADO_DISPONIBLE) ? 1 : 0, 'id' => $idStock]
+                ['stock' => $nuevoStockHerr, 'id' => $idStock]
             );
+            // AUDITORÍA: cambio de stock de la herramienta (1 <-> 0)
+            Auditoria::registrarStock((int)$id_insumo, $stockActual, (float)$nuevoStockHerr, $origenStock, $idMovimiento, $insumo['nombre']);
             return $signo > 0 ? $nuevoEstado : null;
         }
 
@@ -299,6 +322,8 @@ class Movimiento {
                 "UPDATE stock_actual SET stock_actual = :nuevo, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
                 ['nuevo' => (string)$cantidad, 'id' => $idStock]
             );
+            // AUDITORÍA: el ajuste fija el stock en la cantidad contada
+            Auditoria::registrarStock((int)$id_insumo, $stockActual, (float)$cantidad, $origenStock, $idMovimiento, $insumo['nombre']);
             return null;
         }
 
@@ -316,6 +341,8 @@ class Movimiento {
             "UPDATE stock_actual SET stock_actual = stock_actual + :delta, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
             ['delta' => (string)$delta, 'id' => $idStock]
         );
+        // AUDITORÍA: entrega (resta), devolución (suma) o anulación (revierte)
+        Auditoria::registrarStock((int)$id_insumo, $stockActual, $stockActual + $delta, $origenStock, $idMovimiento, $insumo['nombre']);
         return null;
     }
 
@@ -405,7 +432,20 @@ class Movimiento {
                 throw new Exception("No se proporcionaron datos válidos para actualizar.");
             }
 
-            return $this->db->update('movimiento', $allowedFields, 'id_movimiento = :id', ['id' => $id_movimiento]);
+            // AUDITORÍA: el cambio y su registro se guardan juntos (este método no tenía transacción propia)
+            return Auditoria::transaccion(function () use ($id_movimiento, $allowedFields) {
+                $antes = $this->db->fetchOne(
+                    "SELECT observaciones, id_operario, id_odt FROM movimiento WHERE id_movimiento = :id FOR UPDATE",
+                    ['id' => $id_movimiento]
+                );
+                $ok = $this->db->update('movimiento', $allowedFields, 'id_movimiento = :id', ['id' => $id_movimiento]);
+                [$a, $d] = Auditoria::diferencias($antes ?? [], $allowedFields);
+                if ($d) {
+                    Auditoria::registrarCambio(Auditoria::EDITAR, 'movimiento', $id_movimiento,
+                        "Movimiento #{$id_movimiento} editado: " . implode(', ', array_keys($d)), $a, $d);
+                }
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al actualizar el movimiento', $e);
         }
@@ -444,10 +484,16 @@ class Movimiento {
                 ['id' => (int)$id_movimiento]
             );
             foreach ($lineas as $l) {
-                $this->aplicarEfecto((int)$l['id_insumo'], $mov['tipo'], (float)$l['cantidad'], null, -1);
+                // AUDITORÍA: cada línea revertida queda como ANULACION_MOVIMIENTO ligada al movimiento
+                $this->aplicarEfecto((int)$l['id_insumo'], $mov['tipo'], (float)$l['cantidad'], null, -1, (int)$id_movimiento);
             }
 
             Database::execute("UPDATE movimiento SET activo = FALSE WHERE id_movimiento = :id", ['id' => (int)$id_movimiento]);
+
+            // AUDITORÍA: queda registrada la anulación
+            Auditoria::registrarCambio(Auditoria::ANULAR, 'movimiento', (int)$id_movimiento,
+                "{$mov['tipo']} #{$id_movimiento} anulada (stock revertido)", ['activo' => true], ['activo' => false]);
+
             $this->db->commit();
             return true;
         } catch (Throwable $e) {

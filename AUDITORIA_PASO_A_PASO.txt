@@ -1,3 +1,15 @@
+NOTA (aplicado en la rama integracion-dmx-develop): esta guia ya esta aplicada al proyecto con estas diferencias:
+  * La auditoria la ve SOLO el administrador (canViewAudit() = isAdmin()); el rol vista tampoco la ve.
+  * No es una pestana de Reportes: es una seccion propia (menu lateral, debajo de Reportes) en auditoria/dashboard.php,
+    con las pestanas Cambios en registros, Cambios de stock, Accesos al sistema y Movimientos.
+  * El historial de movimientos (antes pestana "Historial" de Reportes) se movio a esa seccion.
+  * auditoria_acceso tiene la columna "detalle" con el motivo de un ingreso fallido (DNI no registrado,
+    usuario inactivo, contrasena incorrecta, bloqueo). Se tomo del diseno de rama-dmx.
+  * No hay script de migracion aparte: las tablas estan en la seccion 7 de bd/db_control_stock.sql (se reejecutan los scripts desde cero).
+  * Se escribio el codigo de operarios, usuarios y ordenes de trabajo (PASO 6.2) y se probo contra una base temporal.
+  * Los PASOS 7 y 8 (pantalla) no se aplicaron tal cual: la pantalla es nueva (auditoria/dashboard.php).
+  * Quedan para el equipo las "decisiones" del final (exportar a CSV, avisos por correo, endurecimiento de produccion).
+
 =====================================================================
  SISTEMA DE CONTROL DE STOCK - TALLER ONABE
  AUDITORÍA COMPLETA: GUÍA PASO A PASO

@@ -7,6 +7,7 @@
 define('CSRF_REQUIRE', true);
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../clases/usuario.php';
+require_once __DIR__ . '/../clases/auditoria.php';
 
 // Límite de intentos: 5 fallidos por DNI dentro de 15 minutos (tabla intento_login).
 // Un login correcto reinicia la cuenta (solo se cuentan los fallos posteriores al último acierto).
@@ -75,14 +76,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($minutosBloqueo > 0) {
                 $error = 'Demasiados intentos fallidos. Intente nuevamente en ' . $minutosBloqueo
                     . ($minutosBloqueo === 1 ? ' minuto.' : ' minutos.');
+                Auditoria::registrarAcceso(Auditoria::LOGIN_BLOQUEADO, $dni_ingresado, "DNI bloqueado temporalmente por intentos fallidos ({$minutosBloqueo} min restantes)");
             } elseif ($usuarioModel->login($dni_ingresado, $password_ingresada)) {
                 registrarIntentoLogin($dni_ingresado, true);
+                Auditoria::registrarAcceso(Auditoria::LOGIN_OK, $dni_ingresado);
                 // Evita fijación de sesión: nuevo ID de sesión tras autenticar
                 session_regenerate_id(true);
                 header("Location: ../panel/dashboard.php");
                 exit;
             } else {
                 registrarIntentoLogin($dni_ingresado, false);
+
+                // El motivo real se guarda solo en la auditoría; el usuario ve siempre el mismo mensaje genérico
+                $motivo = Auditoria::MOTIVO_DNI_NO_REGISTRADO;
+                try {
+                    $existente = $usuarioModel->getByDni($dni_ingresado, true);
+                    if ($existente) {
+                        $motivo = $existente['activo'] ? Auditoria::MOTIVO_PASSWORD_INCORRECTA : Auditoria::MOTIVO_USUARIO_INACTIVO;
+                    }
+                } catch (Throwable $e) {
+                    error_log('Login (motivo del fallo): ' . $e->getMessage());
+                    $motivo = null;
+                }
+                Auditoria::registrarAcceso(Auditoria::LOGIN_FALLIDO, $dni_ingresado, $motivo);
+
                 $error = 'DNI o contraseña incorrectos, o el usuario se encuentra inactivo.';
             }
         } catch (Throwable $e) {

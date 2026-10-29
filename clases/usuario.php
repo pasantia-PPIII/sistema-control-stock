@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/auditoria.php';
 
 class Usuario {
     private $db;
@@ -98,6 +99,28 @@ class Usuario {
         return $this->db->fetchOne($sql, ['dni' => $dni]);
     }
 
+
+    /**
+     * Usuarios (activos y deshabilitados) para el autocompletado de los filtros de la Auditoría, paginados en la base.
+     * Se incluyen los deshabilitados porque la auditoría conserva lo que hicieron antes de la baja.
+     * Busca por DNI, nombre, apellido o "apellido, nombre". Con $termino vacío devuelve todos.
+     * @return array Hasta $limite usuarios desde $offset (dni, nombre, apellido, activo)
+     */
+    public function buscarParaSelect(string $termino = '', int $limite = 10, int $offset = 0): array {
+        $sql = "SELECT dni, nombre, apellido, activo FROM usuario";
+        $params = [];
+        if ($termino !== '') {
+            $sql .= " WHERE (dni ILIKE :termino
+                        OR nombre ILIKE :termino
+                        OR apellido ILIKE :termino
+                        OR (apellido || ', ' || nombre) ILIKE :termino)";
+            $params['termino'] = '%' . addcslashes($termino, '%_\\') . '%';
+        }
+        $sql .= " ORDER BY apellido ASC, nombre ASC, dni ASC
+                  LIMIT " . max(1, $limite) . " OFFSET " . max(0, $offset);
+        return $this->db->fetchAll($sql, $params);
+    }
+
     /**
      * Obtiene el catálogo de roles disponibles.
      * 
@@ -134,7 +157,13 @@ class Usuario {
                 'activo' => true // CAMBIO 4: Se crea activo por defecto
             ];
 
-            return $this->db->insert('usuario', $userData);
+            // AUDITORÍA: la carga y su registro se guardan juntos (la clase Auditoria descarta la contraseña sola)
+            return Auditoria::transaccion(function () use ($userData) {
+                $usuario = $this->db->insert('usuario', $userData);
+                Auditoria::registrarCambio(Auditoria::CREAR, 'usuario', $userData['dni'],
+                    "Usuario {$userData['dni']} '{$userData['nombre']} {$userData['apellido']}' cargado", null, $usuario);
+                return $usuario;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al crear el usuario', $e);
         }
@@ -161,7 +190,24 @@ class Usuario {
             // 'activo' se maneja exclusivamente con deshabilitar() y habilitar()
             // DNI (PK) tampoco se permite modificar
 
-            return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
+            // AUDITORÍA: el cambio y su registro se guardan juntos. Importa sobre todo el cambio de rol (id_rol).
+            return Auditoria::transaccion(function () use ($dni, $data) {
+                $antes = $this->db->fetchOne(
+                    "SELECT nombre, apellido, id_operario, id_rol, contrasena FROM usuario WHERE dni = :dni FOR UPDATE",
+                    ['dni' => $dni]
+                );
+                $ok = $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
+                [$a, $d] = Auditoria::diferencias($antes ?? [], $data);
+                if ($d) {
+                    Auditoria::registrarCambio(Auditoria::EDITAR, 'usuario', $dni,
+                        "Usuario {$dni} editado: " . implode(', ', array_keys($d)), $a, $d);
+                }
+                if (isset($data['contrasena'])) {
+                    Auditoria::registrarCambio(Auditoria::CAMBIAR_CONTRASENA, 'usuario', $dni,
+                        "Contraseña del usuario {$dni} modificada");
+                }
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al actualizar el usuario', $e);
         }
@@ -170,7 +216,12 @@ class Usuario {
     public function changePassword($dni, $nueva_contrasena) {
         try {
             $data = ['contrasena' => password_hash($nueva_contrasena, PASSWORD_DEFAULT)];
-            return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
+            return Auditoria::transaccion(function () use ($dni, $data) {
+                $ok = $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
+                Auditoria::registrarCambio(Auditoria::CAMBIAR_CONTRASENA, 'usuario', $dni,
+                    "Contraseña del usuario {$dni} modificada");
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al cambiar la contraseña', $e);
         }
@@ -187,8 +238,12 @@ class Usuario {
      */
     public function deshabilitar($dni) {
         try {
-            $data = ['activo' => false];
-            return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
+            return Auditoria::transaccion(function () use ($dni) {
+                $ok = $this->db->update('usuario', ['activo' => false], 'dni = :dni', ['dni' => $dni]);
+                Auditoria::registrarCambio(Auditoria::DESHABILITAR, 'usuario', $dni,
+                    "Usuario {$dni} deshabilitado", ['activo' => true], ['activo' => false]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al deshabilitar el usuario', $e);
         }
@@ -201,8 +256,12 @@ class Usuario {
      */
     public function habilitar($dni) {
         try {
-            $data = ['activo' => true];
-            return $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
+            return Auditoria::transaccion(function () use ($dni) {
+                $ok = $this->db->update('usuario', ['activo' => true], 'dni = :dni', ['dni' => $dni]);
+                Auditoria::registrarCambio(Auditoria::HABILITAR, 'usuario', $dni,
+                    "Usuario {$dni} habilitado", ['activo' => false], ['activo' => true]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al habilitar el usuario', $e);
         }
@@ -217,8 +276,19 @@ class Usuario {
      */
     public function deshabilitarPorOperario($id_operario) {
         try {
-            $data = ['activo' => false];
-            return $this->db->update('usuario', $data, 'id_operario = :id_operario', ['id_operario' => $id_operario]);
+            return Auditoria::transaccion(function () use ($id_operario) {
+                // AUDITORÍA: una entrada por cada usuario que estaba activo y se da de baja
+                $afectados = $this->db->fetchAll(
+                    "SELECT dni FROM usuario WHERE id_operario = :id_operario AND activo = TRUE FOR UPDATE",
+                    ['id_operario' => $id_operario]
+                );
+                $ok = $this->db->update('usuario', ['activo' => false], 'id_operario = :id_operario', ['id_operario' => $id_operario]);
+                foreach ($afectados as $u) {
+                    Auditoria::registrarCambio(Auditoria::DESHABILITAR, 'usuario', $u['dni'],
+                        "Usuario {$u['dni']} deshabilitado por baja del operario #{$id_operario}", ['activo' => true], ['activo' => false]);
+                }
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al deshabilitar usuario por operario', $e);
         }
@@ -232,8 +302,18 @@ class Usuario {
      */
     public function habilitarPorOperario($id_operario) {
         try {
-            $data = ['activo' => true];
-            return $this->db->update('usuario', $data, 'id_operario = :id_operario', ['id_operario' => $id_operario]);
+            return Auditoria::transaccion(function () use ($id_operario) {
+                $afectados = $this->db->fetchAll(
+                    "SELECT dni FROM usuario WHERE id_operario = :id_operario AND activo = FALSE FOR UPDATE",
+                    ['id_operario' => $id_operario]
+                );
+                $ok = $this->db->update('usuario', ['activo' => true], 'id_operario = :id_operario', ['id_operario' => $id_operario]);
+                foreach ($afectados as $u) {
+                    Auditoria::registrarCambio(Auditoria::HABILITAR, 'usuario', $u['dni'],
+                        "Usuario {$u['dni']} habilitado por alta del operario #{$id_operario}", ['activo' => false], ['activo' => true]);
+                }
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al habilitar usuario por operario', $e);
         }

@@ -35,10 +35,11 @@ Este archivo es **personal y no se sube al repositorio**. Se crea copiando `conf
 
 | Rol | Permisos |
 |---|---|
-| **admin** | Acceso total: usuarios, operarios, rubros, insumos, movimientos, órdenes de trabajo y reportes |
+| **admin** | Acceso total: usuarios, operarios, rubros, insumos, movimientos, órdenes de trabajo, reportes y **auditoría** |
 | **pañolero** | Crea, edita y deshabilita insumos, movimientos (incluye anularlos) y órdenes de trabajo; ve reportes |
 | **vista** | Solo lectura en todo el sistema |
 
+- **Auditoría** (menú lateral, debajo de Reportes): la ve únicamente el administrador. Pañolero y vista no ven la sección y el servidor la rechaza igual (`canViewAudit()`).
 - Los botones se muestran según el rol y el servidor valida el rol en cada endpoint (`requireRole()`).
 - Un administrador no puede deshabilitar su propio usuario.
 - Primer ítem del menú: **Panel de Control**, con un resumen distinto por rol.
@@ -75,8 +76,20 @@ Este archivo es **personal y no se sube al repositorio**. Se crea copiando `conf
 
 Ver [estructura.txt](estructura.txt).
 
+## Auditoría
+
+Solo para el administrador (menú **Auditoría**). Responde quién hizo qué, cuándo, desde dónde y cómo estaba antes. Las tablas son de solo inserción (triggers de PostgreSQL impiden modificarlas o borrarlas) y el cambio y su registro se guardan en la misma transacción.
+
+| Pestaña | Tabla | Qué muestra |
+|---|---|---|
+| Cambios en registros | `auditoria_cambio` | Altas, ediciones, deshabilitaciones y anulaciones de insumos, movimientos, órdenes de trabajo, operarios, rubros y usuarios (incluye cambios de rol y de contraseña, sin guardar la contraseña), con el antes y el después |
+| Cambios de stock | `auditoria_stock` | Libro de stock de cada insumo: stock anterior y nuevo, y su origen (alta, edición, movimiento, anulación) |
+| Accesos al sistema | `auditoria_acceso` | Ingresos correctos, fallidos (con el motivo: DNI no registrado, usuario inactivo o contraseña incorrecta), bloqueos por intentos y cierres de sesión, con IP y navegador |
+| Movimientos | `movimiento` | El historial de entregas, devoluciones, ingresos y ajustes (antes estaba en Reportes, pestaña Historial) |
+
+Las tablas se crean con `bd/db_control_stock.sql` (sección 7); no hay script de migración aparte: se vuelve a ejecutar la secuencia completa de scripts.
+
 ## Pendientes conocidos
 
 - Recuperación de contraseña (`auth/forgot_password.php`) y edición de movimientos (`movimiento/editar_movimiento.php`): archivos vacíos.
-- **Auditoría completa** (accesos al sistema, cambios en registros y cambios de stock, visible en Reportes solo para los roles Administrador y Vista): diseño ya definido y verificado en [AUDITORIA_PASO_A_PASO.txt](AUDITORIA_PASO_A_PASO.txt); falta aplicarlo al proyecto.
 - Al deshabilitar un operario no se deshabilita su usuario vinculado.

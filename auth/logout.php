@@ -5,10 +5,16 @@
  * autenticada, por lo que un enlace o imagen externa no puede cerrar la sesión del usuario.
  */
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../clases/auditoria.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     // Entrar por URL (GET) no cierra la sesión: se vuelve a donde corresponda
     redirect(isAuthenticated() ? 'panel/dashboard.php' : 'auth/login.php');
+}
+
+// AUDITORÍA: se registra antes de vaciar la sesión (después ya no se sabe quién era)
+if (!empty($_SESSION['dni_usuario'])) {
+    Auditoria::registrarAcceso(Auditoria::LOGOUT, (string)$_SESSION['dni_usuario']);
 }
 
 // Vaciar arreglo de sesión

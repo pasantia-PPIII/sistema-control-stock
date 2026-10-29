@@ -1,0 +1,244 @@
+/* assets/css/auditoria.css
+   Estilos del módulo de Auditoría (auditoria/dashboard.php), exclusivo del rol Administrador.
+   Usa las variables de global.css. */
+
+/* ---------- Tarjetas de resumen ---------- */
+.au-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.au-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.9rem 1rem;
+    background: var(--card-bg);
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.au-kpi:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); transform: translateY(-1px); }
+.au-kpi:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.au-kpi__titulo { font-size: 0.78rem; font-weight: 600; color: #64748b; }
+.au-kpi__valor { font-size: 1.9rem; font-weight: 800; line-height: 1.15; color: #2563eb; }
+.au-kpi__detalle { font-size: 0.76rem; color: #64748b; }
+
+.au-kpi--ok { border-left-color: #16a34a; }
+.au-kpi--ok .au-kpi__valor { color: #15803d; }
+.au-kpi--alerta { border-left-color: #dc2626; }
+.au-kpi--alerta .au-kpi__valor { color: #dc2626; }
+
+/* ---------- Pestañas ---------- */
+.au-tabs {
+    display: flex;
+    gap: 1.5rem;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.au-tab {
+    padding: 0.65rem 0.25rem;
+    margin-bottom: -2px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #64748b;
+    text-decoration: none;
+    white-space: nowrap;
+    border-bottom: 3px solid transparent;
+}
+
+.au-tab:hover { color: var(--primary-blue); }
+.au-tab--activa { color: var(--primary-blue); border-bottom-color: var(--primary-blue); }
+
+/* ---------- Panel con filtros y tabla ---------- */
+.au-panel {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.au-periodos { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; align-items: center; flex-wrap: wrap; }
+.au-periodos__titulo { font-size: 0.85rem; font-weight: 700; color: #475569; margin-right: 0.5rem; }
+
+.au-periodo {
+    text-decoration: none;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    font-weight: 600;
+    background: #f1f5f9;
+    color: #475569;
+}
+.au-periodo--activo { background: var(--primary-blue); color: #fff; }
+
+.au-filtros { display: flex; gap: 0.75rem; margin-bottom: 1.25rem; align-items: flex-end; flex-wrap: wrap; }
+.au-campo { display: flex; flex-direction: column; gap: 0.2rem; }
+.au-campo--buscar { flex: 2; min-width: 200px; }
+.au-campo__etiqueta { font-size: 0.74rem; font-weight: 700; color: #64748b; }
+.au-input {
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    background: #fff;
+    color: #1e293b;
+}
+.au-input:focus-visible { outline: 3px solid #93c5fd; outline-offset: 1px; }
+
+.au-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.95rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: 6px;
+    border: 1px solid var(--primary-blue);
+    background: var(--primary-blue);
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+}
+.au-btn:hover { opacity: 0.9; }
+.au-btn--sec { background: #fff; color: var(--primary-blue); border-color: var(--border-color, #cbd5e1); }
+.au-btn--sec:hover { background: #f8fafc; opacity: 1; }
+.au-btn--chico { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+
+/* ---------- Tabla ---------- */
+.au-tabla-wrap { overflow-x: auto; }
+.au-tabla { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.au-tabla th {
+    padding: 0.65rem 0.5rem;
+    text-align: left;
+    font-size: 0.82rem;
+    color: var(--primary-blue);
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+}
+.au-tabla td { padding: 0.65rem 0.5rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.au-tabla tbody tr:hover { background: #f8fafc; }
+.au-tabla .num { text-align: right; font-variant-numeric: tabular-nums; }
+.au-tabla .der { text-align: right; }
+.au-tabla .au-fecha { white-space: nowrap; }
+.au-tabla .au-suave { color: #64748b; }
+.au-tabla .au-desc { min-width: 220px; }
+.au-tabla .au-agente { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64748b; font-size: 0.8rem; }
+.au-vacio { text-align: center; padding: 2.5rem 1rem; color: #64748b; font-size: 0.9rem; }
+
+.au-pastilla {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.au-pastilla--ok { background: #dcfce7; color: #166534; }
+.au-pastilla--aviso { background: #fef3c7; color: #92400e; }
+.au-pastilla--alerta { background: #fee2e2; color: #991b1b; }
+.au-pastilla--neutra { background: #f1f5f9; color: #475569; }
+.au-pastilla--info { background: #dbeafe; color: #1e40af; }
+
+.au-mas { color: #166534; font-weight: 700; }
+.au-menos { color: #991b1b; font-weight: 700; }
+
+/* ---------- Paginación ---------- */
+.au-paginacion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f5f9;
+}
+.au-paginacion__info { font-size: 0.8rem; color: #64748b; }
+.au-paginacion__botones { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+
+.au-pag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.2rem;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+.au-pag--texto { padding: 0.45rem 1rem; }
+a.au-pag:hover { background-color: #f8fafc; border-color: #94a3b8; }
+a.au-pag:focus-visible { outline: 3px solid #93c5fd; outline-offset: 1px; }
+.au-pag--actual { background-color: var(--primary-blue, #0b1536); color: #ffffff; border-color: var(--primary-blue, #0b1536); }
+.au-pag--off { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- Modales (se abren con style.display = 'flex' desde assets/js/auditoria.js) ---------- */
+.au-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+}
+
+.au-modal__caja {
+    background: #fff;
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.au-modal__cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.6rem;
+    margin-bottom: 1rem;
+}
+
+.au-modal__titulo { margin: 0; font-size: 1.1rem; color: var(--primary-blue); font-weight: 800; }
+.au-modal__cerrar { position: static; flex-shrink: 0; }
+.au-modal__estado { text-align: center; padding: 1.5rem; color: #64748b; }
+.au-modal__meta { font-size: 0.82rem; color: #64748b; margin: 0 0 0.9rem; line-height: 1.5; }
+
+.au-modal__tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.au-modal__tabla thead tr { border-bottom: 2px solid #e2e8f0; text-align: left; }
+.au-modal__tabla th, .au-modal__tabla td { padding: 0.5rem; vertical-align: top; text-align: left; }
+.au-modal__tabla tbody tr { border-bottom: 1px solid #f1f5f9; }
+.au-modal__tabla td { word-break: break-word; }
+.au-modal__tabla .antes { color: #991b1b; }
+.au-modal__tabla .despues { color: #166534; }
+
+@media print {
+    .au-filtros, .au-periodos, .au-paginacion, .au-modal { display: none !important; }
+}
+
+/* Filtro de usuario con búsqueda predictiva (la lista usa .autocomplete-list de global.css) */
+.au-campo--usuario { flex: 1; min-width: 240px; }
+.au-campo--usuario .au-input { width: 100%; box-sizing: border-box; }

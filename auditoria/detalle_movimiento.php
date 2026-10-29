@@ -1,6 +1,6 @@
 <?php
-// reporte/detalle_auditoria.php
-// Endpoint JSON con el detalle de un movimiento para el modal de auditoría.
+// auditoria/detalle_movimiento.php
+// Endpoint JSON con el detalle de un movimiento para el modal de la pantalla de Auditoría (solo Administrador).
 // config.php inicia la sesión con la cookie endurecida.
 require_once __DIR__ . '/../config/config.php';
 
@@ -11,6 +11,11 @@ header('Content-Type: application/json; charset=utf-8');
 if (!isAuthenticated()) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Sesión no iniciada. Inicie sesión nuevamente.']);
+    exit;
+}
+if (!canViewAudit()) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'No tiene permisos para ver la auditoría.']);
     exit;
 }
 
@@ -25,8 +30,7 @@ if ($id_movimiento <= 0) {
 }
 
 try {
-    $detalles = obtenerDetalleAuditoriaPorId($id_movimiento);
-    echo json_encode(['success' => true, 'detalles' => $detalles]);
+    echo json_encode(['success' => true, 'detalles' => Auditoria::detalleMovimiento($id_movimiento)]);
 } catch (Throwable $e) {
     echo json_encode(['success' => false, 'error' => safeErrorMessage($e)]);
 }

@@ -3,6 +3,9 @@
 -- =========================================================
 
 -- Limpieza preventiva en orden inverso de dependencias
+DROP TABLE IF EXISTS auditoria_stock CASCADE;
+DROP TABLE IF EXISTS auditoria_cambio CASCADE;
+DROP TABLE IF EXISTS auditoria_acceso CASCADE;
 DROP TABLE IF EXISTS intento_login CASCADE;
 DROP TABLE IF EXISTS movimiento_detalle CASCADE;
 DROP TABLE IF EXISTS movimiento CASCADE;
@@ -245,3 +248,92 @@ CREATE TABLE intento_login (
 );
 
 CREATE INDEX idx_intento_login_dni_fecha ON intento_login (dni, fecha_hora);
+
+
+-- ---------------------------------------------------------
+-- 7. AUDITORIA: ACCESOS, CAMBIOS EN REGISTROS Y CAMBIOS DE STOCK
+-- ---------------------------------------------------------
+-- Tablas de solo inserción: los triggers impiden modificarlas o borrarlas (por eso volver a ejecutar este script las recrea vacías).
+
+-- ---------------------------------------------------------
+-- 1) Accesos al sistema (ingresos, intentos fallidos, bloqueos y cierres de sesión)
+-- ---------------------------------------------------------
+-- No lleva clave foránea a usuario: se registra el DNI tipeado aunque no exista.
+-- "detalle" explica el motivo de un ingreso fallido (usuario inactivo, contraseña incorrecta, DNI no registrado...).
+CREATE TABLE IF NOT EXISTS auditoria_acceso (
+    id_acceso   BIGSERIAL PRIMARY KEY,
+    fecha_hora  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    dni         VARCHAR(20)  NOT NULL,
+    evento      VARCHAR(20)  NOT NULL
+                CHECK (evento IN ('LOGIN_OK', 'LOGIN_FALLIDO', 'LOGIN_BLOQUEADO', 'LOGOUT')),
+    detalle     VARCHAR(255),
+    ip          VARCHAR(45),
+    user_agent  VARCHAR(255)
+);
+CREATE INDEX IF NOT EXISTS idx_aud_acceso_fecha ON auditoria_acceso (fecha_hora DESC);
+CREATE INDEX IF NOT EXISTS idx_aud_acceso_dni   ON auditoria_acceso (dni, fecha_hora DESC);
+
+-- ---------------------------------------------------------
+-- 2) Cambios en registros (cargas, ediciones, deshabilitaciones, anulaciones...)
+-- ---------------------------------------------------------
+-- datos_anteriores / datos_nuevos guardan SOLO los campos que cambiaron (en una carga, el registro
+-- completo en datos_nuevos). Nunca se guardan contraseñas.
+CREATE TABLE IF NOT EXISTS auditoria_cambio (
+    id_cambio        BIGSERIAL PRIMARY KEY,
+    fecha_hora       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    dni_usuario      VARCHAR(20)   NOT NULL REFERENCES usuario(dni),
+    accion           VARCHAR(20)   NOT NULL
+                     CHECK (accion IN ('CREAR', 'EDITAR', 'DESHABILITAR', 'HABILITAR',
+                                       'ANULAR', 'REACTIVAR', 'CAMBIAR_CONTRASENA')),
+    entidad          VARCHAR(30)   NOT NULL,   -- insumo, movimiento, orden_de_trabajo, operario, rubro, usuario
+    id_registro      VARCHAR(50)   NOT NULL,   -- id, código o DNI del registro afectado
+    descripcion      VARCHAR(500)  NOT NULL,   -- frase legible: "Insumo 24001: stock 12 -> 30"
+    datos_anteriores JSONB,
+    datos_nuevos     JSONB,
+    ip               VARCHAR(45)
+);
+CREATE INDEX IF NOT EXISTS idx_aud_cambio_fecha    ON auditoria_cambio (fecha_hora DESC);
+CREATE INDEX IF NOT EXISTS idx_aud_cambio_usuario  ON auditoria_cambio (dni_usuario, fecha_hora DESC);
+CREATE INDEX IF NOT EXISTS idx_aud_cambio_registro ON auditoria_cambio (entidad, id_registro, fecha_hora DESC);
+
+-- ---------------------------------------------------------
+-- 3) Cambios de stock (libro de stock: valor anterior, valor nuevo y de dónde salió)
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS auditoria_stock (
+    id_auditoria_stock BIGSERIAL PRIMARY KEY,
+    fecha_hora         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    dni_usuario        VARCHAR(20)   NOT NULL REFERENCES usuario(dni),
+    id_insumo          INT           NOT NULL REFERENCES insumos(id_insumo),
+    stock_anterior     NUMERIC(10,2) NOT NULL,
+    stock_nuevo        NUMERIC(10,2) NOT NULL,
+    origen             VARCHAR(25)   NOT NULL
+                       CHECK (origen IN ('ALTA_INSUMO', 'EDICION_INSUMO', 'MOVIMIENTO', 'ANULACION_MOVIMIENTO')),
+    id_movimiento      INT           REFERENCES movimiento(id_movimiento),
+    detalle            VARCHAR(255)
+);
+CREATE INDEX IF NOT EXISTS idx_aud_stock_fecha  ON auditoria_stock (fecha_hora DESC);
+CREATE INDEX IF NOT EXISTS idx_aud_stock_insumo ON auditoria_stock (id_insumo, fecha_hora DESC);
+
+-- ---------------------------------------------------------
+-- 4) Protección: las tablas de auditoría solo se pueden insertar y consultar
+-- ---------------------------------------------------------
+CREATE OR REPLACE FUNCTION auditoria_solo_insertar() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'La tabla % es de auditoría: no se puede modificar ni borrar.', TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+DECLARE
+    t TEXT;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['auditoria_acceso', 'auditoria_cambio', 'auditoria_stock'] LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS trg_%I_inmutable ON %I', t, t);
+        EXECUTE format('CREATE TRIGGER trg_%I_inmutable BEFORE UPDATE OR DELETE ON %I
+                        FOR EACH ROW EXECUTE FUNCTION auditoria_solo_insertar()', t, t);
+        EXECUTE format('DROP TRIGGER IF EXISTS trg_%I_sin_truncate ON %I', t, t);
+        EXECUTE format('CREATE TRIGGER trg_%I_sin_truncate BEFORE TRUNCATE ON %I
+                        FOR EACH STATEMENT EXECUTE FUNCTION auditoria_solo_insertar()', t, t);
+    END LOOP;
+END
+$$;

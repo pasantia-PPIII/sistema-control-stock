@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/reportes.php';
+require_once __DIR__ . '/auditoria.php';
 
 class Insumo {
     private $db;
@@ -256,6 +257,13 @@ class Insumo {
                 $data['id_stock_actual'] = $stock['id_stock_actual'];
 
                 $insumo = $this->db->insert('insumos', $data);
+
+                // AUDITORÍA: carga del insumo y de su stock inicial (herramienta: 1 unidad)
+                $stockFinal = $esHerramienta ? 1.0 : $stockInicial;
+                Auditoria::registrarCambio(Auditoria::CREAR, 'insumo', $insumo['codigo'],
+                    "Insumo {$insumo['codigo']} '{$insumo['nombre']}' cargado", null, $insumo + ['stock_actual' => $stockFinal]);
+                Auditoria::registrarStock((int)$insumo['id_insumo'], 0.0, $stockFinal, Auditoria::STOCK_ALTA, null, 'Stock inicial');
+
                 $this->db->commit();
                 return $insumo;
             } catch (Throwable $e) {
@@ -310,10 +318,26 @@ class Insumo {
             // Datos y stock se guardan juntos: si uno falla, no se aplica ninguno
             $this->db->beginTransaction();
             try {
+                // AUDITORÍA: se guarda cómo estaba antes de tocar nada
+                $antes = $this->db->fetchOne("SELECT * FROM insumos WHERE codigo = :codigo FOR UPDATE", ['codigo' => $codigo]);
+
                 $resultado = $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
+                $stockAnterior = null;
                 if ($nuevoStock !== null) {
-                    $this->fijarStock($codigo, $nuevoStock);
+                    $stockAnterior = $this->fijarStock($codigo, $nuevoStock);   // registra el cambio en auditoria_stock
                 }
+
+                // AUDITORÍA: solo los campos que cambiaron (el stock también, si cambió)
+                [$a, $d] = Auditoria::diferencias($antes ?? [], $data);
+                if ($stockAnterior !== null && abs($stockAnterior - $nuevoStock) > 0.0001) {
+                    $a['stock_actual'] = $stockAnterior;
+                    $d['stock_actual'] = $nuevoStock;
+                }
+                if ($d) {
+                    Auditoria::registrarCambio(Auditoria::EDITAR, 'insumo', $codigo,
+                        "Insumo {$codigo} '" . ($antes['nombre'] ?? '') . "' editado: " . implode(', ', array_keys($d)), $a, $d);
+                }
+
                 $this->db->commit();
                 return $resultado;
             } catch (Throwable $e) {
@@ -329,8 +353,10 @@ class Insumo {
 
     /**
      * Deja el stock de un material exactamente en $nuevoStock. Debe llamarse dentro de una transacción.
+     * Registra el cambio en auditoria_stock y devuelve el stock que había antes.
      * @param string $codigo Código del insumo
      * @param float $nuevoStock Stock real (0 o más)
+     * @return float Stock anterior
      */
     private function fijarStock($codigo, $nuevoStock) {
         $insumo = $this->db->fetchOne(
@@ -346,18 +372,28 @@ class Insumo {
             throw new Exception("El stock de una herramienta lo controlan sus entregas y devoluciones, no se edita a mano.");
         }
 
+        $stockAnterior = 0.0;
         if (empty($insumo['id_stock_actual'])) {
             $nuevo = $this->db->insert('stock_actual', ['stock_actual' => $nuevoStock]);
             Database::execute(
                 "UPDATE insumos SET id_stock_actual = :s WHERE id_insumo = :id",
                 ['s' => $nuevo['id_stock_actual'], 'id' => $insumo['id_insumo']]
             );
-            return;
+        } else {
+            // AUDITORÍA: se lee (y bloquea) el stock vigente antes de pisarlo
+            $fila = $this->db->fetchOne(
+                "SELECT stock_actual FROM stock_actual WHERE id_stock_actual = :id FOR UPDATE",
+                ['id' => $insumo['id_stock_actual']]
+            );
+            $stockAnterior = (float)$fila['stock_actual'];
+            Database::execute(
+                "UPDATE stock_actual SET stock_actual = :stock, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
+                ['stock' => (string)$nuevoStock, 'id' => $insumo['id_stock_actual']]
+            );
         }
-        Database::execute(
-            "UPDATE stock_actual SET stock_actual = :stock, fecha = CURRENT_DATE WHERE id_stock_actual = :id",
-            ['stock' => (string)$nuevoStock, 'id' => $insumo['id_stock_actual']]
-        );
+        Auditoria::registrarStock((int)$insumo['id_insumo'], $stockAnterior, (float)$nuevoStock,
+            Auditoria::STOCK_EDICION, null, 'Edición manual desde Insumos');
+        return $stockAnterior;
     }
 
     /**
@@ -368,8 +404,13 @@ class Insumo {
      */
     public function deshabilitar($codigo) {
         try {
-            $data = ['activo' => false];
-            return $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
+            // AUDITORÍA: el cambio y su registro se guardan juntos
+            return Auditoria::transaccion(function () use ($codigo) {
+                $ok = $this->db->update('insumos', ['activo' => false], 'codigo = :codigo', ['codigo' => $codigo]);
+                Auditoria::registrarCambio(Auditoria::DESHABILITAR, 'insumo', $codigo,
+                    "Insumo {$codigo} deshabilitado", ['activo' => true], ['activo' => false]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al deshabilitar el insumo', $e);
         }
@@ -382,8 +423,12 @@ class Insumo {
      */
     public function habilitar($codigo) {
         try {
-            $data = ['activo' => true];
-            return $this->db->update('insumos', $data, 'codigo = :codigo', ['codigo' => $codigo]);
+            return Auditoria::transaccion(function () use ($codigo) {
+                $ok = $this->db->update('insumos', ['activo' => true], 'codigo = :codigo', ['codigo' => $codigo]);
+                Auditoria::registrarCambio(Auditoria::HABILITAR, 'insumo', $codigo,
+                    "Insumo {$codigo} habilitado", ['activo' => false], ['activo' => true]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al habilitar el insumo', $e);
         }

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/auditoria.php';
 
 class Operario {
     private $db;
@@ -205,7 +206,15 @@ class Operario {
             // Manejar id_rubro nulo si no se selecciona ninguno
             $data['id_rubro'] = !empty($data['id_rubro']) ? (int)$data['id_rubro'] : null;
 
-            return $this->db->insert('operario', $data);
+            // AUDITORÍA: la carga y su registro se guardan juntos
+            return Auditoria::transaccion(function () use ($data) {
+                $operario = $this->db->insert('operario', $data);
+                if (is_array($operario)) {
+                    Auditoria::registrarCambio(Auditoria::CREAR, 'operario', $operario['id_operario'],
+                        "Operario #{$operario['id_operario']} '{$operario['apellido']}, {$operario['nombre']}' cargado", null, $operario);
+                }
+                return $operario;
+            });
         } catch (PDOException $e) {
             // Capturar específicamente el error de clave única (DNI o Legajo duplicado)
             if ($e->getCode() == '23505') { // Código de violación de unicidad en PostgreSQL
@@ -238,7 +247,20 @@ class Operario {
             $data['id_rubro'] = !empty($data['id_rubro']) ? (int)$data['id_rubro'] : null;
 
             // Nota: No se permite cambiar el DNI desde aquí.
-            return $this->db->update('operario', $data, 'id_operario = :id', ['id' => (int)$id_operario]);
+            // AUDITORÍA: el cambio y su registro se guardan juntos o no se guarda ninguno
+            return Auditoria::transaccion(function () use ($id_operario, $data) {
+                $antes = $this->db->fetchOne(
+                    "SELECT apellido, nombre, legajo, id_rubro FROM operario WHERE id_operario = :id FOR UPDATE",
+                    ['id' => (int)$id_operario]
+                );
+                $ok = $this->db->update('operario', $data, 'id_operario = :id', ['id' => (int)$id_operario]);
+                [$a, $d] = Auditoria::diferencias($antes ?? [], $data);
+                if ($d) {
+                    Auditoria::registrarCambio(Auditoria::EDITAR, 'operario', (int)$id_operario,
+                        "Operario #{$id_operario} '{$data['apellido']}, {$data['nombre']}' editado: " . implode(', ', array_keys($d)), $a, $d);
+                }
+                return $ok;
+            });
         } catch (PDOException $e) {
             if ($e->getCode() == '23505') {
                 throw new Exception("El Legajo ingresado ya existe en otro operario.");
@@ -259,8 +281,12 @@ class Operario {
      */
     public function deshabilitar($id_operario) {
         try {
-            $data = ['activo' => false];
-            return $this->db->update('operario', $data, 'id_operario = :id', ['id' => (int)$id_operario]);
+            return Auditoria::transaccion(function () use ($id_operario) {
+                $ok = $this->db->update('operario', ['activo' => false], 'id_operario = :id', ['id' => (int)$id_operario]);
+                Auditoria::registrarCambio(Auditoria::DESHABILITAR, 'operario', (int)$id_operario,
+                    "Operario #{$id_operario} deshabilitado", ['activo' => true], ['activo' => false]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al deshabilitar el operario', $e);
         }
@@ -273,8 +299,12 @@ class Operario {
      */
     public function habilitar($id_operario) {
         try {
-            $data = ['activo' => true];
-            return $this->db->update('operario', $data, 'id_operario = :id', ['id' => (int)$id_operario]);
+            return Auditoria::transaccion(function () use ($id_operario) {
+                $ok = $this->db->update('operario', ['activo' => true], 'id_operario = :id', ['id' => (int)$id_operario]);
+                Auditoria::registrarCambio(Auditoria::HABILITAR, 'operario', (int)$id_operario,
+                    "Operario #{$id_operario} habilitado", ['activo' => false], ['activo' => true]);
+                return $ok;
+            });
         } catch (PDOException $e) {
             throw errorAmigable('Error al habilitar el operario', $e);
         }
