@@ -274,25 +274,6 @@
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
 }
 
-.modal-close-btn {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.2rem;
-    background: transparent;
-    border: none;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #64748b;
-    cursor: pointer;
-    padding: 0.3rem 0.6rem;
-    border-radius: 4px;
-}
-
-.modal-close-btn:hover {
-    color: #0b1536;
-    background-color: #f1f5f9;
-}
-
 .modal-header-text {
     text-align: center;
     margin-bottom: 1.5rem;
@@ -414,45 +395,6 @@
     line-height: 1.45;
 }
 
-/* Paginación */
-.pagination-container {
-    display: flex;
-    justify-content: center;
-    gap: 0.4rem;
-    margin-top: 1.5rem;
-}
-
-.pagination-btn {
-    background-color: #ffffff;
-    border: 1px solid var(--border-color, #cbd5e1);
-    padding: 0.45rem 0.85rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.pagination-btn:hover:not(:disabled) {
-    background-color: #f8fafc;
-    border-color: #94a3b8;
-}
-
-.pagination-btn.active {
-    background-color: var(--primary-blue, #0b1536);
-    color: #ffffff;
-    border-color: var(--primary-blue, #0b1536);
-}
-
-.pagination-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
-.pagination-btn.text-label {
-    padding: 0.45rem 1rem;
-}
 /* ==========================================================================
    Utilidades del módulo
    ========================================================================== */
@@ -548,25 +490,10 @@
 }
 
 .btn-sin-subrayado { text-decoration: none; }
-.badge-boton { cursor: pointer; border: none; }
 .deshabilitar-mensaje { font-size: 0.95rem; color: #334155; margin-bottom: 1.5rem; text-align: center; }
-.modal-card--insumos { max-width: 650px; }
-.lista-insumos-rubro { max-height: 320px; overflow-y: auto; margin-bottom: 1.25rem; }
 
-.lista-insumos-msg { text-align: center; padding: 1.5rem; color: #64748b; }
-.lista-insumos-msg--error { color: #dc2626; }
-
-.tabla-insumos-modal { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
-.tabla-insumos-modal thead tr { border-bottom: 2px solid #e2e8f0; color: #0b1536; }
-.tabla-insumos-modal th, .tabla-insumos-modal td { padding: 0.6rem; }
-.tabla-insumos-modal tbody tr { border-bottom: 1px solid #f1f5f9; }
-.tabla-insumos-modal .col-codigo { font-weight: 600; }
-.tabla-insumos-modal .col-stock { text-align: right; }
-.tabla-insumos-modal td.col-stock { font-weight: 700; }
-
-/* Insumos deshabilitados: fila sombreada y texto atenuado (detalle de rubro y modal de insumos) */
-.rubro-det__tabla tbody tr.fila-insumo--inactiva,
-.tabla-insumos-modal tbody tr.fila-inactiva {
+/* Insumos deshabilitados: fila sombreada y texto atenuado (detalle de rubro) */
+.rubro-det__tabla tbody tr.fila-insumo--inactiva {
     background: #f1f5f9;
     color: #94a3b8;
 }
@@ -587,4 +514,3 @@
     text-decoration-color: #cbd5e1;
 }
 
-.badge-mini { font-size: 0.68rem; margin-left: 0.4rem; }

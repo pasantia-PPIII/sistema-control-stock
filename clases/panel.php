@@ -63,7 +63,7 @@ class Panel {
 
     public function ultimosMovimientos($limite = 5) {
         return $this->db->fetchAll(
-            "SELECT m.id_movimiento, m.fecha, m.hora, tm.tipo as nombre_tipo_movimiento,
+            "SELECT m.id_movimiento, m.id_operario, m.fecha, m.hora, tm.tipo as nombre_tipo_movimiento,
                     o.apellido || ', ' || o.nombre as nombre_operario,
                     (SELECT COUNT(*) FROM movimiento_detalle md WHERE md.id_movimiento = m.id_movimiento) as total_items
              FROM movimiento m

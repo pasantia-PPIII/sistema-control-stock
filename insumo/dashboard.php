@@ -152,7 +152,7 @@ include_once __DIR__ . '/../layout/header.php';
                 $stkTxt = $ins['stock_actual'] ?? 0;
                 $estadoVenc = !$ins['activo'] ? 'Deshabilitado' : ($esHerramienta ? ($ins['nombre_estado_herramienta'] ?? 'Disponible') : (!empty($ins['fecha_vencimiento']) ? htmlspecialchars($ins['fecha_vencimiento']) : 'No perecedero'));
             ?>
-            <div class="insumo-card-row<?= $ins['activo'] ? '' : ' insumo-card-row--inactivo' ?>" onclick='abrirModalDetalles(<?= json_encode($ins, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'>
+            <div class="insumo-card-row fila-clic<?= $ins['activo'] ? '' : ' insumo-card-row--inactivo' ?>">
                 <div><strong><?= htmlspecialchars($ins['codigo']) ?></strong></div>
                 <div><?= htmlspecialchars($ins['nombre']) ?></div>
                 <div><?= htmlspecialchars($ins['nombre_rubro'] ?? '-') ?></div>
@@ -195,21 +195,7 @@ include_once __DIR__ . '/../layout/header.php';
 </div>
 
 <!-- Contenedor de Paginación -->
-<div class="pagination-container" id="contenedor-paginacion">
-    <?php if ($totalPaginas > 1): ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= max(1, $paginaActual - 1) ?>)" <?= ($paginaActual <= 1) ? 'disabled' : '' ?>>
-            Anterior
-        </button>
-        <?php for ($p = 1; $p <= $totalPaginas; $p++): ?>
-            <button type="button" class="pagination-btn <?= ($p === $paginaActual) ? 'active' : '' ?>" onclick="cambiarPagina(<?= $p ?>)">
-                <?= $p ?>
-            </button>
-        <?php endfor; ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= min($totalPaginas, $paginaActual + 1) ?>)" <?= ($paginaActual >= $totalPaginas) ? 'disabled' : '' ?>>
-            Siguiente
-        </button>
-    <?php endif; ?>
-</div>
+<div class="pagination-container" id="contenedor-paginacion" data-total="<?= (int)$totalPaginas ?>" data-actual="<?= (int)$paginaActual ?>"></div>
 
 <!-- ========================================================================= -->
 <!-- MODALES DEL SISTEMA -->
@@ -218,7 +204,7 @@ include_once __DIR__ . '/../layout/header.php';
 <!-- Modal 1: Cargar Insumo -->
 <div id="modal-cargar-insumo" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-cargar-insumo')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-cargar-insumo')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2>Cargar Insumo</h2>
             <p>Completar los campos obligatorios para registrar un nuevo artículo</p>
@@ -300,7 +286,7 @@ include_once __DIR__ . '/../layout/header.php';
                     </div>
                     <div class="modal-form-group oculto" id="grupo-vencimiento-cargar">
                         <label>Fecha de Vencimiento</label>
-                        <input type="date" name="fecha_vencimiento" id="cargar-fecha-vencimiento" class="modal-input">
+                        <input type="date" name="fecha_vencimiento" id="cargar-fecha-vencimiento" class="modal-input" min="<?= date('Y-m-d') ?>">
                     </div>
                 </div>
             </div>
@@ -330,7 +316,7 @@ include_once __DIR__ . '/../layout/header.php';
 <!-- Modal 2: Editar Insumo -->
 <div id="modal-editar-insumo" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-editar-insumo')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-editar-insumo')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2>Editar Insumo</h2>
             <p>Modificar los datos del artículo seleccionado</p>
@@ -435,7 +421,7 @@ include_once __DIR__ . '/../layout/header.php';
 <!-- Modal 3: Detalles Insumo -->
 <div id="modal-detalles-insumo" class="modal-backdrop">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-detalles-insumo')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-detalles-insumo')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2>Detalles del Insumo</h2>
             <p>Información completa registrada en el sistema</p>
@@ -462,7 +448,7 @@ include_once __DIR__ . '/../layout/header.php';
 <!-- Modal 4: Confirmar Deshabilitación / Habilitación (los textos y colores los pone abrirModalEstado) -->
 <div id="modal-estado-insumo" class="modal-backdrop">
     <div class="modal-card modal-card--estado">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-estado-insumo')">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-estado-insumo')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <div class="modal-header-text">
             <h2 id="estado-titulo">Deshabilitar Insumo</h2>
             <p id="estado-subtitulo"></p>

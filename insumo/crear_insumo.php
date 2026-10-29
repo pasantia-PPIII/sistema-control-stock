@@ -64,6 +64,17 @@ try {
     $es_perecedero = !empty($input['es_perecedero']) && ($input['es_perecedero'] === '1' || $input['es_perecedero'] === true || $input['es_perecedero'] === 'true');
     $fecha_vencimiento = (!empty($input['fecha_vencimiento']) && $es_perecedero) ? trim((string)$input['fecha_vencimiento']) : null;
 
+    // Un insumo nuevo no puede nacer ya vencido (la edición posterior sí permite corregir la fecha)
+    if ($fecha_vencimiento !== null) {
+        $fecha = DateTime::createFromFormat('Y-m-d', $fecha_vencimiento);
+        if (!$fecha || $fecha->format('Y-m-d') !== $fecha_vencimiento) {
+            throw new Exception('La fecha de vencimiento no es válida.');
+        }
+        if ($fecha_vencimiento < date('Y-m-d')) {
+            throw new Exception('La fecha de vencimiento no puede ser anterior a hoy.');
+        }
+    }
+
     // Stock inicial: obligatorio para materiales (0 es válido). En herramientas se ignora: nacen con 1 unidad
     // en el pañol. Insumo::create() valida que exista, sea numérico y no sea negativo.
     $stock_inicial = (isset($input['stock_inicial']) && $input['stock_inicial'] !== '') ? $input['stock_inicial'] : null;

@@ -116,7 +116,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
                             <td><a href="../movimiento/detalle_movimiento.php?id=<?= (int)$m['id_movimiento'] ?>">#<?= (int)$m['id_movimiento'] ?></a></td>
                             <td><?= $h(date('d/m/Y', strtotime($m['fecha']))) ?> <?= $h(substr($m['hora'], 0, 5)) ?></td>
                             <td><?= $h($m['nombre_tipo_movimiento']) ?></td>
-                            <td><?= !empty($m['nombre_operario']) ? $h($m['nombre_operario']) : '-' ?></td>
+                            <td><?= enlaceOperario($m['id_operario'] ?? null, $m['nombre_operario'] ?? null) ?></td>
                             <td class="col-der col-cantidad"><?= (float)$m['cantidad'] ?></td>
                         </tr>
                     <?php endforeach; ?>

@@ -33,6 +33,11 @@ body.admin-layout {
     flex-direction: column;
     padding: 1.5rem 1rem;
     flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    align-self: flex-start;
 }
 
 .sidebar-brand {
@@ -391,4 +396,236 @@ button.btn-logout {
 .btn-action-icon.return:hover {
     background-color: #fde68a;
     color: #78350f;
+}
+
+
+/* =========================================================
+   CLASES COMPARTIDAS POR VARIAS VISTAS (reemplazan estilos en línea)
+   ========================================================= */
+.alerta-inline {
+    display: none;
+    padding: 0.85rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.estado-vacio {
+    text-align: center;
+    color: #64748b;
+    padding: 2rem;
+}
+
+.estado-vacio--compacto { padding: 1.5rem; }
+.estado-vacio--error { color: #dc2626; }
+
+.texto-tenue { color: #64748b; }
+.sin-subrayado { text-decoration: none; }
+
+/* Nombre de un operario como enlace a su ficha: se lee como texto y se subraya al pasar el mouse */
+.enlace-nombre { color: inherit; font-weight: 600; text-decoration: none; }
+.enlace-nombre:hover { color: #2563eb; text-decoration: underline; }
+
+.mb-16 { margin-bottom: 1rem; }
+.mb-20 { margin-bottom: 1.25rem; }
+.mb-24 { margin-bottom: 1.5rem; }
+.mb-32 { margin-bottom: 2rem; }
+
+.celda-centro { text-align: center; }
+.celda-derecha { text-align: right; }
+.celda-fuerte { font-weight: 700; }
+
+/* Recuadro de texto de solo lectura (descripción, observaciones) */
+.caja-texto {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.85rem;
+    color: #334155;
+    line-height: 1.5;
+    font-size: 0.88rem;
+}
+
+.caja-texto--amplia {
+    padding: 1rem;
+    line-height: 1.6;
+    font-size: inherit;
+}
+
+.lista-detalle { margin: 0.3rem 0 0 1.2rem; }
+.lista-detalle--legible { color: #334155; line-height: 1.7; }
+
+
+/* Autocompletado por AJAX (assets/js/autocompletado.js) */
+.autocomplete-wrapper {
+    position: relative;
+}
+
+.autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    display: none;
+    max-height: 240px;
+    overflow-y: auto;
+    margin-top: 0.25rem;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.autocomplete-item {
+    padding: 0.55rem 0.8rem;
+    font-size: 0.88rem;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item--activo {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.autocomplete-item--off {
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.autocomplete-item--off:hover {
+    background: transparent;
+    color: #94a3b8;
+}
+
+.autocomplete-more {
+    font-style: italic;
+    color: var(--btn-edit);
+}
+
+.autocomplete-empty {
+    padding: 0.55rem 0.8rem;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+
+/* Etiquetas de una selección múltiple (crearAutocompletadoMultiple) */
+.chips-seleccion {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.5rem 0;
+}
+
+.chips-seleccion:empty { display: none; }
+
+.chip-seleccion {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.4rem 0.25rem 0.7rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    color: #1e40af;
+}
+
+.chip-seleccion__quitar {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.chip-seleccion__quitar:hover { background: #dbeafe; }
+
+
+/* Fila de listado que abre su detalle al hacer clic (assets/js/main.js) */
+.fila-clic { cursor: pointer; }
+
+
+/* Paginación sin páginas que mostrar (una sola página): no ocupa espacio */
+.pagination-container:empty { display: none; }
+
+/* Botón de cerrar de los modales: un ícono de X en la esquina superior derecha de la tarjeta */
+.modal-close-btn {
+    position: absolute;
+    top: 0.9rem;
+    right: 0.9rem;
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: #64748b;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.modal-close-btn:hover,
+.modal-close-btn:focus-visible {
+    background-color: #f1f5f9;
+    color: #0b1536;
+    outline: none;
+}
+
+/* Paginación común de todos los listados (la dibuja renderizarPaginacion en main.js) */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1.5rem;
+}
+
+.pagination-btn {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #cbd5e1);
+    padding: 0.45rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.pagination-btn.active {
+    background-color: var(--primary-blue, #0b1536);
+    color: #ffffff;
+    border-color: var(--primary-blue, #0b1536);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.pagination-btn.text-label {
+    padding: 0.45rem 1rem;
 }

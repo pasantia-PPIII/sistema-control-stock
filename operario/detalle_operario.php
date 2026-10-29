@@ -5,7 +5,7 @@
  * e historial de materiales retirados.
  *
  * - Parámetros: ?id=N (id_operario) o ?dni=XXXX.
- * - Datos mediante la clase Operario (getById, getByDni, getHerramientasCustodia, getHistorialMateriales).
+ * - Datos mediante la clase Operario (getById, getByDni, getHerramientasCustodia, getHistorialMaterialesPaginado).
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -31,7 +31,10 @@ if (!$operario) {
 
 $activo = !empty($operario['activo']) && $operario['activo'] !== 'f';
 $herramientasCustodia = $operarioModel->getHerramientasCustodia($operario['id_operario']);
-$historialMateriales = $operarioModel->getHistorialMateriales($operario['id_operario']);
+// Historial de materiales paginado en la base, de a 10 retiros (?pagina_mat=N)
+$historial = $operarioModel->getHistorialMaterialesPaginado($operario['id_operario'], (int)($_GET['pagina_mat'] ?? 1), 10);
+$historialMateriales = $historial['filas'];
+$totalPaginasMat = max(1, (int)ceil($historial['total'] / $historial['porPagina']));
 
 $seccion = 'operario';
 $css_modulo = 'operarios';
@@ -43,50 +46,47 @@ include_once __DIR__ . '/../layout/header.php';
 $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 ?>
 
-<div class="ficha-panel">
-
+<div class="ficha-card">
     <div class="ficha-header">
         <div>
-            <a href="dashboard.php" class="btn-action-text view" style="text-decoration: none; padding: 0.4rem 0.9rem; font-size: 0.82rem; font-weight: 700;">
-                Volver a Operarios
-            </a>
-            <h2 class="ficha-title"><?= $h($operario['apellido'] . ', ' . $operario['nombre']) ?></h2>
+            <h2 class="ficha-title">Operario: <?= $h($operario['apellido'] . ', ' . $operario['nombre']) ?></h2>
+            <div class="ficha-subtitle">
+                ID Sistema: #<?= (int)$operario['id_operario'] ?> | Estado actual:
+                <span class="badge <?= $activo ? 'badge-success' : 'badge-danger' ?>"><?= $activo ? 'Activo' : 'Inactivo' ?></span>
+            </div>
         </div>
-        <div>
-            <?php if ($activo): ?>
-                <span class="badge badge-success" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Operario Activo</span>
-            <?php else: ?>
-                <span class="badge badge-danger" style="font-size: 0.85rem; padding: 0.4rem 0.8rem;">Operario Inactivo</span>
-            <?php endif; ?>
-        </div>
+        <a href="dashboard.php" class="btn-volver-ficha">Volver al Listado</a>
     </div>
 
-    <div class="ficha-grid-datos">
-        <div>
-            <span class="ficha-dato-label">DNI</span>
-            <p class="ficha-dato-valor"><?= $h($operario['dni']) ?></p>
+    <div class="ficha-grid">
+        <div class="ficha-dato">
+            <strong>DNI</strong>
+            <span><?= $h($operario['dni']) ?></span>
         </div>
-        <div>
-            <span class="ficha-dato-label">Legajo Interno</span>
-            <p class="ficha-dato-valor"><?= !empty($operario['legajo']) ? $h($operario['legajo']) : '-' ?></p>
+        <div class="ficha-dato">
+            <strong>Legajo Interno</strong>
+            <span><?= !empty($operario['legajo']) ? $h($operario['legajo']) : '-' ?></span>
         </div>
-        <div>
-            <span class="ficha-dato-label">Rubro / Especialidad</span>
-            <p class="ficha-dato-valor"><?= !empty($operario['nombre_rubro']) ? $h($operario['nombre_rubro']) : 'General' ?></p>
+        <div class="ficha-dato">
+            <strong>Rubro / Especialidad</strong>
+            <span><?= !empty($operario['nombre_rubro']) ? $h($operario['nombre_rubro']) : 'General' ?></span>
+        </div>
+        <div class="ficha-dato">
+            <strong>Herramientas en su poder</strong>
+            <span><?= count($herramientasCustodia) ?></span>
+        </div>
+        <div class="ficha-dato">
+            <strong>Retiros de materiales</strong>
+            <span><?= (int)$historial['total'] ?></span>
         </div>
     </div>
 
     <!-- Herramientas en custodia -->
-    <div class="ficha-section">
-        <div class="ficha-section-header">
-            <h3 class="ficha-section-title">Herramientas en Custodia (Prestadas)</h3>
-            <span style="font-size: 0.85rem; color: #64748b; font-weight: 600;">
-                Total en poder: <?= count($herramientasCustodia) ?>
-            </span>
-        </div>
+    <div class="ficha-seccion">
+        <h3 class="ficha-seccion__titulo">Herramientas en Custodia (<?= count($herramientasCustodia) ?>)</h3>
 
-        <div class="table-responsive">
-            <table class="data-table">
+        <div class="ficha-tabla-wrap">
+            <table class="ficha-tabla">
                 <thead>
                     <tr>
                         <th>Código</th>
@@ -101,7 +101,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
                     <?php if (count($herramientasCustodia) > 0): ?>
                         <?php foreach ($herramientasCustodia as $hc): ?>
                             <tr>
-                                <td><strong><?= $h($hc['codigo']) ?></strong></td>
+                                <td><a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($hc['codigo']) ?>"><strong><?= $h($hc['codigo']) ?></strong></a></td>
                                 <td><?= $h($hc['nombre']) ?></td>
                                 <td><?= !empty($hc['serie_modelo']) ? $h($hc['serie_modelo']) : '-' ?></td>
                                 <td><?= !empty($hc['ubicacion']) ? $h($hc['ubicacion']) : 'Pañol Central' ?></td>
@@ -111,7 +111,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="6" style="text-align: center; color: #64748b; padding: 1.5rem;">
+                            <td colspan="6" class="estado-vacio estado-vacio--compacto">
                                 El operario no tiene herramientas en su poder actualmente.
                             </td>
                         </tr>
@@ -122,16 +122,11 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     </div>
 
     <!-- Historial de materiales -->
-    <div class="ficha-section" style="margin-bottom: 0;">
-        <div class="ficha-section-header">
-            <h3 class="ficha-section-title">Historial de Materiales Retirados</h3>
-            <span style="font-size: 0.85rem; color: #64748b; font-weight: 600;">
-                Total registros: <?= count($historialMateriales) ?>
-            </span>
-        </div>
+    <div class="ficha-seccion ficha-seccion--ultima" id="historial-materiales">
+        <h3 class="ficha-seccion__titulo">Historial de Materiales Retirados (<?= (int)$historial['total'] ?>)</h3>
 
-        <div class="table-responsive">
-            <table class="data-table">
+        <div class="ficha-tabla-wrap">
+            <table class="ficha-tabla">
                 <thead>
                     <tr>
                         <th>Fecha y Hora</th>
@@ -149,7 +144,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
                         ?>
                             <tr>
                                 <td><?= $h(date('d/m/Y', strtotime($hm['fecha']))) ?> <?= $h(substr($hm['hora'], 0, 5)) ?></td>
-                                <td><strong><?= $h($hm['codigo']) ?></strong></td>
+                                <td><a href="../insumo/detalles_insumo.php?codigo=<?= rawurlencode($hm['codigo']) ?>"><strong><?= $h($hm['codigo']) ?></strong></a></td>
                                 <td><?= $h($hm['material_nombre']) ?></td>
                                 <td><strong><?= (float)$hm['cantidad'] ?></strong> <?= $h($hm['unidad_medida'] ?? 'Unidad') ?></td>
                                 <td><strong><?= $odtTxt ?></strong></td>
@@ -158,7 +153,7 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="6" style="text-align: center; color: #64748b; padding: 1.5rem;">
+                            <td colspan="6" class="estado-vacio estado-vacio--compacto">
                                 No se registran retiros de materiales para este operario.
                             </td>
                         </tr>
@@ -166,8 +161,10 @@ $h = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
                 </tbody>
             </table>
         </div>
-    </div>
 
+        <div class="pagination-container" data-total="<?= $totalPaginasMat ?>" data-actual="<?= (int)$historial['pagina'] ?>"
+            data-param="pagina_mat" data-ancla="historial-materiales"></div>
+    </div>
 </div>
 
 <?php

@@ -21,6 +21,7 @@ if (!isAuthenticated()) {
 
 $seccion = 'usuarios';
 $css_modulo = 'usuarios';
+$js_modulo = 'autocompletado'; // autocompletado de operario vinculado (se busca por AJAX)
 $titulo_vista = 'Gestión de Usuarios';
 $titulo_pagina = 'Gestión de Usuarios - Sistema de Control de Stock';
 
@@ -82,9 +83,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 }
 
 $roles = $usuarioModel->getRoles();
-
-require_once __DIR__ . '/../clases/operario.php';
-$operariosSelect = (new Operario())->getParaSelect();
 
 include_once __DIR__ . '/../layout/header.php';
 ?>
@@ -155,7 +153,7 @@ include_once __DIR__ . '/../layout/header.php';
 
                 $jsonUsuario = json_encode($u, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
                 ?>
-                <div class="user-card-row">
+                <div class="user-card-row fila-clic">
                     <div><strong><?= $filaNum++ ?></strong></div>
                     <div><?= $dniEscapado ?></div>
                     <div><?= $opNombre ?></div>
@@ -163,7 +161,7 @@ include_once __DIR__ . '/../layout/header.php';
                     <div><span class="badge-role"><?= $rolNombre ?></span></div>
                     <div><?= $badgeEstado ?></div>
                     <div class="actions-cell">
-                        <a href="detalle_usuario.php?dni=<?= rawurlencode($u['dni']) ?>" class="btn-action-icon view" title="Ver Detalle"><?= iconoAccion('view') ?></a>
+                        <button type="button" class="btn-action-icon view" title="Ver Detalle" onclick='abrirModalDetalle(<?= $jsonUsuario ?>)'><?= iconoAccion('view') ?></button>
                         <?php if (isAdmin()): ?>
                         <button type="button" class="btn-action-icon edit" title="Editar Usuario"
                             onclick='abrirModalEditar(<?= $jsonUsuario ?>)'>
@@ -191,24 +189,7 @@ include_once __DIR__ . '/../layout/header.php';
 </div>
 
 <!-- Contenedor de Paginación Dinámica -->
-<div class="pagination-container" id="contenedor-paginacion">
-    <?php if ($totalPaginas > 1): ?>
-        <button type="button" class="pagination-btn text-label" onclick="cambiarPagina(<?= max(1, $paginaActual - 1) ?>)"
-            <?= ($paginaActual <= 1) ? 'disabled' : '' ?>>
-            Anterior
-        </button>
-        <?php for ($p = 1; $p <= $totalPaginas; $p++): ?>
-            <button type="button" class="pagination-btn <?= ($p === $paginaActual) ? 'active' : '' ?>"
-                onclick="cambiarPagina(<?= $p ?>)">
-                <?= $p ?>
-            </button>
-        <?php endfor; ?>
-        <button type="button" class="pagination-btn text-label"
-            onclick="cambiarPagina(<?= min($totalPaginas, $paginaActual + 1) ?>)" <?= ($paginaActual >= $totalPaginas) ? 'disabled' : '' ?>>
-            Siguiente
-        </button>
-    <?php endif; ?>
-</div>
+<div class="pagination-container" id="contenedor-paginacion" data-total="<?= (int)$totalPaginas ?>" data-actual="<?= (int)$paginaActual ?>"></div>
 
 <!-- ========================================================================= -->
 <!-- MODALES -->
@@ -217,8 +198,7 @@ include_once __DIR__ . '/../layout/header.php';
 <!-- Modal 1: Nuevo Usuario -->
 <div id="modal-nuevo-usuario" class="modal-overlay">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-nuevo-usuario')"
-            title="Cerrar">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-nuevo-usuario')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <h2 class="modal-title">Nuevo Usuario</h2>
         <p class="modal-subtitle">Completar los campos obligatorios para registrar el acceso</p>
 
@@ -260,15 +240,12 @@ include_once __DIR__ . '/../layout/header.php';
                         placeholder="Clave de acceso">
                 </div>
                 <div>
-                    <label class="modal-label" for="crear-id-operario">Operario Vinculado (Opcional)</label>
-                    <select id="crear-id-operario" name="id_operario" class="modal-select">
-                        <option value="">Sin operario vinculado</option>
-                        <?php foreach ($operariosSelect as $op): ?>
-                            <option value="<?= (int) $op['id_operario'] ?>">
-                                <?= htmlspecialchars($op['apellido'] . ', ' . $op['nombre'] . ' (DNI ' . $op['dni'] . ')', ENT_QUOTES, 'UTF-8') ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label class="modal-label" for="crear-buscar-operario">Operario Vinculado (Opcional)</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="crear-buscar-operario" class="modal-input" placeholder="Escriba DNI, apellido o nombre... (vacío = sin operario)" autocomplete="off">
+                        <input type="hidden" id="crear-id-operario" name="id_operario" value="">
+                        <div id="crear-lista-operario" class="autocomplete-list"></div>
+                    </div>
                 </div>
             </div>
 
@@ -284,8 +261,7 @@ include_once __DIR__ . '/../layout/header.php';
 <!-- Modal 2: Editar Usuario -->
 <div id="modal-editar-usuario" class="modal-overlay">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-editar-usuario')"
-            title="Cerrar">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-editar-usuario')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <h2 class="modal-title">Editar Usuario</h2>
         <p class="modal-subtitle">Actualizar el rol, la vinculación u opcionalmente la contraseña</p>
 
@@ -326,15 +302,12 @@ include_once __DIR__ . '/../layout/header.php';
                         placeholder="Dejar en blanco para conservar actual">
                 </div>
                 <div>
-                    <label class="modal-label" for="edit-id-operario">Operario Vinculado (Opcional)</label>
-                    <select id="edit-id-operario" name="id_operario" class="modal-select">
-                        <option value="">Sin operario vinculado</option>
-                        <?php foreach ($operariosSelect as $op): ?>
-                            <option value="<?= (int) $op['id_operario'] ?>">
-                                <?= htmlspecialchars($op['apellido'] . ', ' . $op['nombre'] . ' (DNI ' . $op['dni'] . ')', ENT_QUOTES, 'UTF-8') ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label class="modal-label" for="edit-buscar-operario">Operario Vinculado (Opcional)</label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="edit-buscar-operario" class="modal-input" placeholder="Escriba DNI, apellido o nombre... (vacío = sin operario)" autocomplete="off">
+                        <input type="hidden" id="edit-id-operario" name="id_operario" value="">
+                        <div id="edit-lista-operario" class="autocomplete-list"></div>
+                    </div>
                 </div>
             </div>
 
@@ -347,16 +320,29 @@ include_once __DIR__ . '/../layout/header.php';
     </div>
 </div>
 
+<!-- Modal: Ver detalle del usuario (solo lectura; los datos vienen de la misma fila del listado) -->
+<div id="modal-detalle-usuario" class="modal-overlay">
+    <div class="modal-card">
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-detalle-usuario')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
+        <h2 class="modal-title" id="detalle-usuario-titulo">Detalle del Usuario</h2>
+        <p class="modal-subtitle" id="detalle-usuario-subtitulo"></p>
+
+        <div class="detalle-usuario__datos">
+            <div><strong>Rol:</strong> <span class="badge-role" id="detalle-usuario-rol"></span></div>
+            <div><strong>Operario vinculado:</strong> <span id="detalle-usuario-operario"></span></div>
+            <div><strong>Estado de la cuenta:</strong> <span id="detalle-usuario-estado"></span></div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal 3: Confirmación de Deshabilitar / Habilitar Usuario -->
 <div id="modal-estado-usuario" class="modal-overlay">
     <div class="modal-card">
-        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-estado-usuario')"
-            title="Cerrar">Cerrar</button>
+        <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-estado-usuario')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <h2 class="modal-title" id="estado-titulo">Cambiar Estado</h2>
         <p class="modal-subtitle" id="estado-subtitulo">Confirmación de acción</p>
 
-        <p id="estado-mensaje"
-            style="font-size: 0.95rem; color: #334155; margin: 1.5rem 0; text-align: center; line-height: 1.5;"></p>
+        <p id="estado-mensaje" class="modal-mensaje-estado"></p>
 
         <form id="form-estado-usuario" onsubmit="confirmarCambioEstado(event)">
             <input type="hidden" id="estado-dni" name="dni">
@@ -463,7 +449,7 @@ include_once __DIR__ . '/../layout/header.php';
                 : `<button type="button" class="btn-action-icon enable" title="Habilitar Usuario" onclick="abrirModalEstado('${dniEscapado}', false)">${window.APP_ICONS.enable}</button>`;
 
             html += `
-        <div class="user-card-row">
+        <div class="user-card-row fila-clic">
             <div><strong>${fila++}</strong></div>
             <div>${dniEscapado}</div>
             <div>${opNombre}</div>
@@ -471,7 +457,7 @@ include_once __DIR__ . '/../layout/header.php';
             <div><span class="badge-role">${rolNombre}</span></div>
             <div>${badgeEstado}</div>
             <div class="actions-cell">
-                <a href="detalle_usuario.php?dni=${encodeURIComponent(u.dni)}" class="btn-action-icon view" title="Ver Detalle">${window.APP_ICONS.view}</a>
+                <button type="button" class="btn-action-icon view" title="Ver Detalle" onclick="abrirModalDetalle(${jsonStr})">${window.APP_ICONS.view}</button>
                 ${APP_PERMISOS.admin ? `
                 <button type="button" class="btn-action-icon edit" title="Editar Usuario" onclick="abrirModalEditar(${jsonStr})">
                     ${window.APP_ICONS.edit}
@@ -484,26 +470,6 @@ include_once __DIR__ . '/../layout/header.php';
         contenedor.innerHTML = html;
     }
 
-    function renderizarPaginacion(totalPaginas, pagina) {
-        const contenedor = document.getElementById('contenedor-paginacion');
-        if (!contenedor) return;
-
-        if (totalPaginas <= 1) {
-            contenedor.innerHTML = '';
-            return;
-        }
-
-        let html = '';
-        html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.max(1, pagina - 1)})" ${pagina <= 1 ? 'disabled' : ''}>Anterior</button>`;
-
-        for (let p = 1; p <= totalPaginas; p++) {
-            html += `<button type="button" class="pagination-btn ${p === pagina ? 'active' : ''}" onclick="cambiarPagina(${p})">${p}</button>`;
-        }
-
-        html += `<button type="button" class="pagination-btn text-label" onclick="cambiarPagina(${Math.min(totalPaginas, pagina + 1)})" ${pagina >= totalPaginas ? 'disabled' : ''}>Siguiente</button>`;
-
-        contenedor.innerHTML = html;
-    }
 
     // Búsqueda y Filtros con Debounce
     document.getElementById('buscador-usuario').addEventListener('input', function () {
@@ -561,12 +527,32 @@ include_once __DIR__ . '/../layout/header.php';
             });
     }
 
+    // Modal: Ver detalle del usuario (los datos salen de la fila, no hace falta otra consulta)
+    function abrirModalDetalle(usuario) {
+        const nombre = ((usuario.apellido || '') + ', ' + (usuario.nombre || '')).replace(/^[ ,]+|[ ,]+$/g, '');
+        document.getElementById('detalle-usuario-titulo').innerText = nombre !== '' ? nombre : usuario.dni;
+        document.getElementById('detalle-usuario-subtitulo').innerText = 'DNI ' + usuario.dni;
+        document.getElementById('detalle-usuario-rol').innerText = usuario.nombre_rol || 'Sin Rol';
+
+        const tieneOperario = Boolean(usuario.id_operario);
+        document.getElementById('detalle-usuario-operario').innerHTML = tieneOperario
+            ? `<a href="../operario/detalle_operario.php?id=${parseInt(usuario.id_operario, 10)}">${escaparHtml(((usuario.operario_apellido || '') + ', ' + (usuario.operario_nombre || '')).trim())}</a> (DNI ${escaparHtml(usuario.dni_operario || '-')})`
+            : 'Ninguno';
+
+        const activo = Boolean(usuario.activo == true || usuario.activo == 1 || usuario.activo === 't');
+        document.getElementById('detalle-usuario-estado').innerText = activo ? 'Habilitada' : 'Deshabilitada';
+        abrirModal('modal-detalle-usuario');
+    }
+
     // Modal: Editar Usuario
     function abrirModalEditar(usuario) {
         document.getElementById('edit-dni').value = usuario.dni || '';
         document.getElementById('edit-id-rol').value = usuario.id_rol || '';
         document.getElementById('edit-password').value = '';
         document.getElementById('edit-id-operario').value = usuario.id_operario || '';
+        document.getElementById('edit-buscar-operario').value = usuario.id_operario
+            ? `${usuario.operario_apellido || ''}, ${usuario.operario_nombre || ''} - DNI: ${usuario.dni_operario || '-'}`
+            : '';
         document.getElementById('edit-nombre').value = usuario.nombre || '';
         document.getElementById('edit-apellido').value = usuario.apellido || '';
         abrirModal('modal-editar-usuario');
@@ -663,11 +649,26 @@ include_once __DIR__ . '/../layout/header.php';
     }
 
     // Cerrar modales con tecla ESC
+    // Autocompletado del operario vinculado (assets/js/autocompletado.js, se carga al final de la página)
+    document.addEventListener('DOMContentLoaded', function () {
+        ['crear', 'edit'].forEach(function (prefijo) {
+            crearAutocompletado({
+                input: document.getElementById(prefijo + '-buscar-operario'),
+                lista: document.getElementById(prefijo + '-lista-operario'),
+                url: '../ajax/buscar_autocompletado.php',
+                parametros: { recurso: 'operario' },
+                alSeleccionar: function (op) { document.getElementById(prefijo + '-id-operario').value = op.id; },
+                alLimpiar: function () { document.getElementById(prefijo + '-id-operario').value = ''; }
+            });
+        });
+    });
+
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
             cerrarModal('modal-nuevo-usuario');
             cerrarModal('modal-editar-usuario');
             cerrarModal('modal-estado-usuario');
+            cerrarModal('modal-detalle-usuario');
         }
     });
 </script>

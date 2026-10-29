@@ -335,17 +335,6 @@
     box-shadow: 0 10px 25px rgba(0,0,0,0.15);
 }
 
-.modal-close-btn {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.5rem;
-    background: none;
-    border: none;
-    font-size: 1.4rem;
-    cursor: pointer;
-    color: #334155;
-}
-
 .modal-title {
     text-align: center;
     font-size: 1.6rem;

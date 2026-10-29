@@ -88,16 +88,15 @@ class Operario {
     }
 
     /**
-     * Historial de materiales (insumos que no son herramientas) entregados al operario.
+     * Historial de materiales (insumos que no son herramientas) entregados al operario, paginado en la base
+     * (LIMIT/OFFSET): devuelve la página pedida y el total de retiros.
      * @param int $id_operario ID del operario
-     * @return array Retiros con fecha, insumo, cantidad y orden de trabajo
+     * @param int $pagina Página pedida (desde 1)
+     * @param int $porPagina Retiros por página
+     * @return array ['filas' => retiros con fecha, insumo, cantidad y orden de trabajo, 'total' => cantidad de retiros]
      */
-    public function getHistorialMateriales($id_operario) {
-        $sql = "SELECT m.id_movimiento, m.fecha, m.hora, m.observaciones,
-                       i.codigo, i.nombre as material_nombre, md.cantidad,
-                       um.unidad_medida,
-                       odt.numero_ot, odt.pa
-                FROM movimiento m
+    public function getHistorialMaterialesPaginado($id_operario, $pagina = 1, $porPagina = 10) {
+        $desde = "FROM movimiento m
                 INNER JOIN tipo_movimiento tm ON m.id_tipo_mov = tm.id_tipo_mov
                 INNER JOIN movimiento_detalle md ON m.id_movimiento = md.id_movimiento
                 INNER JOIN insumos i ON md.id_insumo = i.id_insumo
@@ -105,10 +104,26 @@ class Operario {
                 LEFT JOIN unidad_medida um ON i.id_unidad_medida = um.id_unidad_medida
                 LEFT JOIN orden_de_trabajo odt ON m.id_odt = odt.id_odt
                 WHERE m.id_operario = :id AND m.activo = TRUE
-                  AND tm.tipo = 'Entrega' AND t.tipo <> 'Herramienta'
-                ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC";
+                  AND tm.tipo = 'Entrega' AND t.tipo <> 'Herramienta'";
 
-        return $this->db->fetchAll($sql, ['id' => $id_operario]);
+        $fila = $this->db->fetchOne("SELECT COUNT(*) AS total {$desde}", ['id' => $id_operario]);
+        $total = (int)($fila['total'] ?? 0);
+
+        $porPagina = max(1, (int)$porPagina);
+        $pagina = min(max(1, (int)$pagina), max(1, (int)ceil($total / $porPagina)));
+
+        $filas = $this->db->fetchAll(
+            "SELECT m.id_movimiento, m.fecha, m.hora, m.observaciones,
+                    i.codigo, i.nombre as material_nombre, md.cantidad,
+                    um.unidad_medida,
+                    odt.numero_ot, odt.pa
+             {$desde}
+             ORDER BY m.fecha DESC, m.hora DESC, m.id_movimiento DESC, md.id_insumo ASC
+             LIMIT {$porPagina} OFFSET " . (($pagina - 1) * $porPagina),
+            ['id' => $id_operario]
+        );
+
+        return ['filas' => $filas, 'total' => $total, 'pagina' => $pagina, 'porPagina' => $porPagina];
     }
 
     /**
@@ -309,6 +324,34 @@ class Operario {
                 WHERE activo = TRUE 
                 ORDER BY apellido ASC, nombre ASC";
         return $this->db->fetchAll($sql);
+    }
+
+    /**
+     * Operarios activos para el autocompletado de los formularios, paginados en la base (LIMIT/OFFSET).
+     * Busca por DNI, nombre, apellido, legajo o "apellido, nombre". Con $termino vacío devuelve todos.
+     * @return array Hasta $limite operarios desde $offset
+     */
+    public function buscarParaSelect(string $termino = '', int $limite = 10, int $offset = 0, array $excluir = []): array {
+        $sql = "SELECT id_operario, dni, nombre, apellido, legajo
+                FROM operario
+                WHERE activo = TRUE";
+        $params = [];
+        // Ids que no deben aparecer (por ejemplo los operarios ya elegidos en la comisión)
+        $excluir = array_values(array_filter(array_map('intval', $excluir)));
+        if ($excluir) {
+            $sql .= " AND id_operario NOT IN (" . implode(',', $excluir) . ")";
+        }
+        if ($termino !== '') {
+            $sql .= " AND (dni ILIKE :termino
+                        OR nombre ILIKE :termino
+                        OR apellido ILIKE :termino
+                        OR legajo ILIKE :termino
+                        OR (apellido || ', ' || nombre) ILIKE :termino)";
+            $params['termino'] = '%' . addcslashes($termino, '%_\\') . '%';
+        }
+        $sql .= " ORDER BY apellido ASC, nombre ASC, id_operario ASC
+                  LIMIT " . max(1, $limite) . " OFFSET " . max(0, $offset);
+        return $this->db->fetchAll($sql, $params);
     }
 
     /**

@@ -16,6 +16,7 @@ function sqlAuditoriaMovimientos(?string $periodo, ?string $desde, ?string $hast
             m.fecha, 
             m.hora, 
             tm.tipo AS tipo_movimiento,
+            m.id_operario,
             COALESCE(o.nombre || ' ' || o.apellido, 'Sin operario') AS operario,
             COALESCE(u.nombre || ' ' || u.apellido, u.dni) AS usuario_responsable,
             m.observaciones

@@ -194,6 +194,9 @@ $h = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
             </tbody>
         </table>
     </div>
+
+    <!-- Paginación (la dibuja assets/js/rubro_detalle.js con la función común de main.js) -->
+    <div class="pagination-container" id="contenedor-paginacion"></div>
 </div>
 
 <?php
