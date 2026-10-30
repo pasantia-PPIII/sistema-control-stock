@@ -86,11 +86,50 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
 
 $roles = $usuarioModel->getRoles();
 
+// Avisos de contraseña olvidada pendientes (con los datos del usuario para abrir su edición directamente)
+require_once __DIR__ . '/../clases/solicitud_contrasena.php';
+$solicitudesPendientes = SolicitudContrasena::pendientes();
+$usuariosPorDni = [];
+foreach ($todosUsuarios as $u) {
+    $usuariosPorDni[$u['dni']] = $u;
+}
+
 include_once __DIR__ . '/../layout/header.php';
 ?>
 
 <!-- Contenedor de Alertas Dinámicas -->
 <div id="alerta-usuarios" class="alerta-mensaje"></div>
+
+<?php if (!empty($solicitudesPendientes)): ?>
+<!-- Solicitudes de cambio de contraseña (desde "¿Olvidaste tu contraseña?") -->
+<div class="solicitudes-panel" id="panel-solicitudes">
+    <div class="solicitudes-titulo">
+        Solicitudes de cambio de contraseña
+        <span class="menu-badge"><?= count($solicitudesPendientes) ?></span>
+    </div>
+    <?php foreach ($solicitudesPendientes as $s):
+        $dniSol = htmlspecialchars($s['dni'], ENT_QUOTES, 'UTF-8');
+        $nombreSol = htmlspecialchars(trim($s['apellido'] . ', ' . $s['nombre']), ENT_QUOTES, 'UTF-8');
+        $fechaSol = date('d/m/Y H:i', strtotime($s['fecha_hora']));
+        $jsonSol = isset($usuariosPorDni[$s['dni']])
+            ? json_encode($usuariosPorDni[$s['dni']], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)
+            : null;
+    ?>
+        <div class="solicitud-item">
+            <div class="solicitud-info">
+                <strong><?= $nombreSol ?></strong> (DNI <?= $dniSol ?>)
+                <span class="solicitud-fecha">olvidó su contraseña · <?= $fechaSol ?></span>
+            </div>
+            <div class="solicitud-acciones">
+                <?php if ($jsonSol): ?>
+                    <button type="button" class="btn-pill-action" onclick='abrirModalEditar(<?= $jsonSol ?>)'>Asignar nueva contraseña</button>
+                <?php endif; ?>
+                <button type="button" class="btn-pill-secondary" onclick="descartarSolicitud('<?= $dniSol ?>', this)">Descartar</button>
+            </div>
+        </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 
 <!-- Barra de Filtros, Búsqueda y Botón Nuevo Usuario -->
 <div class="action-bar-filters">
@@ -630,6 +669,23 @@ include_once __DIR__ . '/../layout/header.php';
     }
 
     // Modal: Editar Usuario
+    function descartarSolicitud(dni, boton) {
+        boton.disabled = true;
+        const formData = new FormData();
+        formData.append('dni', dni);
+        fetch('atender_solicitud.php', { method: 'POST', body: formData, credentials: 'same-origin' })
+            .then(response => response.json())
+            .then(res => {
+                if (!res.success) throw new Error(res.error || 'No se pudo descartar la solicitud.');
+                // Se recarga para actualizar el panel y el contador del menú
+                window.location.reload();
+            })
+            .catch(err => {
+                boton.disabled = false;
+                mostrarAlerta(err.message, false);
+            });
+    }
+
     function abrirModalEditar(usuario) {
         document.getElementById('edit-dni').value = usuario.dni || '';
         document.getElementById('edit-id-rol').value = usuario.id_rol || '';

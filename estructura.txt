@@ -27,7 +27,7 @@ sistema-control-stock/
 ├── auth/                              Autenticación
 │   ├── login.php                      Inicio de sesión por DNI (CSRF + límite de 5 intentos fallidos)
 │   ├── logout.php                     Cierre de sesión (solo POST con token CSRF)
-│   └── forgot_password.php            Vacío: recuperación de contraseña pendiente
+│   └── forgot_password.php            Aviso de contraseña olvidada al administrador (tabla solicitud_contrasena)
 │
 ├── bd/                                Scripts de la base de datos PostgreSQL (se ejecutan en este orden)
 │   ├── db_control_stock.sql           1) Estructura: tablas y relaciones (borra y recrea las tablas)
@@ -127,7 +127,7 @@ sistema-control-stock/
  Inventario:  insumos, stock_actual, herramienta
  Trabajo:     orden_de_trabajo, comision (operarios de cada OT), orden_rubro (rubros de cada OT)
  Movimientos: movimiento (cabecera), movimiento_detalle (insumos y cantidades)
- Seguridad:   intento_login (límite de intentos de inicio de sesión)
+ Seguridad:   intento_login (límite de intentos de inicio de sesión), solicitud_contrasena (avisos de contraseña olvidada)
  Auditoría:   auditoria_acceso, auditoria_cambio, auditoria_stock (solo inserción; ver README)
 
  Regla general: nada se borra; los registros se deshabilitan (activo = FALSE).
