@@ -60,6 +60,10 @@ try {
         $datosActualizar['nombre'] = $nombre;
     }
 
+    if (isset($input['descripcion'])) {
+        $datosActualizar['descripcion'] = trim((string)$input['descripcion']);
+    }
+
     if (isset($input['id_rubro'])) {
         $datosActualizar['id_rubro'] = !empty($input['id_rubro']) ? (int)$input['id_rubro'] : null;
     } elseif (isset($input['rubro_id'])) {
@@ -79,7 +83,8 @@ try {
     }
 
     if (isset($input['stock_minimo'])) {
-        $datosActualizar['stock_minimo'] = (float)$input['stock_minimo'];
+        // Sin castear: Insumo::update() valida que sea un número no negativo y avisa si no lo es
+        $datosActualizar['stock_minimo'] = trim((string)$input['stock_minimo']) !== '' ? $input['stock_minimo'] : 0;
     }
 
     // Stock real del material (carga de más stock o corrección). Las herramientas no lo editan a mano:

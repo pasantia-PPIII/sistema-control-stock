@@ -209,6 +209,8 @@ body.admin-layout {
     height: 40px;
     border-radius: 50%;
     background-color: #cbd5e1;
+    object-fit: cover;
+    flex-shrink: 0;
 }
 
 .user-meta strong {
@@ -1038,5 +1040,96 @@ button.btn-logout {
     /* 16px evita el zoom automático de Safari en iOS al enfocar un campo */
     :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
         font-size: 16px !important;
+    }
+}
+
+/* Error de validación mostrado dentro de un modal (ver mostrarErrorEnModal en main.js) */
+.msg-error-modal {
+    display: none;
+    color: #dc2626;
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin: 0.75rem 0;
+    padding: 0.6rem 0.8rem;
+    text-align: center;
+}
+
+/* Barra de filtros agrupada (Movimientos, Insumos): filtros a la izquierda y acciones a la derecha, en una sola línea cuando hay lugar.
+   Si no entra, cada grupo se acomoda por su cuenta (los filtros se envuelven entre sí y las acciones bajan juntas). */
+.action-bar--agrupada {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.6rem 1rem;
+}
+
+.action-bar--agrupada .barra-filtros {
+    display: flex;
+    flex: 1 1 560px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.action-bar--agrupada .search-input-wrapper {
+    flex: 1 1 220px;
+    min-width: 180px;
+}
+
+.action-bar--agrupada .filter-select {
+    padding: 0.7rem 0.9rem;
+}
+
+.action-bar--agrupada .barra-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.action-bar--agrupada .btn-pill-action,
+.action-bar--agrupada .btn-pill-secondary {
+    padding: 0.7rem 1.1rem;
+}
+
+/* Celular: todo en columna y a ancho completo */
+@media (max-width: 768px) {
+    .action-bar--agrupada .barra-filtros,
+    .action-bar--agrupada .barra-acciones {
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .action-bar--agrupada .search-input-wrapper {
+        flex: none;
+    }
+}
+
+
+/* Barra con muchos filtros (Insumos): en pantallas anchas todo en una sola línea.
+   El buscador se achica y los desplegables toman el ancho de su texto, hasta un tope. Por debajo de 1200 px vuelve a envolverse. */
+@media (min-width: 1200px) {
+    .action-bar--agrupada .barra-filtros--una-linea {
+        flex-wrap: nowrap;
+    }
+
+    .barra-filtros--una-linea .search-input-wrapper {
+        flex: 1 1 150px;
+        min-width: 120px;
+    }
+
+    .barra-filtros--una-linea .filter-select {
+        flex: 0 1 auto;
+        min-width: 105px;
+        max-width: 170px;
+        padding-left: 0.7rem;
+        padding-right: 0.5rem;
+        font-size: 0.85rem;
+        text-overflow: ellipsis;
     }
 }

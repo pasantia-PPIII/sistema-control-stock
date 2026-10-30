@@ -20,6 +20,8 @@ function cerrarModal(id) {
 }
 
 function mostrarAlerta(mensaje, esExito = true) {
+    // Con un modal abierto, el error se muestra dentro de él (la alerta de página queda detrás)
+    if (!esExito && mostrarErrorEnModal(mensaje)) return;
     const box = document.getElementById('alerta-rubros');
     if (!box) return;
     box.style.display = 'block';

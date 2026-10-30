@@ -157,7 +157,7 @@ include_once __DIR__ . '/../layout/header.php';
                 ?>
                 <div class="user-card-row fila-clic">
                     <div><strong><?= $filaNum++ ?></strong></div>
-                    <div><?= $dniEscapado ?></div>
+                    <div class="celda-usuario"><img class="foto-mini" src="<?= htmlspecialchars($u['foto_url'], ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><span><?= $dniEscapado ?></span></div>
                     <div><?= $opNombre ?></div>
                     <div><?= $dniOpEscapado ?></div>
                     <div><span class="badge-role"><?= $rolNombre ?></span></div>
@@ -220,7 +220,10 @@ include_once __DIR__ . '/../layout/header.php';
                 <div>
                     <label class="modal-label" for="crear-dni">DNI de Usuario *</label>
                     <input type="text" id="crear-dni" name="dni" class="modal-input" required
-                        placeholder="Número de documento">
+                        inputmode="numeric" pattern="\d{7,8}" minlength="7" maxlength="8"
+                        title="El DNI debe tener 7 u 8 dígitos, solo números"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                        placeholder="7 u 8 dígitos, sin puntos">
                 </div>
                 <div>
                     <label class="modal-label" for="crear-id-rol">Rol en el Sistema *</label>
@@ -239,7 +242,9 @@ include_once __DIR__ . '/../layout/header.php';
                 <div>
                     <label class="modal-label" for="crear-password">Contraseña *</label>
                     <input type="password" id="crear-password" name="password" class="modal-input" required
-                        placeholder="Clave de acceso">
+                        minlength="8" maxlength="72" autocomplete="new-password"
+                        title="Mínimo 8 caracteres, con letras y números"
+                        placeholder="Mín. 8 caracteres, letras y números">
                 </div>
                 <div>
                     <label class="modal-label" for="crear-buscar-operario">Operario Vinculado (Opcional)</label>
@@ -250,6 +255,18 @@ include_once __DIR__ . '/../layout/header.php';
                     </div>
                 </div>
             </div>
+
+            <div class="foto-campo">
+                <img id="crear-foto-vista" class="foto-vista" src="<?= htmlspecialchars(FotoPerfil::url(null), ENT_QUOTES, 'UTF-8') ?>" alt="Vista previa de la foto">
+                <div>
+                    <label class="modal-label" for="crear-foto">Foto de perfil (opcional)</label>
+                    <input type="file" id="crear-foto" name="foto_perfil" class="modal-input" accept="image/jpeg,image/png,image/webp"
+                        onchange="previsualizarFoto(this, 'crear-foto-vista')">
+                    <small class="foto-ayuda">JPG, PNG o WEBP, hasta 2 MB. Sin foto se muestra una imagen genérica.</small>
+                </div>
+            </div>
+
+            <div id="msg-error-crear" class="msg-error-modal" role="alert"></div>
 
             <div class="modal-actions-row">
                 <button type="button" class="btn-modal-cancel"
@@ -301,6 +318,8 @@ include_once __DIR__ . '/../layout/header.php';
                 <div>
                     <label class="modal-label" for="edit-password">Nueva Contraseña</label>
                     <input type="password" id="edit-password" name="password" class="modal-input"
+                        minlength="8" maxlength="72" autocomplete="new-password"
+                        title="Mínimo 8 caracteres, con letras y números"
                         placeholder="Dejar en blanco para conservar actual">
                 </div>
                 <div>
@@ -312,6 +331,22 @@ include_once __DIR__ . '/../layout/header.php';
                     </div>
                 </div>
             </div>
+
+            <div class="foto-campo">
+                <img id="edit-foto-vista" class="foto-vista" src="<?= htmlspecialchars(FotoPerfil::url(null), ENT_QUOTES, 'UTF-8') ?>" alt="Foto de perfil actual">
+                <div>
+                    <label class="modal-label" for="edit-foto">Foto de perfil (opcional)</label>
+                    <input type="file" id="edit-foto" name="foto_perfil" class="modal-input" accept="image/jpeg,image/png,image/webp"
+                        onchange="previsualizarFoto(this, 'edit-foto-vista')">
+                    <small class="foto-ayuda">JPG, PNG o WEBP, hasta 2 MB. Si elige una nueva, reemplaza a la actual.</small>
+                    <label class="check-etiqueta foto-quitar">
+                        <input type="checkbox" id="edit-quitar-foto" name="quitar_foto" value="1" onchange="alternarQuitarFoto(this.checked)">
+                        <span>Quitar la foto (usar la imagen genérica)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="msg-error-editar" class="msg-error-modal" role="alert"></div>
 
             <div class="modal-actions-row">
                 <button type="button" class="btn-modal-cancel"
@@ -328,6 +363,8 @@ include_once __DIR__ . '/../layout/header.php';
         <button type="button" class="modal-close-btn" onclick="cerrarModal('modal-detalle-usuario')" title="Cerrar" aria-label="Cerrar"><?= iconoAccion('close', 18) ?></button>
         <h2 class="modal-title" id="detalle-usuario-titulo">Detalle del Usuario</h2>
         <p class="modal-subtitle" id="detalle-usuario-subtitulo"></p>
+
+        <img id="detalle-usuario-foto" class="foto-detalle" src="" alt="Foto de perfil">
 
         <div class="detalle-usuario__datos">
             <div><strong>Rol:</strong> <span class="badge-role" id="detalle-usuario-rol"></span></div>
@@ -375,6 +412,8 @@ include_once __DIR__ . '/../layout/header.php';
     }
 
     function mostrarAlerta(mensaje, esExito = true) {
+        // Con un modal abierto, el error se muestra dentro de él (la alerta de página queda detrás)
+        if (!esExito && mostrarErrorEnModal(mensaje)) return;
         const alerta = document.getElementById('alerta-usuarios');
         if (!alerta) return;
         alerta.className = 'alerta-mensaje ' + (esExito ? 'alerta-exito' : 'alerta-error');
@@ -453,7 +492,7 @@ include_once __DIR__ . '/../layout/header.php';
             html += `
         <div class="user-card-row fila-clic">
             <div><strong>${fila++}</strong></div>
-            <div>${dniEscapado}</div>
+            <div class="celda-usuario"><img class="foto-mini" src="${escaparHtml(u.foto_url || '')}" alt="" loading="lazy"><span>${dniEscapado}</span></div>
             <div>${opNombre}</div>
             <div>${dniOpEscapado}</div>
             <div><span class="badge-role">${rolNombre}</span></div>
@@ -490,13 +529,56 @@ include_once __DIR__ . '/../layout/header.php';
     });
 
     // Modal: Crear Usuario
+    // Error de validación dentro del modal (la alerta del dashboard queda detrás); texto vacío = ocultarlo
+    function mostrarErrorModal(id, mensaje) {
+        const caja = document.getElementById(id);
+        if (!caja) return;
+        caja.innerText = mensaje || '';
+        caja.style.display = mensaje ? 'block' : 'none';
+    }
+
+    // Foto de perfil: imagen genérica por defecto y vista previa de la que se elija
+    const FOTO_GENERICA = <?= json_encode(FotoPerfil::url(null)) ?>;
+
+    function previsualizarFoto(input, idImagen) {
+        const img = document.getElementById(idImagen);
+        const archivo = input.files && input.files[0];
+        if (!archivo) {
+            img.src = img.dataset.original || FOTO_GENERICA;
+            return;
+        }
+        if (archivo.size > 2 * 1024 * 1024) {
+            input.value = '';
+            img.src = img.dataset.original || FOTO_GENERICA;
+            mostrarAlerta('La foto de perfil supera el tamaño máximo permitido (2 MB).', false);
+            return;
+        }
+        img.src = URL.createObjectURL(archivo);
+        // Elegir una foto nueva anula "quitar la foto"
+        const quitar = document.getElementById('edit-quitar-foto');
+        if (quitar && idImagen === 'edit-foto-vista') quitar.checked = false;
+    }
+
+    function alternarQuitarFoto(quitar) {
+        const img = document.getElementById('edit-foto-vista');
+        if (quitar) {
+            document.getElementById('edit-foto').value = '';
+            img.src = FOTO_GENERICA;
+        } else {
+            img.src = img.dataset.original || FOTO_GENERICA;
+        }
+    }
+
     function abrirModalCrear() {
         document.getElementById('form-crear-usuario').reset();
+        document.getElementById('crear-foto-vista').src = FOTO_GENERICA;
+        mostrarErrorModal('msg-error-crear', '');
         abrirModal('modal-nuevo-usuario');
     }
 
     function guardarNuevoUsuario(e) {
         e.preventDefault();
+        mostrarErrorModal('msg-error-crear', '');
         const btnSubmit = document.getElementById('btn-submit-crear');
         btnSubmit.disabled = true;
         btnSubmit.innerText = 'Guardando...';
@@ -521,7 +603,7 @@ include_once __DIR__ . '/../layout/header.php';
                 cargarUsuarios(1);
             })
             .catch(err => {
-                mostrarAlerta(err.message, false);
+                mostrarErrorModal('msg-error-crear', err.message);
             })
             .finally(() => {
                 btnSubmit.disabled = false;
@@ -535,6 +617,7 @@ include_once __DIR__ . '/../layout/header.php';
         document.getElementById('detalle-usuario-titulo').innerText = nombre !== '' ? nombre : usuario.dni;
         document.getElementById('detalle-usuario-subtitulo').innerText = 'DNI ' + usuario.dni;
         document.getElementById('detalle-usuario-rol').innerText = usuario.nombre_rol || 'Sin Rol';
+        document.getElementById('detalle-usuario-foto').src = usuario.foto_url || '';
 
         const tieneOperario = Boolean(usuario.id_operario);
         document.getElementById('detalle-usuario-operario').innerHTML = tieneOperario
@@ -557,11 +640,18 @@ include_once __DIR__ . '/../layout/header.php';
             : '';
         document.getElementById('edit-nombre').value = usuario.nombre || '';
         document.getElementById('edit-apellido').value = usuario.apellido || '';
+        mostrarErrorModal('msg-error-editar', '');
+        const fotoVista = document.getElementById('edit-foto-vista');
+        fotoVista.dataset.original = usuario.foto_url || FOTO_GENERICA;
+        fotoVista.src = fotoVista.dataset.original;
+        document.getElementById('edit-foto').value = '';
+        document.getElementById('edit-quitar-foto').checked = false;
         abrirModal('modal-editar-usuario');
     }
 
     function guardarEdicionUsuario(e) {
         e.preventDefault();
+        mostrarErrorModal('msg-error-editar', '');
         const btnSubmit = document.getElementById('btn-submit-editar');
         btnSubmit.disabled = true;
         btnSubmit.innerText = 'Guardando...';
@@ -585,7 +675,7 @@ include_once __DIR__ . '/../layout/header.php';
                 cargarUsuarios(paginaActual);
             })
             .catch(err => {
-                mostrarAlerta(err.message, false);
+                mostrarErrorModal('msg-error-editar', err.message);
             })
             .finally(() => {
                 btnSubmit.disabled = false;

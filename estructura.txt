@@ -43,10 +43,13 @@ sistema-control-stock/
 │   ├── insumo.php
 │   ├── movimiento.php                 Efecto sobre el stock, herramientas prestadas y anulación
 │   ├── operario.php
-│   ├── orden_de_trabajo.php           Comisión de operarios y vínculo con movimientos
+│   ├── orden_de_trabajo.php           Comisión de operarios, rubros, validaciones (número único, fechas, estado) y vínculo con movimientos
 │   ├── panel.php                      Consultas del Panel de Control
+│   ├── pdf_reporte.php                Generador de PDF (sin librerías externas) para exportar los reportes
 │   ├── rubro.php
-│   └── usuario.php                    Login, roles y contraseñas
+│   ├── usuario.php                    Login, roles y contraseñas
+│   ├── foto_perfil.php                Foto de perfil de usuarios: validación, guardado y URL (o imagen genérica)
+│   └── validador.php                  Validaciones de entrada: DNI, contraseña, fechas y números
 │
 ├── config/                            Configuración
 │   ├── config.php                     Sesión, BASE_URL, CSRF, roles y funciones de ayuda
@@ -66,12 +69,12 @@ sistema-control-stock/
 │   ├── dashboard.php                  Listado, buscador, filtros y modales
 │   ├── crear_insumo.php               Alta con stock inicial (endpoint JSON)
 │   ├── editar_insumo.php              Modificación, incluido el stock actual de materiales (endpoint JSON)
-│   ├── detalles_insumo.php            Ficha del insumo y sus últimos movimientos
-│   └── deshabilitar_insumo.php        Baja lógica (activo = FALSE)
+│   ├── detalles_insumo.php            Ficha del insumo: kardex paginado y, en herramientas, quién la tiene e historial de asignaciones
+│   └── deshabilitar_insumo.php        Baja lógica (activo = FALSE); en herramientas exige el motivo de la baja
 │
 ├── movimiento/                        Entregas y devoluciones
 │   ├── dashboard.php                  Listado de movimientos
-│   ├── crear_movimiento.php           Formulario y registro de entrega / devolución
+│   ├── crear_movimiento.php           Formulario y registro de entrega / devolución / ingreso de stock
 │   ├── editar_movimiento.php          Vincula un movimiento a una orden de trabajo (AJAX)
 │   ├── detalle_movimiento.php         Detalle de un movimiento y sus insumos
 │   └── deshabilitar_movimiento.php    Anula el movimiento y revierte el stock
@@ -109,9 +112,10 @@ sistema-control-stock/
 │   └── detalle_movimiento.php         JSON con los ítems de un movimiento (modal)
 │
 ├── reporte/
-│   └── dashboard.php                  Reportes y métricas (stock, movimientos, herramientas, órdenes, consumo)
+│   ├── dashboard.php                  Reportes y métricas (stock, movimientos, herramientas, órdenes, consumo)
+│   └── exportar_pdf.php               Exporta a PDF la pestaña de Reportes elegida
 │
-└── uploads/                           [LOCAL] Se crea sola al subir el primer PDF
+└── uploads/                           [LOCAL] Se crea sola al subir el primer archivo: pa_pdfs/ (PDF de órdenes) y fotos_perfil/ (fotos de usuarios)
     └── pa_pdfs/                       PDF adjuntos de las órdenes de trabajo (no se versiona)
 
 =====================================================================
@@ -121,7 +125,7 @@ sistema-control-stock/
               tipo_movimiento, localidad, jurisdiccion, rubro
  Personas:    operario, usuario
  Inventario:  insumos, stock_actual, herramienta
- Trabajo:     orden_de_trabajo, comision (operarios de cada OT)
+ Trabajo:     orden_de_trabajo, comision (operarios de cada OT), orden_rubro (rubros de cada OT)
  Movimientos: movimiento (cabecera), movimiento_detalle (insumos y cantidades)
  Seguridad:   intento_login (límite de intentos de inicio de sesión)
  Auditoría:   auditoria_acceso, auditoria_cambio, auditoria_stock (solo inserción; ver README)

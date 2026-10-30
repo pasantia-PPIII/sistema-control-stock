@@ -63,7 +63,12 @@ try {
         if (!$existente['activo']) {
             throw new Exception("El insumo '{$codigo}' ya se encuentra deshabilitado.");
         }
-        $resultado = $insumoModel->deshabilitar($codigo);
+        // Una herramienta se da de baja con su motivo (RF-18); Insumo::deshabilitar() lo exige y valida
+        $resultado = $insumoModel->deshabilitar(
+            $codigo,
+            isset($input['motivo_baja']) ? (string)$input['motivo_baja'] : null,
+            isset($input['observacion_baja']) ? (string)$input['observacion_baja'] : null
+        );
         $mensaje = "El insumo '{$codigo}' ha sido deshabilitado correctamente.";
     }
 

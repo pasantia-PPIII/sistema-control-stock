@@ -45,7 +45,7 @@ try {
         $datos['archivo_pdf'] = $nombrePdf;
     }
 
-    $odtModel->update($idOdt, $datos, operariosDesdePost());
+    $odtModel->update($idOdt, $datos, operariosDesdePost(), rubrosDesdePost());
 
     echo json_encode([
         'success' => true,

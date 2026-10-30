@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS auditoria_acceso CASCADE;
 DROP TABLE IF EXISTS intento_login CASCADE;
 DROP TABLE IF EXISTS movimiento_detalle CASCADE;
 DROP TABLE IF EXISTS movimiento CASCADE;
+DROP TABLE IF EXISTS orden_rubro CASCADE;
 DROP TABLE IF EXISTS comision CASCADE;
 DROP TABLE IF EXISTS orden_de_trabajo CASCADE;
 DROP TABLE IF EXISTS herramienta CASCADE;
@@ -115,6 +116,8 @@ CREATE TABLE usuario (
     id_rol INT NOT NULL,
     id_operario INT,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
+    -- Foto de perfil (opcional): nombre del archivo guardado en uploads/fotos_perfil/. NULL = imagen genérica.
+    foto_perfil VARCHAR(255),
     CONSTRAINT fk_usuario_rol FOREIGN KEY (id_rol) REFERENCES rol(id_rol),
     CONSTRAINT fk_usuario_operario FOREIGN KEY (id_operario) REFERENCES operario(id_operario) ON DELETE SET NULL
 );
@@ -127,6 +130,7 @@ CREATE TABLE insumos (
     id_insumo SERIAL PRIMARY KEY,
     codigo VARCHAR(50) NOT NULL UNIQUE,
     nombre VARCHAR(150) NOT NULL,
+    descripcion VARCHAR(500),
     id_tipo INT NOT NULL,
     id_rubro INT NOT NULL,
     id_ubicacion INT,
@@ -139,6 +143,11 @@ CREATE TABLE insumos (
     id_estado_herramienta INT,
     fecha_registro DATE NOT NULL DEFAULT CURRENT_DATE,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
+    -- Baja de herramienta (RF-18): motivo y fecha. Quedan en NULL mientras la herramienta no esté dada de baja.
+    motivo_baja VARCHAR(20),
+    observacion_baja VARCHAR(255),
+    fecha_baja DATE,
+    CONSTRAINT ck_insumos_motivo_baja CHECK (motivo_baja IS NULL OR motivo_baja IN ('Rotura', 'Pérdida', 'Obsolescencia', 'Otro')),
     CONSTRAINT fk_insumos_tipo FOREIGN KEY (id_tipo) REFERENCES tipo(id_tipo),
     CONSTRAINT fk_insumos_rubro FOREIGN KEY (id_rubro) REFERENCES rubro(id_rubro),
     CONSTRAINT fk_insumos_ubicacion FOREIGN KEY (id_ubicacion) REFERENCES ubicacion(id_ubicacion) ON DELETE SET NULL,
@@ -178,8 +187,11 @@ CREATE TABLE orden_de_trabajo (
     observaciones TEXT,
     archivo_pdf VARCHAR(255),
     activo BOOLEAN NOT NULL DEFAULT TRUE,
-    id_mov_egreso INT,
-    id_mov_devolucion INT,
+    -- RF-45: tipo de trabajo, dependencia que lo solicita y fecha del pedido
+    tipo_trabajo VARCHAR(50),
+    dependencia_solicitante VARCHAR(150),
+    fecha_solicitud DATE,
+    CONSTRAINT ck_odt_tipo_trabajo CHECK (tipo_trabajo IS NULL OR tipo_trabajo IN ('Reparación', 'Construcción', 'Mantenimiento edilicio', 'Otro')),
     CONSTRAINT fk_odt_localidad FOREIGN KEY (id_localidad) REFERENCES localidad(id_localidad) ON DELETE SET NULL,
     CONSTRAINT fk_odt_jurisdiccion FOREIGN KEY (id_jurisdiccion) REFERENCES jurisdiccion(id_jurisdiccion) ON DELETE SET NULL
 );
@@ -226,10 +238,17 @@ CREATE TABLE movimiento_detalle (
     CONSTRAINT fk_det_estado_herr FOREIGN KEY (id_estado_herramienta) REFERENCES estado_herramienta(id_estado_herramienta) ON DELETE SET NULL
 );
 
--- Claves foráneas diferidas para orden_de_trabajo
-ALTER TABLE orden_de_trabajo
-    ADD CONSTRAINT fk_odt_mov_egreso FOREIGN KEY (id_mov_egreso) REFERENCES movimiento(id_movimiento) ON DELETE SET NULL,
-    ADD CONSTRAINT fk_odt_mov_dev FOREIGN KEY (id_mov_devolucion) REFERENCES movimiento(id_movimiento) ON DELETE SET NULL;
+-- RF-45: el número de OT es único (sin distinguir mayúsculas ni espacios de los extremos)
+CREATE UNIQUE INDEX uq_odt_numero_ot ON orden_de_trabajo (lower(btrim(numero_ot)));
+
+-- RF-45 / RF-46: rubros involucrados en la orden (una orden puede abarcar varios rubros)
+CREATE TABLE orden_rubro (
+    id_odt INT NOT NULL,
+    id_rubro INT NOT NULL,
+    PRIMARY KEY (id_odt, id_rubro),
+    CONSTRAINT fk_orden_rubro_odt FOREIGN KEY (id_odt) REFERENCES orden_de_trabajo(id_odt) ON DELETE CASCADE,
+    CONSTRAINT fk_orden_rubro_rubro FOREIGN KEY (id_rubro) REFERENCES rubro(id_rubro)
+);
 
 
 -- ---------------------------------------------------------

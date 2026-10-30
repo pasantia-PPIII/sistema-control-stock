@@ -51,7 +51,18 @@ Este archivo es **personal y no se sube al repositorio**. Se crea copiando `conf
 - **Cargar o corregir stock** se hace desde el módulo **Insumos**, no con movimientos: al **crear** un insumo se indica el *Stock Inicial* (obligatorio en los materiales; si no hay existencias se carga 0; las herramientas nacen con 1) y al **editarlo** se cambia el *Stock Actual* (carga de mercadería, recuento físico o corrección). El valor ingresado pasa a ser el stock del insumo. Hoy ese cambio no deja registro del valor anterior.
 - **Herramientas:** son unidades enteras. Stock **1** = está en el pañol (estado Disponible); stock **0** = no está (Prestada, En Reparación o Dada de baja). Al crearla nace con stock 1. Una Entrega exige que esté Disponible con stock 1 y pasa el stock a 0; una Devolución lo vuelve a 1 solo si regresa Disponible. La cantidad del movimiento debe ser 1 y el stock de una herramienta no se edita a mano. Las herramientas no se cuentan en el "stock bajo" del Panel ni de Reportes.
 - **Anular un movimiento** revierte su efecto sobre el stock.
-- **Orden de trabajo:** puede vincularse a un movimiento de entrega y a uno de devolución (ambos opcionales) y a una comisión de operarios.
+- **Devoluciones:** solo se puede devolver lo que el operario tiene en su poder (entregado menos devuelto, sin contar movimientos anulados). Una herramienta solo la devuelve quien la tiene asignada. Al elegir el operario, el formulario ofrece únicamente lo que tiene.
+- **Ingreso de stock** (compra o reposición): movimiento de tipo *Ingreso* (Movimientos > Registrar Ingreso), solo materiales, sin operario ni orden de trabajo. Suma al stock y queda en la auditoría.
+- **Fecha y cantidades de un movimiento:** la fecha no puede ser futura; los materiales que se miden en unidad, plancha, bolsa, caja o rollo admiten solo cantidades enteras (litros, metros y kilogramos admiten decimales).
+- **Baja de operario:** no se puede deshabilitar a un operario que tenga herramientas prestadas sin devolver.
+- **Baja de herramienta:** se da de baja con motivo (rotura, pérdida, obsolescencia u otro) y fecha; si está prestada, primero debe devolverse. Pasa a *Dada de baja* con stock 0 y se puede reactivar. La ficha de una herramienta muestra quién la tiene, desde cuándo y todo su historial de asignaciones.
+- **Alerta de stock en el listado de Insumos:** los materiales activos con stock en el mínimo o por debajo se marcan con un aviso (ámbar) y los que no tienen existencias, en rojo; el filtro *Bajo el mínimo / Sin stock* los aísla. Es el mismo criterio del Panel y de Reportes (incluye los sin stock en "bajo el mínimo"); las herramientas y los insumos deshabilitados no se evalúan.
+- **Validación de datos de entrada** (`clases/validador.php`): el DNI de operarios y usuarios son 7 u 8 dígitos, solo números; la contraseña tiene entre 8 y 72 caracteres con letras y números; la fecha de vencimiento debe existir en el calendario (al crear el insumo, además, no puede ser anterior a hoy) y el stock mínimo y el stock deben ser números iguales o mayores a cero. Crear un usuario con un DNI ya registrado avisa si está deshabilitado. Los errores de base de datos más comunes (dato repetido, dato relacionado inexistente, texto demasiado largo, fecha inválida) se explican en lenguaje claro sin mostrar SQL.
+- **Foto de perfil de usuario (opcional):** se carga al crear o editar un usuario (JPG, PNG o WEBP, hasta 2 MB; se valida el contenido real del archivo). Se guarda en `uploads/fotos_perfil/` y en la base queda solo el nombre (`usuario.foto_perfil`). Sin foto se muestra la imagen genérica `assets/img/usuario_generico.svg`. Aparece en el encabezado, en el listado y en la ficha del usuario; al editar se puede reemplazar o quitar. Una sesión ya iniciada ve el cambio de foto de otro usuario al volver a entrar.
+- **Ficha de insumo:** muestra el kardex completo (paginado) con usuario, operario y orden de trabajo de cada movimiento, y se puede consultar aunque el insumo esté deshabilitado.
+- **Órdenes de trabajo:** el número es único (sin distinguir mayúsculas). Al registrarlas son obligatorios la descripción, el tipo de trabajo (reparación, construcción, mantenimiento edilicio u otro), la dependencia solicitante, la fecha de solicitud y al menos un rubro. La fecha final no puede ser anterior a la inicial y el estado debe ser uno de los permitidos.
+- **Reportes a PDF:** cada pestaña de Reportes tiene el botón *Exportar PDF* (con el período elegido). El PDF lo arma `clases/pdf_reporte.php`, sin librerías externas.
+- **Orden de trabajo:** puede vincularse a varios movimientos de entrega y de devolución (cada movimiento indica su orden, opcional) y a una comisión de operarios.
 
 ## Seguridad
 
@@ -59,7 +70,7 @@ Este archivo es **personal y no se sube al repositorio**. Se crea copiando `conf
 - **Límite de intentos de login:** 5 intentos fallidos por DNI en 15 minutos; luego se bloquea temporalmente (tabla `intento_login`).
 - Cookie de sesión `HttpOnly` + `SameSite=Lax` (y `Secure` bajo HTTPS), con regeneración del ID al iniciar sesión.
 - Los errores de base de datos se registran en el log de PHP y al usuario se le muestra un mensaje genérico.
-- Contraseñas guardadas con `password_hash`.
+- Contraseñas guardadas con `password_hash`; al crearlas o cambiarlas se exigen 8 caracteres como mínimo, con letras y números.
 
 ## Usuarios de prueba (solo si se cargó `bd/test_data.sql`)
 

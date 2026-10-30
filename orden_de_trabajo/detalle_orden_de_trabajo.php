@@ -42,6 +42,7 @@ if (!$orden) {
 
 $operarios = $odtModel->getOperariosAsignados($idOdt);
 $movimientos = $odtModel->getMovimientosVinculados($idOdt);
+$rubros = $odtModel->getRubrosDeOrden($idOdt);
 
 if ($esAjax) {
     header('Content-Type: application/json; charset=utf-8');
@@ -49,6 +50,7 @@ if ($esAjax) {
         'success'     => true,
         'data'        => $orden,
         'operarios'   => $operarios,
+        'rubros'      => $rubros,
         'movimientos' => $movimientos
     ]);
     exit;
@@ -90,6 +92,22 @@ $fecha = fn($f) => !empty($f) ? date('d/m/Y', strtotime($f)) : '-';
     </div>
 
     <div class="detail-grid">
+        <div class="detail-item">
+            <strong>Tipo de trabajo</strong>
+            <span><?= !empty($orden['tipo_trabajo']) ? $h($orden['tipo_trabajo']) : 'No especificado' ?></span>
+        </div>
+        <div class="detail-item">
+            <strong>Dependencia solicitante</strong>
+            <span><?= !empty($orden['dependencia_solicitante']) ? $h($orden['dependencia_solicitante']) : 'No especificada' ?></span>
+        </div>
+        <div class="detail-item">
+            <strong>Fecha de solicitud</strong>
+            <span><?= $h($fecha($orden['fecha_solicitud'] ?? null)) ?></span>
+        </div>
+        <div class="detail-item">
+            <strong>Rubro(s) involucrado(s)</strong>
+            <span><?= empty($rubros) ? 'No especificados' : $h(implode(', ', array_column($rubros, 'nombre'))) ?></span>
+        </div>
         <div class="detail-item">
             <strong>Número de PA (Pedido de Abastecimiento)</strong>
             <span><?= !empty($orden['pa']) ? $h($orden['pa']) : 'No especificado' ?></span>

@@ -117,12 +117,16 @@ DO $$
 DECLARE
   i int;
   v_inicio date;
+  v_id_odt int;
+  v_rubro int;
 BEGIN
   FOR i IN 1..60 LOOP
     v_inicio := CURRENT_DATE - (floor(random() * 50) - 10)::int;
+    -- Tipo de trabajo, dependencia y fecha de solicitud (anterior o igual al inicio) son obligatorios en el sistema
     INSERT INTO orden_de_trabajo (numero_ot, pa, trabajo_a_realizar, id_localidad, id_jurisdiccion,
                                   fecha_inicio, fecha_final, hora_inicio, hora_final, estado,
-                                  observaciones, activo)
+                                  observaciones, activo,
+                                  tipo_trabajo, dependencia_solicitante, fecha_solicitud)
     VALUES ('OT-2026-' || lpad((100 + i)::text, 3, '0'),
             'PA-2026-' || lpad((100 + i)::text, 3, '0'),
             'Trabajo ficticio número ' || i,
@@ -134,7 +138,18 @@ BEGIN
             '17:00',
             (ARRAY['Pendiente','En Progreso','Pausada','Finalizada','Anulada'])[1 + floor(random() * 5)::int],
             'Observación ' || i,
-            TRUE);
+            TRUE,
+            (ARRAY['Reparación','Construcción','Mantenimiento edilicio','Otro'])[1 + floor(random() * 4)::int],
+            (ARRAY['Juzgado Civil N°3','Cámara Penal','Registro Civil','Fiscalía de Distrito','Mesa de Entradas',
+                   'Dirección de Infraestructura','Archivo General'])[1 + floor(random() * 7)::int],
+            v_inicio - (1 + floor(random() * 10))::int)
+    RETURNING id_odt INTO v_id_odt;
+
+    -- Cada orden abarca uno o dos rubros (el segundo puede coincidir con el primero: no se repite)
+    v_rubro := 1 + floor(random() * 4)::int;
+    INSERT INTO orden_rubro (id_odt, id_rubro) VALUES (v_id_odt, v_rubro);
+    INSERT INTO orden_rubro (id_odt, id_rubro) VALUES (v_id_odt, 1 + floor(random() * 4)::int)
+    ON CONFLICT (id_odt, id_rubro) DO NOTHING;
   END LOOP;
 END $$;
 

@@ -39,8 +39,26 @@ $busqueda = isset($_GET['busqueda']) ? trim($_GET['busqueda']) : '';
 $filtroTipo = isset($_GET['tipo']) ? trim($_GET['tipo']) : '';
 $filtroRubro = isset($_GET['rubro']) ? trim($_GET['rubro']) : '';
 $estado = isset($_GET['estado']) ? trim($_GET['estado']) : 'activo';
+// Estado de stock: '' (todos) | 'bajo' (en el mínimo o por debajo, incluye los sin stock) | 'sin_stock'
+$filtroStock = isset($_GET['stock']) ? trim($_GET['stock']) : '';
+if (!in_array($filtroStock, ['', 'bajo', 'sin_stock'], true)) {
+    $filtroStock = '';
+}
+// Estado de la herramienta (id de estado_herramienta: 1 Disponible, 2 Prestada, 3 En reparación, 4 Dada de baja);
+// solo aplica a herramientas, así que los materiales quedan fuera cuando se elige uno
+$filtroEstadoHerr = isset($_GET['estado_herr']) && ctype_digit((string)$_GET['estado_herr']) ? (int)$_GET['estado_herr'] : 0;
 
-$insumosFiltrados = array_values(array_filter($insumoModel->getAll(true), function ($ins) use ($busqueda, $filtroTipo, $filtroRubro, $estado) {
+$insumosFiltrados = array_values(array_filter($insumoModel->getAll(true), function ($ins) use ($busqueda, $filtroTipo, $filtroRubro, $estado, $filtroStock, $filtroEstadoHerr) {
+    if ($filtroEstadoHerr > 0
+        && !((int)$ins['id_tipo'] === Insumo::ID_TIPO_HERRAMIENTA && (int)$ins['id_estado_herramienta'] === $filtroEstadoHerr)) {
+        return false;
+    }
+    if ($filtroStock !== '') {
+        $estadoStock = Insumo::estadoStock($ins);
+        if ($filtroStock === 'sin_stock' ? $estadoStock !== Insumo::STOCK_SIN_STOCK : $estadoStock === null) {
+            return false;
+        }
+    }
     if ($estado === 'activo' && !$ins['activo']) {
         return false;
     }
@@ -63,6 +81,22 @@ $totalRegistros = count($insumosFiltrados);
 $totalPaginas = max(1, (int)ceil($totalRegistros / $porPagina));
 $paginaActual = min($paginaActual, $totalPaginas);
 $insumos = array_slice($insumosFiltrados, ($paginaActual - 1) * $porPagina, $porPagina);
+
+// RF-19: a las herramientas prestadas de la página se les agrega quién las tiene y desde cuándo
+$movimientoModel = new Movimiento();
+foreach ($insumos as &$insPagina) {
+    $insPagina['estado_stock'] = Insumo::estadoStock($insPagina);
+    $insPagina['asignado_a'] = null;
+    $insPagina['asignado_desde'] = null;
+    if ((int)$insPagina['id_tipo'] === Insumo::ID_TIPO_HERRAMIENTA && (int)$insPagina['id_estado_herramienta'] === Movimiento::ESTADO_PRESTADA) {
+        $asignacion = $movimientoModel->getAsignacionActual((int)$insPagina['id_insumo']);
+        if ($asignacion) {
+            $insPagina['asignado_a'] = $asignacion['nombre_operario'];
+            $insPagina['asignado_desde'] = $asignacion['fecha'];
+        }
+    }
+}
+unset($insPagina);
 
 // =========================================================================
 // ENDPOINT AJAX INTERNO: si la petición viene por AJAX, devuelve JSON
@@ -94,7 +128,8 @@ include_once __DIR__ . '/../layout/header.php';
 <div id="alerta-dashboard" class="alerta-pagina"></div>
 
 <!-- Barra de Búsqueda, Filtros y Botón Cargar Insumo -->
-<div class="action-bar-filters">
+<div class="action-bar-filters action-bar--agrupada">
+  <div class="barra-filtros barra-filtros--una-linea">
     <div class="search-input-wrapper">
         <input type="text" id="buscador-insumo" class="search-input" placeholder="Buscar por nombre o código..." value="<?= htmlspecialchars($busqueda) ?>">
     </div>
@@ -123,9 +158,27 @@ include_once __DIR__ . '/../layout/header.php';
         <option value="todos" <?= ($estado === 'todos') ? 'selected' : '' ?>>Todos</option>
     </select>
 
-    <?php if (canEdit()): ?>
+    <select class="filter-select" id="filtro-estado-herr" title="Estado de la herramienta (excluye los materiales)">
+        <option value="">Toda herramienta</option>
+        <option value="<?= Movimiento::ESTADO_DISPONIBLE ?>" <?= ($filtroEstadoHerr === Movimiento::ESTADO_DISPONIBLE) ? 'selected' : '' ?>>Herramientas disponibles</option>
+        <option value="<?= Movimiento::ESTADO_PRESTADA ?>" <?= ($filtroEstadoHerr === Movimiento::ESTADO_PRESTADA) ? 'selected' : '' ?>>Herramientas prestadas</option>
+        <option value="<?= Insumo::ESTADO_EN_REPARACION ?>" <?= ($filtroEstadoHerr === Insumo::ESTADO_EN_REPARACION) ? 'selected' : '' ?>>Herramientas en reparación</option>
+        <option value="<?= Insumo::ESTADO_DADA_DE_BAJA ?>" <?= ($filtroEstadoHerr === Insumo::ESTADO_DADA_DE_BAJA) ? 'selected' : '' ?>>Herramientas dadas de baja</option>
+    </select>
+
+    <select class="filter-select" id="filtro-stock" title="Estado de stock (solo materiales)">
+        <option value="" <?= ($filtroStock === '') ? 'selected' : '' ?>>Todo el stock</option>
+        <option value="bajo" <?= ($filtroStock === 'bajo') ? 'selected' : '' ?>>Bajo el mínimo</option>
+        <option value="sin_stock" <?= ($filtroStock === 'sin_stock') ? 'selected' : '' ?>>Sin stock</option>
+    </select>
+
+  </div>
+
+  <?php if (canEdit()): ?>
+  <div class="barra-acciones">
     <button type="button" class="btn-pill-action" onclick="abrirModalCrear()">Cargar Insumo</button>
-    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 </div>
 
 <!-- Grilla de Insumos -->
@@ -150,14 +203,19 @@ include_once __DIR__ . '/../layout/header.php';
                 $tipoTxt = $ins['nombre_tipo'] ?? 'Material';
                 $umTxt = $esHerramienta ? '-' : ($ins['unidad_medida'] ?? 'Unidad');
                 $stkTxt = $ins['stock_actual'] ?? 0;
-                $estadoVenc = !$ins['activo'] ? 'Deshabilitado' : ($esHerramienta ? ($ins['nombre_estado_herramienta'] ?? 'Disponible') : (!empty($ins['fecha_vencimiento']) ? htmlspecialchars($ins['fecha_vencimiento']) : 'No perecedero'));
+                $estadoVenc = !$ins['activo'] ? (($esHerramienta && !empty($ins['motivo_baja'])) ? 'Dada de baja (' . $ins['motivo_baja'] . ')' : 'Deshabilitado') : ($esHerramienta ? ($ins['nombre_estado_herramienta'] ?? 'Disponible') : (!empty($ins['fecha_vencimiento']) ? htmlspecialchars($ins['fecha_vencimiento']) : 'No perecedero'));
+                if ($ins['activo'] && $esHerramienta && !empty($ins['asignado_a'])) {
+                    $estadoVenc .= ' - ' . $ins['asignado_a'] . ' (desde ' . date('d/m/Y', strtotime($ins['asignado_desde'])) . ')';
+                }
             ?>
-            <div class="insumo-card-row fila-clic<?= $ins['activo'] ? '' : ' insumo-card-row--inactivo' ?>">
+            <div class="insumo-card-row fila-clic<?= $ins['activo'] ? '' : ' insumo-card-row--inactivo' ?><?= $ins['estado_stock'] === Insumo::STOCK_SIN_STOCK ? ' insumo-card-row--sin-stock' : ($ins['estado_stock'] === Insumo::STOCK_BAJO ? ' insumo-card-row--stock-bajo' : '') ?>">
                 <div><strong><?= htmlspecialchars($ins['codigo']) ?></strong></div>
                 <div><?= htmlspecialchars($ins['nombre']) ?></div>
                 <div><?= htmlspecialchars($ins['nombre_rubro'] ?? '-') ?></div>
                 <div><?= htmlspecialchars($umTxt) ?></div>
-                <div><?= htmlspecialchars($stkTxt) ?></div>
+                <div><?= htmlspecialchars($stkTxt) ?><?php if ($ins['estado_stock'] !== null): ?>
+                    <span class="stock-alerta" title="<?= $ins['estado_stock'] === Insumo::STOCK_SIN_STOCK ? 'Sin stock' : 'Stock bajo el mínimo' ?> (mínimo: <?= htmlspecialchars((string)($ins['stock_minimo'] ?? 0)) ?>)" aria-label="<?= $ins['estado_stock'] === Insumo::STOCK_SIN_STOCK ? 'Sin stock' : 'Stock bajo el mínimo' ?>">!</span>
+                <?php endif; ?></div>
                 <div><?= htmlspecialchars($tipoTxt) ?></div>
                 <div><?= htmlspecialchars($estadoVenc) ?></div>
                 
@@ -175,8 +233,8 @@ include_once __DIR__ . '/../layout/header.php';
                     </button>
 
                     <button type="button" class="btn-action-icon disable" title="Deshabilitar Insumo"
-                            data-codigo="<?= htmlspecialchars($ins['codigo'], ENT_QUOTES) ?>" data-nombre="<?= htmlspecialchars($ins['nombre'], ENT_QUOTES) ?>"
-                            onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true)">
+                            data-codigo="<?= htmlspecialchars($ins['codigo'], ENT_QUOTES) ?>" data-nombre="<?= htmlspecialchars($ins['nombre'], ENT_QUOTES) ?>" data-herramienta="<?= $esHerramienta ? '1' : '0' ?>"
+                            onclick="abrirModalEstado(this.dataset.codigo, this.dataset.nombre, true, this.dataset.herramienta === '1')">
                         <?= iconoAccion('disable') ?>
                     </button>
                     <?php else: ?>
@@ -232,7 +290,7 @@ include_once __DIR__ . '/../layout/header.php';
             <div class="modal-grid-2">
                 <div class="modal-form-group">
                     <label>Nombre / Descripción *</label>
-                    <input type="text" name="nombre" id="cargar-nombre" class="modal-input" placeholder="Descripción clara del insumo" required>
+                    <input type="text" name="nombre" id="cargar-nombre" class="modal-input" placeholder="Nombre claro del insumo" required maxlength="150">
                 </div>
                 <div class="modal-form-group">
                     <label>Rubro *</label>
@@ -245,6 +303,11 @@ include_once __DIR__ . '/../layout/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
+            </div>
+
+            <div class="modal-form-group">
+                <label>Descripción</label>
+                <textarea name="descripcion" id="cargar-descripcion" class="modal-input" rows="2" maxlength="500" placeholder="Detalle, medidas, marca, uso (opcional)"></textarea>
             </div>
 
             <!-- Bloque para Material / Consumible -->
@@ -330,8 +393,13 @@ include_once __DIR__ . '/../layout/header.php';
                 </div>
                 <div class="modal-form-group">
                     <label>Nombre / Descripción *</label>
-                    <input type="text" id="edit-nombre" name="nombre" class="modal-input" required>
+                    <input type="text" id="edit-nombre" name="nombre" class="modal-input" required maxlength="150">
                 </div>
+            </div>
+
+            <div class="modal-form-group">
+                <label>Descripción</label>
+                <textarea id="edit-descripcion" name="descripcion" class="modal-input" rows="2" maxlength="500" placeholder="Detalle, medidas, marca, uso (opcional)"></textarea>
             </div>
 
             <div class="modal-grid-2">
@@ -430,7 +498,8 @@ include_once __DIR__ . '/../layout/header.php';
 
         <div class="details-list">
             <div class="detail-item"><strong>Código:</strong> <span id="det-codigo"></span></div>
-            <div class="detail-item"><strong>Nombre / Descripción:</strong> <span id="det-nombre"></span></div>
+            <div class="detail-item"><strong>Nombre:</strong> <span id="det-nombre"></span></div>
+            <div class="detail-item"><strong>Descripción:</strong> <span id="det-descripcion"></span></div>
             <div class="detail-item"><strong>Tipo de Insumo:</strong> <span id="det-tipo"></span></div>
             <div class="detail-item"><strong>Rubro:</strong> <span id="det-rubro"></span></div>
             <div class="detail-item"><strong>Unidad de Medida:</strong> <span id="det-um"></span></div>
@@ -442,6 +511,7 @@ include_once __DIR__ . '/../layout/header.php';
             <div class="detail-item"><strong>Estado del Registro:</strong> <span id="det-activo"></span></div>
         </div>
 
+        <a id="det-ficha-link" href="#" class="btn-modal-back">Ver ficha completa e historial</a>
         <button type="button" class="btn-modal-back" onclick="cerrarModal('modal-detalles-insumo')">Volver</button>
     </div>
 </div>
@@ -463,6 +533,23 @@ include_once __DIR__ . '/../layout/header.php';
         <form id="form-estado-insumo" onsubmit="ejecutarCambioEstadoInsumo(event)">
             <input type="hidden" id="estado-codigo-val" name="codigo">
             <input type="hidden" id="estado-accion-val" name="accion" value="deshabilitar">
+
+            <!-- Baja de herramienta (RF-18): motivo obligatorio -->
+            <div id="estado-baja-bloque" class="estado-baja-bloque" style="display:none;">
+                <div class="modal-form-group">
+                    <label for="estado-motivo-baja">Motivo de la baja *</label>
+                    <select id="estado-motivo-baja" name="motivo_baja" class="modal-select">
+                        <option value="">Seleccione el motivo...</option>
+                        <?php foreach (Insumo::MOTIVOS_BAJA as $motivoBaja): ?>
+                            <option value="<?= htmlspecialchars($motivoBaja, ENT_QUOTES) ?>"><?= htmlspecialchars($motivoBaja) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="modal-form-group">
+                    <label for="estado-observacion-baja">Observaciones (obligatorias si el motivo es "Otro")</label>
+                    <textarea id="estado-observacion-baja" name="observacion_baja" class="modal-input" rows="2" maxlength="255" placeholder="Detalle de la baja"></textarea>
+                </div>
+            </div>
             <div class="modal-acciones-centro">
                 <button type="button" class="btn-action-text view btn-modal-estado" onclick="cerrarModal('modal-estado-insumo')">
                     Cancelar
