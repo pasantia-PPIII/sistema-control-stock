@@ -6,6 +6,7 @@
 DROP TABLE IF EXISTS auditoria_stock CASCADE;
 DROP TABLE IF EXISTS auditoria_cambio CASCADE;
 DROP TABLE IF EXISTS auditoria_acceso CASCADE;
+DROP TABLE IF EXISTS solicitud_contrasena CASCADE;
 DROP TABLE IF EXISTS intento_login CASCADE;
 DROP TABLE IF EXISTS movimiento_detalle CASCADE;
 DROP TABLE IF EXISTS movimiento CASCADE;
@@ -267,6 +268,19 @@ CREATE TABLE intento_login (
 );
 
 CREATE INDEX idx_intento_login_dni_fecha ON intento_login (dni, fecha_hora);
+
+-- Avisos de "¿Olvidaste tu contraseña?" (auth/forgot_password.php). El administrador los ve en la
+-- sección Usuarios y los marca como atendidos al asignar una contraseña nueva o al descartarlos.
+CREATE TABLE solicitud_contrasena (
+    id_solicitud SERIAL PRIMARY KEY,
+    dni VARCHAR(20) NOT NULL REFERENCES usuario(dni),
+    ip VARCHAR(45),
+    fecha_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atendida BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_atencion TIMESTAMP
+);
+
+CREATE INDEX idx_solicitud_contrasena_pendiente ON solicitud_contrasena (atendida, fecha_hora);
 
 
 -- ---------------------------------------------------------

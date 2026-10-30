@@ -21,6 +21,13 @@ $seccion_actual = $seccion ?? '';
 $nombre_usuario = $_SESSION['usuario_nombre'] ?? 'Usuario';
 $dni_usuario = $_SESSION['dni_usuario'] ?? '';
 $alerta_flash = getAlert();
+
+// Avisos de contraseña olvidada pendientes (solo los ve el administrador, en el menú Usuarios)
+$solicitudes_pendientes = 0;
+if (isAdmin()) {
+    require_once __DIR__ . '/../clases/solicitud_contrasena.php';
+    $solicitudes_pendientes = SolicitudContrasena::contarPendientes();
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -77,6 +84,9 @@ $alerta_flash = getAlert();
             <?php if (isAdmin()): ?>
             <a href="<?= $baseUrl ?>/usuario/dashboard.php" class="menu-item <?= ($seccion_actual === 'usuarios' || $seccion_actual === 'usuario') ? 'active' : '' ?>">
                 <span>Usuarios</span>
+                <?php if ($solicitudes_pendientes > 0): ?>
+                    <span class="menu-badge" title="Solicitudes de cambio de contraseña pendientes"><?= (int)$solicitudes_pendientes ?></span>
+                <?php endif; ?>
             </a>
             <?php endif; ?>
             <a href="<?= $baseUrl ?>/insumo/dashboard.php" class="menu-item <?= ($seccion_actual === 'insumo' || $seccion_actual === 'insumos') ? 'active' : '' ?>">

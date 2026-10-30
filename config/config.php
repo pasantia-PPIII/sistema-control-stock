@@ -27,9 +27,14 @@ date_default_timezone_set(APP_TIMEZONE);
 $esHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (($_SERVER['SERVER_PORT'] ?? '') == 443);
 
+// Cierre automático por inactividad (minutos sin actividad). Se puede cambiar con SESION_INACTIVIDAD_MINUTOS en env.php.
+defined('SESION_INACTIVIDAD_MINUTOS') || define('SESION_INACTIVIDAD_MINUTOS', 30);
+
 if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
+    // El servidor no debe descartar la sesión antes de que venza el plazo de inactividad
+    ini_set('session.gc_maxlifetime', (string)(SESION_INACTIVIDAD_MINUTOS * 60 + 300));
     session_set_cookie_params([
         'lifetime' => 0,
         'path'     => '/',
@@ -38,6 +43,28 @@ if (session_status() === PHP_SESSION_NONE) {
         'samesite' => 'Lax',
     ]);
     session_start();
+}
+
+// Inactividad: si pasó el plazo desde la última petición se cierra la sesión. No hace falta redirigir acá:
+// cada pantalla ya manda al login (o responde 401 si es AJAX) cuando isAuthenticated() es falso,
+// y login.php muestra el aviso guardado en $_SESSION['aviso_login'].
+if (!empty($_SESSION['dni_usuario'])) {
+    $ahora = time();
+    $ultima = $_SESSION['ultima_actividad'] ?? $ahora;
+    if ($ahora - $ultima > SESION_INACTIVIDAD_MINUTOS * 60) {
+        try {
+            require_once __DIR__ . '/../clases/auditoria.php';
+            Auditoria::registrarAcceso(Auditoria::LOGOUT, (string)$_SESSION['dni_usuario'],
+                'Sesión cerrada por inactividad (' . SESION_INACTIVIDAD_MINUTOS . ' min)');
+        } catch (Throwable $e) {
+            error_log('Sesión (cierre por inactividad): ' . $e->getMessage());
+        }
+        $_SESSION = [];
+        session_regenerate_id(true);
+        $_SESSION['aviso_login'] = 'Su sesión se cerró por inactividad (' . SESION_INACTIVIDAD_MINUTOS . ' minutos). Inicie sesión nuevamente.';
+    } else {
+        $_SESSION['ultima_actividad'] = $ahora;
+    }
 }
 
 // =========================================================

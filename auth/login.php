@@ -42,6 +42,30 @@ function minutosBloqueoLogin($dni) {
 }
 
 /**
+ * Intentos que le quedan a un DNI antes del bloqueo (mismo criterio de conteo que minutosBloqueoLogin).
+ * Devuelve null si no se pudo calcular.
+ */
+function intentosRestantesLogin($dni) {
+    try {
+        $dni = substr(trim((string)$dni), 0, 20);
+        $fila = Database::fetch(
+            "SELECT COUNT(*) AS fallos
+             FROM intento_login
+             WHERE dni = ? AND exitoso = FALSE
+               AND fecha_hora > CURRENT_TIMESTAMP - INTERVAL '" . LOGIN_VENTANA_MINUTOS . " minutes'
+               AND fecha_hora > COALESCE(
+                    (SELECT MAX(fecha_hora) FROM intento_login WHERE dni = ? AND exitoso = TRUE),
+                    TIMESTAMP '-infinity')",
+            [$dni, $dni]
+        );
+        return $fila ? max(0, LOGIN_MAX_INTENTOS - (int)$fila['fallos']) : null;
+    } catch (Throwable $e) {
+        error_log('Login (intentos restantes): ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
  * Registra un intento de login, fallido o exitoso.
  */
 function registrarIntentoLogin($dni, $exitoso) {
@@ -62,6 +86,11 @@ if (isAuthenticated()) {
 }
 
 $error = '';
+$advertencia = '';
+
+// Aviso guardado por config.php cuando la sesión se cerró por inactividad (se muestra una sola vez)
+$avisoSesion = $_SESSION['aviso_login'] ?? '';
+unset($_SESSION['aviso_login']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dni_ingresado = trim($_POST['dni'] ?? '');
@@ -101,6 +130,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 Auditoria::registrarAcceso(Auditoria::LOGIN_FALLIDO, $dni_ingresado, $motivo);
 
                 $error = 'DNI o contraseña incorrectos, o el usuario se encuentra inactivo.';
+
+                // Aviso previo al bloqueo: cuando quedan 2 intentos (o 1) se advierte con un cartel aparte
+                $restantes = intentosRestantesLogin($dni_ingresado);
+                if ($restantes !== null && $restantes > 0 && $restantes <= 2) {
+                    $advertencia = 'Atención: le ' . ($restantes === 1 ? 'queda 1 intento' : "quedan {$restantes} intentos"
+                        ) . ' antes de que el acceso se bloquee temporalmente por ' . LOGIN_VENTANA_MINUTOS . ' minutos.';
+                }
             }
         } catch (Throwable $e) {
             error_log('Login: ' . $e->getMessage());
@@ -144,6 +180,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php endif; ?>
 
+            <?php if ($avisoSesion !== ''): ?>
+                <div class="login-alert login-alert-warning">
+                    <?= htmlspecialchars($avisoSesion) ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!empty($advertencia)): ?>
+                <div class="login-alert login-alert-warning">
+                    <?= htmlspecialchars($advertencia) ?>
+                </div>
+            <?php endif; ?>
+
             <form action="login.php" method="POST">
                 <?= csrfField() ?>
                 <div class="input-field-group">
@@ -172,6 +220,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <button type="submit" class="btn-submit-pill">Iniciar Sesión</button>
             </form>
+
+            <hr class="form-divider">
+            <div class="forgot-link-wrapper">
+                <a href="forgot_password.php">¿Olvidaste tu contraseña?</a>
+            </div>
         </main>
     </div>
 

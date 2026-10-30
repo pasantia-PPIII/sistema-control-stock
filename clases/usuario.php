@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/auditoria.php';
 require_once __DIR__ . '/validador.php';
 require_once __DIR__ . '/foto_perfil.php';
+require_once __DIR__ . '/solicitud_contrasena.php';
 
 class Usuario {
     private $db;
@@ -214,7 +215,7 @@ class Usuario {
             // DNI (PK) tampoco se permite modificar
 
             // AUDITORÍA: el cambio y su registro se guardan juntos. Importa sobre todo el cambio de rol (id_rol).
-            return Auditoria::transaccion(function () use ($dni, $data) {
+            $resultado = Auditoria::transaccion(function () use ($dni, $data) {
                 $antes = $this->db->fetchOne(
                     "SELECT nombre, apellido, id_operario, id_rol, foto_perfil, contrasena FROM usuario WHERE dni = :dni FOR UPDATE",
                     ['dni' => $dni]
@@ -231,6 +232,11 @@ class Usuario {
                 }
                 return $ok;
             });
+            // Fuera de la transacción: si la tabla de avisos no existe no debe cancelar el cambio
+            if ($resultado && isset($data['contrasena'])) {
+                SolicitudContrasena::atender($dni);
+            }
+            return $resultado;
         } catch (PDOException $e) {
             throw errorAmigable('Error al actualizar el usuario', $e);
         }
@@ -240,12 +246,14 @@ class Usuario {
         try {
             Validador::password($nueva_contrasena);
             $data = ['contrasena' => password_hash($nueva_contrasena, PASSWORD_DEFAULT)];
-            return Auditoria::transaccion(function () use ($dni, $data) {
+            $resultado = Auditoria::transaccion(function () use ($dni, $data) {
                 $ok = $this->db->update('usuario', $data, 'dni = :dni', ['dni' => $dni]);
                 Auditoria::registrarCambio(Auditoria::CAMBIAR_CONTRASENA, 'usuario', $dni,
                     "Contraseña del usuario {$dni} modificada");
                 return $ok;
             });
+            SolicitudContrasena::atender($dni);
+            return $resultado;
         } catch (PDOException $e) {
             throw errorAmigable('Error al cambiar la contraseña', $e);
         }
