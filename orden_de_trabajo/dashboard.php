@@ -31,6 +31,7 @@ $titulo_pagina = 'Órdenes de Trabajo - Sistema de Control de Stock';
 require_once __DIR__ . '/../clases/orden_de_trabajo.php';
 
 $odtModel = new OrdenDeTrabajo();
+$rubrosOrden = $odtModel->getRubrosDisponibles();
 
 // =========================================================================
 // ACCIÓN AJAX: DETALLE DE UNA ORDEN
@@ -49,6 +50,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'detalle') {
         'success'     => true,
         'data'        => $orden,
         'operarios'   => $odtModel->getOperariosAsignados($idOdt),
+        'rubros'      => $odtModel->getRubrosDeOrden($idOdt),
         'movimientos' => $odtModel->getMovimientosVinculados($idOdt)
     ]);
     exit;
@@ -81,15 +83,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'cambiar_estado') {
             throw new Exception("La Orden de Trabajo #{$idOdt} no existe.");
         }
 
-        // update() recibe todos los campos editables: se parte de los datos actuales y se cambia solo el estado
-        $camposEditables = [
-            'numero_ot', 'pa', 'trabajo_a_realizar', 'id_localidad', 'id_jurisdiccion',
-            'fecha_inicio', 'fecha_final', 'hora_inicio', 'hora_final', 'observaciones', 'archivo_pdf'
-        ];
-        $datos = array_intersect_key($orden, array_flip($camposEditables));
-        $datos['estado'] = $nuevoEstado;
-
-        if (!$odtModel->update($idOdt, $datos)) {
+        // update() solo modifica los campos que recibe: acá se cambia únicamente el estado
+        if (!$odtModel->update($idOdt, ['estado' => $nuevoEstado])) {
             throw new Exception('No se pudo actualizar el estado de la Orden de Trabajo en la base de datos.');
         }
 
@@ -154,6 +149,7 @@ include_once __DIR__ . '/../layout/header.php';
 
     <select class="filter-select" id="filtro-estado">
         <option value="">Todos los Estados</option>
+        <option value="<?= OrdenDeTrabajo::FILTRO_ABIERTAS ?>" <?= ($estado === OrdenDeTrabajo::FILTRO_ABIERTAS) ? 'selected' : '' ?>>Abiertas (sin finalizar ni anular)</option>
         <option value="Pendiente" <?= ($estado === 'Pendiente') ? 'selected' : '' ?>>Pendiente</option>
         <option value="En Progreso" <?= ($estado === 'En Progreso') ? 'selected' : '' ?>>En Progreso</option>
         <option value="Pausada" <?= ($estado === 'Pausada') ? 'selected' : '' ?>>Pausada</option>
@@ -308,6 +304,40 @@ include_once __DIR__ . '/../layout/header.php';
 
             <div class="form-grid-2">
                 <div>
+                    <label class="modal-label" for="crear-tipo-trabajo">Tipo de trabajo *</label>
+                    <select id="crear-tipo-trabajo" name="tipo_trabajo" class="modal-select" required>
+                        <option value="">Seleccione el tipo...</option>
+                        <?php foreach (OrdenDeTrabajo::TIPOS_TRABAJO as $tipoTrabajo): ?>
+                            <option value="<?= htmlspecialchars($tipoTrabajo, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($tipoTrabajo, ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label class="modal-label" for="crear-fecha-solicitud">Fecha de solicitud *</label>
+                    <input type="date" id="crear-fecha-solicitud" name="fecha_solicitud" class="modal-input" max="<?= date('Y-m-d') ?>" required>
+                </div>
+            </div>
+
+            <div class="mb-16">
+                <label class="modal-label" for="crear-dependencia">Dependencia solicitante *</label>
+                <input type="text" id="crear-dependencia" name="dependencia_solicitante" class="modal-input" required maxlength="150" placeholder="Ej: Juzgado Civil N° 3, Mesa de Entradas...">
+            </div>
+
+            <div class="mb-16">
+                <label class="modal-label">Rubro(s) involucrado(s) *</label>
+                <div class="chips-seleccion" id="crear-rubros">
+                    <?php foreach ($rubrosOrden as $rb): ?>
+                        <label class="check-rubro">
+                            <input type="checkbox" name="rubros[]" value="<?= (int)$rb['id_rubro'] ?>">
+                            <?= htmlspecialchars($rb['nombre'], ENT_QUOTES, 'UTF-8') ?>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+                <small class="texto-tenue">Marque uno o más rubros; una misma orden puede combinar, por ejemplo, carpintería y pintura.</small>
+            </div>
+
+            <div class="form-grid-2">
+                <div>
                     <label class="modal-label" for="crear-localidad">Localidad</label>
                     <select id="crear-localidad" name="id_localidad" class="modal-select">
                         <option value="">Seleccione una localidad...</option>
@@ -380,7 +410,7 @@ include_once __DIR__ . '/../layout/header.php';
             </div>
 
             <div class="mb-16">
-                <label class="modal-label" for="crear-trabajo">Trabajo a Realizar / Descripción</label>
+                <label class="modal-label" for="crear-trabajo">Trabajo a Realizar / Descripción *</label>
                 <textarea id="crear-trabajo" name="trabajo_a_realizar" class="modal-textarea" placeholder="Describa las tareas a ejecutar..."></textarea>
             </div>
 
@@ -416,6 +446,8 @@ function escaparHtml(texto) {
 }
 
 function mostrarAlerta(mensaje, esExito = true) {
+    // Con un modal abierto, el error se muestra dentro de él (la alerta de página queda detrás)
+    if (!esExito && mostrarErrorEnModal(mensaje)) return;
     const alerta = document.getElementById('alerta-odt');
     if (!alerta) return;
     alerta.className = 'alerta-mensaje ' + (esExito ? 'alerta-exito' : 'alerta-error');
@@ -576,6 +608,8 @@ function abrirModalCrear() {
     document.getElementById('crear-id-odt').value = '';
     document.getElementById('crear-odt-titulo').innerText = 'Nueva Orden de Trabajo';
     document.getElementById('btn-submit-crear').innerText = 'Guardar Orden';
+    // La fecha de solicitud arranca en hoy (se puede cambiar)
+    document.getElementById('crear-fecha-solicitud').value = new Date().toLocaleDateString('en-CA');
     abrirModal('modal-crear-odt');
 }
 
@@ -594,6 +628,13 @@ function abrirModalEditar(idOdt) {
             document.getElementById('btn-submit-crear').innerText = 'Guardar Cambios';
 
             document.getElementById('crear-numero-ot').value = o.numero_ot || '';
+            document.getElementById('crear-tipo-trabajo').value = o.tipo_trabajo || '';
+            document.getElementById('crear-fecha-solicitud').value = o.fecha_solicitud || '';
+            document.getElementById('crear-dependencia').value = o.dependencia_solicitante || '';
+            const idsRubros = (res.rubros || []).map(r => String(r.id_rubro));
+            document.querySelectorAll('#crear-rubros input[type=checkbox]').forEach(cb => {
+                cb.checked = idsRubros.includes(cb.value);
+            });
             document.getElementById('crear-pa').value = o.pa || '';
             document.getElementById('crear-localidad').value = o.id_localidad || '';
             document.getElementById('crear-jurisdiccion').value = o.id_jurisdiccion || '';
@@ -615,6 +656,18 @@ function abrirModalEditar(idOdt) {
 
 function guardarNuevaOdt(e) {
     e.preventDefault();
+
+    if (!document.querySelector('#crear-rubros input[type=checkbox]:checked')) {
+        mostrarAlerta('Debe marcar al menos un rubro involucrado en la orden.', false);
+        return;
+    }
+    const ini = document.getElementById('crear-fecha-inicio').value;
+    const fin = document.getElementById('crear-fecha-final').value;
+    if (ini && fin && fin < ini) {
+        mostrarAlerta('La fecha final no puede ser anterior a la fecha de inicio.', false);
+        return;
+    }
+
     const btnSubmit = document.getElementById('btn-submit-crear');
     const textoOriginal = btnSubmit.innerText;
     btnSubmit.disabled = true;

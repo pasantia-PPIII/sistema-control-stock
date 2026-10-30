@@ -331,3 +331,66 @@
 .user-card-row > div:nth-child(4) { --et: "DNI operario"; }
 .user-card-row > div:nth-child(5) { --et: "Rol"; }
 .user-card-row > div:nth-child(6) { --et: "Estado"; }
+
+/* ==========================================================================
+   Foto de perfil: miniatura en el listado, selector en los modales y detalle
+   ========================================================================== */
+.celda-usuario {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.foto-mini {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+    background-color: #cbd5e1;
+    flex-shrink: 0;
+}
+
+.foto-campo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0.5rem 0 1rem;
+}
+
+.foto-vista {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    background-color: #cbd5e1;
+    border: 2px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.foto-campo > div {
+    flex: 1;
+    min-width: 0;
+}
+
+.foto-ayuda {
+    display: block;
+    margin-top: 0.3rem;
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
+.foto-quitar {
+    font-size: 0.82rem;
+    margin-top: 0.4rem;
+}
+
+.foto-detalle {
+    display: block;
+    width: 96px;
+    height: 96px;
+    margin: 0.25rem auto 1rem;
+    border-radius: 50%;
+    object-fit: cover;
+    background-color: #cbd5e1;
+    border: 2px solid #e2e8f0;
+}

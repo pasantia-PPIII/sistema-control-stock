@@ -26,6 +26,8 @@ requireRole(['admin']);
 require_once __DIR__ . '/../clases/usuario.php';
 
 try {
+    FotoPerfil::verificarLimiteDePeticion();
+
     $input = $_POST;
     if (empty($input)) {
         $raw = file_get_contents('php://input');
@@ -37,7 +39,7 @@ try {
 
     $dni = isset($input['dni']) ? trim((string)$input['dni']) : '';
     $id_rol = isset($input['id_rol']) ? (int)$input['id_rol'] : 0;
-    $password = isset($input['password']) ? trim((string)$input['password']) : (isset($input['contrasena']) ? trim((string)$input['contrasena']) : '');
+    $password = isset($input['password']) ? (string)$input['password'] : (isset($input['contrasena']) ? (string)$input['contrasena'] : '');
     $nombre = isset($input['nombre']) ? trim((string)$input['nombre']) : '';
     $apellido = isset($input['apellido']) ? trim((string)$input['apellido']) : '';
     $id_operario = !empty($input['id_operario']) ? (int)$input['id_operario'] : null;
@@ -65,10 +67,38 @@ try {
     }
 
     if ($password !== '') {
+        Validador::password($password);
         $datos['password'] = $password;
     }
 
-    $resultado = $usuarioModel->update($dni, $datos);
+    $actual = $usuarioModel->getByDni($dni, true);
+    if (!$actual) {
+        throw new Exception("No se encontró el usuario con DNI '{$dni}'.");
+    }
+
+    // Foto de perfil: una nueva reemplaza a la anterior; "quitar_foto" vuelve a la imagen genérica
+    $fotoNueva = FotoPerfil::guardar($_FILES['foto_perfil'] ?? null, $dni);
+    if ($fotoNueva !== null) {
+        $datos['foto_perfil'] = $fotoNueva;
+    } elseif (!empty($input['quitar_foto'])) {
+        $datos['foto_perfil'] = null;
+    }
+
+    try {
+        $resultado = $usuarioModel->update($dni, $datos);
+    } catch (Throwable $e) {
+        FotoPerfil::eliminar($fotoNueva);
+        throw $e;
+    }
+
+    if ($resultado && array_key_exists('foto_perfil', $datos)) {
+        FotoPerfil::eliminar($actual['foto_perfil'] ?? null);
+        if ($dni === (string)($_SESSION['dni_usuario'] ?? '')) {
+            $_SESSION['foto_perfil'] = $datos['foto_perfil'];
+        }
+    } elseif (!$resultado) {
+        FotoPerfil::eliminar($fotoNueva);
+    }
 
     if ($resultado) {
         echo json_encode([

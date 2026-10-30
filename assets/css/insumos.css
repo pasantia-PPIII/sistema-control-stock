@@ -272,6 +272,45 @@
 .modal-card--estado { max-width: 460px; }
 .estado-caja { border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.9rem; }
 
+/* Alerta de stock: franja a la izquierda y fondo suave (ámbar = bajo el mínimo, rojo = sin stock) */
+.insumo-card-row--stock-bajo {
+    background-color: #fffbeb;
+    box-shadow: inset 4px 0 0 #f59e0b;
+}
+
+.insumo-card-row--stock-bajo:hover {
+    background-color: #fef3c7;
+}
+
+.insumo-card-row--sin-stock {
+    background-color: #fef2f2;
+    box-shadow: inset 4px 0 0 #dc2626;
+}
+
+.insumo-card-row--sin-stock:hover {
+    background-color: #fee2e2;
+}
+
+.stock-alerta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-left: 0.3rem;
+    border-radius: 50%;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #ffffff;
+    background-color: #f59e0b;
+    cursor: help;
+}
+
+.insumo-card-row--sin-stock .stock-alerta {
+    background-color: #dc2626;
+}
+
 /* Insumos deshabilitados: fila sombreada, texto atenuado y nombre tachado */
 .insumo-card-row--inactivo {
     background-color: #f1f5f9;

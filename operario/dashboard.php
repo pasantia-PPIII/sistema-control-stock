@@ -185,7 +185,9 @@ include_once __DIR__ . '/../layout/header.php';
                 <div class="modal-form-group">
                     <label>DNI *</label>
                     <input type="text" name="dni" id="cargar-dni" class="modal-input"
-                        placeholder="Número de DNI sin puntos" required
+                        placeholder="7 u 8 dígitos, sin puntos" required
+                        inputmode="numeric" pattern="\d{7,8}" minlength="7" maxlength="8"
+                        title="El DNI debe tener 7 u 8 dígitos, solo números"
                         oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                 </div>
                 <div class="modal-form-group">

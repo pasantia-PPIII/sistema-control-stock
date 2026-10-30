@@ -147,6 +147,18 @@ ON CONFLICT (codigo) DO UPDATE SET
 -- Las herramientas arrancan en estado Disponible (las entregas exigen ese estado)
 UPDATE insumos SET id_estado_herramienta = 1 WHERE id_tipo = 2 AND id_estado_herramienta IS NULL;
 
+-- Descripción de algunos insumos (RF-08); el resto queda sin descripción a propósito
+UPDATE insumos SET descripcion = v.descripcion
+  FROM (VALUES
+    (1,  'Látex acrílico con aditivo antihongo, color negro. Rinde unos 10 m² por litro.'),
+    (4,  'Esmalte sintético satinado para metal y madera, secado en 8 horas.'),
+    (23, 'Bolsa de 50 kg. Almacenar en lugar seco y sin apilar más de 10 bolsas.'),
+    (28, 'Placa de 1,22 x 2,44 m, apta para encofrados y trabajos a la intemperie.'),
+    (15, 'Pistola de gravedad para esmaltes y barnices. Incluye boquillas de 1,4 y 1,8 mm.'),
+    (40, 'Soldadora inverter para electrodo revestido de 1,6 a 4 mm.')
+  ) AS v(id_insumo, descripcion)
+ WHERE insumos.id_insumo = v.id_insumo;
+
 -- ---------------------------------------------------------
 -- 3. ASIGNACIONES Y MOVIMIENTOS
 -- ---------------------------------------------------------
@@ -299,22 +311,22 @@ INSERT INTO movimiento_detalle (id_movimiento, id_insumo, cantidad, id_estado_he
 -- 8. Órdenes de Trabajo (ODT)
 -- Estados: Pendiente, En Progreso, Pausada, Finalizada, Anulada. Vencidas = fecha final pasada y sin cerrar (3, 4, 9 y 13).
 -- La 2 (Finalizada) y la 5 (Anulada) dejaron herramientas sin devolver. La 15 está deshabilitada (activo = FALSE).
-INSERT INTO orden_de_trabajo (id_odt, numero_ot, id_mov_egreso, id_mov_devolucion, id_localidad, id_jurisdiccion, pa, trabajo_a_realizar, fecha_inicio, fecha_final, hora_inicio, hora_final, estado, observaciones, activo) VALUES
-(1,  'OT-2026-001', 25, NULL, 1, 1, 'PA-2026-001', 'Pintura de oficinas y pasillos del Juzgado Civil N°3', CURRENT_DATE - 6, CURRENT_DATE + 5, '08:00:00', '17:00:00', 'En Progreso', 'Se utiliza pintura antihongo negra', TRUE),
-(2,  'OT-2026-002', 27, NULL, 2, 3, 'PA-2026-002', 'Pintura de rejas perimetrales con pistola', CURRENT_DATE - 26, CURRENT_DATE - 20, '09:00:00', '16:00:00', 'Finalizada', 'Trabajo terminado; la pistola para pintar no fue devuelta', TRUE),
-(3,  'OT-2026-003', NULL, NULL, 1, 2, 'PA-2026-003', 'Reparación de paredes en Depósito Central', CURRENT_DATE - 10, CURRENT_DATE - 8, '10:00:00', '15:00:00', 'Pendiente', 'Falta material de mezcla', TRUE),
-(4,  'OT-2026-004', 37, NULL, 1, 2, 'PA-2026-004', 'Amolado y reparación de estructura metálica', CURRENT_DATE - 12, CURRENT_DATE - 3, '08:00:00', '16:00:00', 'Pausada', 'Pausada por falta de discos de corte', TRUE),
-(5,  'OT-2026-005', 39, NULL, 3, 4, 'PA-2026-005', 'Carpintería de puertas y marcos', CURRENT_DATE - 12, CURRENT_DATE - 5, '08:30:00', '15:30:00', 'Anulada', 'Anulada por cambio de prioridades; la sierra sigue prestada', TRUE),
-(6,  'OT-2026-006', 31, 33, 1, 1, 'PA-2026-006', 'Pintura epoxi en sala de máquinas', CURRENT_DATE - 21, CURRENT_DATE - 17, '08:00:00', '17:00:00', 'Finalizada', 'Herramienta devuelta en buen estado', TRUE),
-(7,  'OT-2026-007', 22, 23, 4, 5, 'PA-2026-007', 'Hormigonado de contrapiso en patio', CURRENT_DATE - 41, CURRENT_DATE - 37, '07:30:00', '15:00:00', 'Finalizada', 'La hormigonera volvió con falla', TRUE),
-(8,  'OT-2026-008', 15, 16, 5, 6, 'PA-2026-008', 'Soldadura de portones de acceso', CURRENT_DATE - 71, CURRENT_DATE - 67, '08:00:00', '16:00:00', 'Finalizada', 'La soldadora quedó fuera de servicio', TRUE),
-(9,  'OT-2026-009', 29, NULL, 3, 4, 'PA-2026-009', 'Reparación de rejas y cerramientos', CURRENT_DATE - 23, CURRENT_DATE - 2, '08:00:00', '17:00:00', 'En Progreso', 'En curso con la fecha final vencida', TRUE),
-(10, 'OT-2026-010', NULL, NULL, 4, 5, 'PA-2026-010', 'Instalación eléctrica de oficinas', CURRENT_DATE + 3, CURRENT_DATE + 12, '09:00:00', '17:00:00', 'Pendiente', 'A iniciar la semana próxima', TRUE),
-(11, 'OT-2026-011', 38, NULL, 5, 6, 'PA-2026-011', 'Refacción de mampostería', CURRENT_DATE - 12, CURRENT_DATE + 20, '08:00:00', '16:00:00', 'En Progreso', NULL, TRUE),
-(12, 'OT-2026-012', 6, NULL, 1, 1, 'PA-2026-012', 'Pintura de despachos', CURRENT_DATE - 148, CURRENT_DATE - 140, '08:00:00', '17:00:00', 'Finalizada', NULL, TRUE),
-(13, 'OT-2026-013', NULL, NULL, 2, 3, 'PA-2026-013', 'Revoque y pintura de fachada', CURRENT_DATE - 5, CURRENT_DATE - 1, '08:00:00', '17:00:00', 'Pendiente', 'Sin iniciar y con la fecha final vencida', TRUE),
-(14, 'OT-2026-014', 28, NULL, 1, 1, 'PA-2026-014', 'Fabricación de muebles de guardado', CURRENT_DATE - 3, CURRENT_DATE + 30, '08:00:00', '16:00:00', 'Pausada', 'A la espera de placas', TRUE),
-(15, 'OT-2026-015', NULL, NULL, 1, 2, 'PA-2026-015', 'Orden cargada por error (deshabilitada)', CURRENT_DATE - 2, CURRENT_DATE + 2, '08:00:00', '12:00:00', 'Pendiente', 'Deshabilitada', FALSE);
+INSERT INTO orden_de_trabajo (id_odt, numero_ot, id_localidad, id_jurisdiccion, pa, trabajo_a_realizar, fecha_inicio, fecha_final, hora_inicio, hora_final, estado, observaciones, activo) VALUES
+(1,  'OT-2026-001', 1, 1, 'PA-2026-001', 'Pintura de oficinas y pasillos del Juzgado Civil N°3', CURRENT_DATE - 6, CURRENT_DATE + 5, '08:00:00', '17:00:00', 'En Progreso', 'Se utiliza pintura antihongo negra', TRUE),
+(2,  'OT-2026-002', 2, 3, 'PA-2026-002', 'Pintura de rejas perimetrales con pistola', CURRENT_DATE - 26, CURRENT_DATE - 20, '09:00:00', '16:00:00', 'Finalizada', 'Trabajo terminado; la pistola para pintar no fue devuelta', TRUE),
+(3,  'OT-2026-003', 1, 2, 'PA-2026-003', 'Reparación de paredes en Depósito Central', CURRENT_DATE - 10, CURRENT_DATE - 8, '10:00:00', '15:00:00', 'Pendiente', 'Falta material de mezcla', TRUE),
+(4,  'OT-2026-004', 1, 2, 'PA-2026-004', 'Amolado y reparación de estructura metálica', CURRENT_DATE - 12, CURRENT_DATE - 3, '08:00:00', '16:00:00', 'Pausada', 'Pausada por falta de discos de corte', TRUE),
+(5,  'OT-2026-005', 3, 4, 'PA-2026-005', 'Carpintería de puertas y marcos', CURRENT_DATE - 12, CURRENT_DATE - 5, '08:30:00', '15:30:00', 'Anulada', 'Anulada por cambio de prioridades; la sierra sigue prestada', TRUE),
+(6,  'OT-2026-006', 1, 1, 'PA-2026-006', 'Pintura epoxi en sala de máquinas', CURRENT_DATE - 21, CURRENT_DATE - 17, '08:00:00', '17:00:00', 'Finalizada', 'Herramienta devuelta en buen estado', TRUE),
+(7,  'OT-2026-007', 4, 5, 'PA-2026-007', 'Hormigonado de contrapiso en patio', CURRENT_DATE - 41, CURRENT_DATE - 37, '07:30:00', '15:00:00', 'Finalizada', 'La hormigonera volvió con falla', TRUE),
+(8,  'OT-2026-008', 5, 6, 'PA-2026-008', 'Soldadura de portones de acceso', CURRENT_DATE - 71, CURRENT_DATE - 67, '08:00:00', '16:00:00', 'Finalizada', 'La soldadora quedó fuera de servicio', TRUE),
+(9,  'OT-2026-009', 3, 4, 'PA-2026-009', 'Reparación de rejas y cerramientos', CURRENT_DATE - 23, CURRENT_DATE - 2, '08:00:00', '17:00:00', 'En Progreso', 'En curso con la fecha final vencida', TRUE),
+(10, 'OT-2026-010', 4, 5, 'PA-2026-010', 'Instalación eléctrica de oficinas', CURRENT_DATE + 3, CURRENT_DATE + 12, '09:00:00', '17:00:00', 'Pendiente', 'A iniciar la semana próxima', TRUE),
+(11, 'OT-2026-011', 5, 6, 'PA-2026-011', 'Refacción de mampostería', CURRENT_DATE - 12, CURRENT_DATE + 20, '08:00:00', '16:00:00', 'En Progreso', NULL, TRUE),
+(12, 'OT-2026-012', 1, 1, 'PA-2026-012', 'Pintura de despachos', CURRENT_DATE - 148, CURRENT_DATE - 140, '08:00:00', '17:00:00', 'Finalizada', NULL, TRUE),
+(13, 'OT-2026-013', 2, 3, 'PA-2026-013', 'Revoque y pintura de fachada', CURRENT_DATE - 5, CURRENT_DATE - 1, '08:00:00', '17:00:00', 'Pendiente', 'Sin iniciar y con la fecha final vencida', TRUE),
+(14, 'OT-2026-014', 1, 1, 'PA-2026-014', 'Fabricación de muebles de guardado', CURRENT_DATE - 3, CURRENT_DATE + 30, '08:00:00', '16:00:00', 'Pausada', 'A la espera de placas', TRUE),
+(15, 'OT-2026-015', 1, 2, 'PA-2026-015', 'Orden cargada por error (deshabilitada)', CURRENT_DATE - 2, CURRENT_DATE + 2, '08:00:00', '12:00:00', 'Pendiente', 'Deshabilitada', FALSE);
 
 -- 9. Comisiones (operarios asignados a cada ODT, por id_operario)
 INSERT INTO comision (id_odt, id_operario) VALUES
@@ -333,6 +345,50 @@ INSERT INTO comision (id_odt, id_operario) VALUES
 (13, 4),
 (14, 7), (14, 1),
 (15, 1);
+
+-- Datos de la solicitud de cada orden (RF-45): tipo de trabajo, dependencia que la pide y fecha del pedido.
+-- La fecha de solicitud es anterior o igual a la de inicio.
+UPDATE orden_de_trabajo o
+   SET tipo_trabajo = v.tipo_trabajo,
+       dependencia_solicitante = v.dependencia,
+       fecha_solicitud = o.fecha_inicio - v.dias_antes
+  FROM (VALUES
+    (1,  'Mantenimiento edilicio', 'Juzgado Civil N°3',            4),
+    (2,  'Mantenimiento edilicio', 'Cámara Penal',                 5),
+    (3,  'Reparación',             'Depósito Central',             3),
+    (4,  'Reparación',             'Dirección de Infraestructura', 6),
+    (5,  'Construcción',           'Registro Civil',               7),
+    (6,  'Mantenimiento edilicio', 'Dirección de Servicios',       2),
+    (7,  'Construcción',           'Fiscalía de Distrito',        10),
+    (8,  'Reparación',             'Mesa de Entradas',             4),
+    (9,  'Reparación',             'Cámara Penal',                 3),
+    (10, 'Construcción',           'Dirección de Infraestructura', 8),
+    (11, 'Reparación',             'Juzgado de Familia N°1',       5),
+    (12, 'Mantenimiento edilicio', 'Juzgado Civil N°3',            9),
+    (13, 'Mantenimiento edilicio', 'Registro Civil',               2),
+    (14, 'Construcción',           'Archivo General',              6),
+    (15, 'Reparación',             'Depósito Central',             1)
+  ) AS v(id_odt, tipo_trabajo, dependencia, dias_antes)
+ WHERE o.id_odt = v.id_odt;
+
+-- Rubros involucrados en cada orden (RF-45 / RF-46): una orden puede abarcar varios.
+-- Rubros: 1 Carpintería, 2 Albañilería, 3 Pintura, 4 Herrería
+INSERT INTO orden_rubro (id_odt, id_rubro) VALUES
+(1, 3),
+(2, 3), (2, 4),
+(3, 2),
+(4, 4),
+(5, 1),
+(6, 3), (6, 4),
+(7, 2),
+(8, 4),
+(9, 4), (9, 1),
+(10, 4),
+(11, 2),
+(12, 3),
+(13, 2), (13, 3),
+(14, 1),
+(15, 2);
 
 -- Vincula los movimientos con la orden de trabajo que los usa (igual que hace el sistema al vincular)
 UPDATE movimiento SET id_odt = 1  WHERE id_movimiento IN (25, 43);
@@ -429,3 +485,12 @@ END $$;
 
 -- 7. Motivo de las devoluciones de prueba (RF-34): todas se cargan como "Fin de tarea" (id 2)
 UPDATE movimiento SET id_motivo = 2 WHERE id_tipo_mov = 2;
+
+-- 8. Baja de la soldadora (RF-18): la devolución 16 la dejó "Dada de baja" (quemada). Como hace el sistema al
+-- darla de baja, queda deshabilitada con motivo y fecha; se puede reactivar desde Insumos.
+UPDATE insumos
+   SET activo = FALSE,
+       motivo_baja = 'Rotura',
+       observacion_baja = 'Quemada tras el uso en el portón de acceso; no tiene reparación',
+       fecha_baja = (SELECT fecha FROM movimiento WHERE id_movimiento = 16)
+ WHERE id_insumo = 40;

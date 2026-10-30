@@ -41,9 +41,7 @@ try {
     $legajo = isset($input['legajo']) ? trim((string)$input['legajo']) : '';
     $id_rubro = !empty($input['id_rubro']) ? (int)$input['id_rubro'] : null;
 
-    if ($dni === '') {
-        throw new Exception('El DNI del operario es obligatorio.');
-    }
+    $dni = Validador::dni($dni, 'DNI del operario');
 
     if ($apellido === '') {
         throw new Exception('El apellido del operario es obligatorio.');

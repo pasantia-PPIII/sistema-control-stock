@@ -288,3 +288,36 @@ a.rp-pag:focus-visible { outline: 3px solid #93c5fd; outline-offset: 1px; }
 }
 
 
+
+/* Botón "Exportar PDF" (RF-41): arriba a la derecha del contenido de la pestaña */
+.rp-exportar {
+    display: flex;
+    justify-content: flex-end;
+    margin: -0.5rem 0 1rem;
+}
+
+.rp-exportar__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 40px;
+    padding: 0.5rem 1.1rem;
+    background: #0b1536;
+    color: #ffffff;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.rp-exportar__btn:hover,
+.rp-exportar__btn:focus-visible {
+    background: #1e2d5c;
+}
+
+@media (max-width: 560px) {
+    .rp-exportar__btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

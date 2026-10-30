@@ -241,6 +241,18 @@ require_once __DIR__ . '/../layout/header.php';
     <?php endforeach; ?>
 </nav>
 
+<!-- EXPORTAR (RF-41): el PDF lleva la pestaña activa con el período elegido -->
+<div class="rp-exportar">
+    <a class="rp-exportar__btn" href="<?= $h('exportar_pdf.php?' . http_build_query(array_filter([
+        'tab' => $tab_reporte,
+        'rango' => $_GET['rango'] ?? null,
+        'rango_ot' => $_GET['rango_ot'] ?? null,
+    ], fn($v) => $v !== null && $v !== ''))) ?>">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Exportar PDF
+    </a>
+</div>
+
 <?php if ($tab_reporte === 'stock'): ?>
     <?php include __DIR__ . '/tabs/stock.php'; ?>
 <?php elseif ($tab_reporte === 'movimientos'): ?>

@@ -15,9 +15,50 @@ function errorAmigable(string $contexto, Throwable $e): Exception
     if ($e instanceof PDOException) {
         error_log('[DB] ' . $contexto . ': ' . $e->getMessage());
         $detalle = (defined('DEBUG_MODE') && DEBUG_MODE) ? ' (' . $e->getMessage() . ')' : '';
+        $causa = mensajeErrorBd($e);
+        if ($causa !== null) {
+            return new Exception($contexto . ': ' . $causa . $detalle);
+        }
         return new Exception($contexto . '. Intente nuevamente.' . $detalle);
     }
     return new Exception($contexto . ': ' . $e->getMessage());
+}
+
+/**
+ * Explica en lenguaje claro los errores de base de datos más comunes (por su código SQLSTATE),
+ * sin exponer SQL, tablas ni nombres internos. Devuelve null si el error no es de los conocidos.
+ */
+function mensajeErrorBd(PDOException $e): ?string
+{
+    $msg = $e->getMessage();
+    switch ((string)$e->getCode()) {
+        case '23505': // valor duplicado en una columna única
+            if (preg_match('/Key \(([^)]+)\)=\(([^)]*)\)/', $msg, $m)) {
+                $campo = str_replace(['lower(btrim(', ')', '_'], ['', '', ' '], $m[1]);
+                return "ya existe un registro con {$campo} '{$m[2]}'.";
+            }
+            return 'ya existe un registro con esos datos (valor repetido).';
+        case '23503': // clave foránea: el dato relacionado no existe o sigue en uso
+            return stripos($msg, 'is not present') !== false
+                ? 'uno de los datos elegidos (rubro, rol, operario u otro) ya no existe. Actualice la página e intente de nuevo.'
+                : 'el registro está en uso por otros datos y no se puede modificar o eliminar.';
+        case '23502': // campo obligatorio vacío
+            if (preg_match('/column "([^"]+)"/', $msg, $m)) {
+                return 'el campo ' . str_replace('_', ' ', $m[1]) . ' es obligatorio.';
+            }
+            return 'falta completar un campo obligatorio.';
+        case '23514': // restricción CHECK
+            return 'alguno de los valores ingresados no está entre los permitidos.';
+        case '22001': // texto demasiado largo
+            return 'alguno de los textos supera la longitud máxima permitida.';
+        case '22007':
+        case '22008':
+            return 'una de las fechas u horas ingresadas no es válida.';
+        case '22P02':
+        case '22003':
+            return 'uno de los datos tiene un formato no válido (se esperaba un número o una fecha) o está fuera de rango.';
+    }
+    return null;
 }
 
 /**

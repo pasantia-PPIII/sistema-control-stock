@@ -6,7 +6,7 @@
  * - Datos mediante la clase Movimiento (getAll, getTiposMovimiento, getDetalles).
  * - Filtrado por texto/tipo/estado y paginación en PHP sobre el listado de la clase.
  * - Detalle de cada movimiento por fetch() a detalle_movimiento.php.
- * - Enlaces a Registrar Entrega / Devolución (crear_movimiento.php).
+ * - Botón "Registrar Movimiento" (crear_movimiento.php): el tipo se elige en el formulario.
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -38,6 +38,15 @@ $paginaActual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $busqueda = isset($_GET['busqueda']) ? trim($_GET['busqueda']) : '';
 $idTipoMov = !empty($_GET['id_tipo_mov']) ? (int)$_GET['id_tipo_mov'] : null;
 $estado = isset($_GET['estado']) ? trim($_GET['estado']) : 'activo';
+// Día exacto (AAAA-MM-DD); 'hoy' es un atajo (lo usa el Panel). Un valor inválido se ignora
+$fecha = isset($_GET['fecha']) ? trim($_GET['fecha']) : '';
+if ($fecha === 'hoy') {
+    $fecha = date('Y-m-d');
+}
+$fechaObj = DateTime::createFromFormat('!Y-m-d', $fecha);
+if (!$fechaObj || $fechaObj->format('Y-m-d') !== $fecha) {
+    $fecha = '';
+}
 
 // getAll() devuelve el nombre del tipo pero no su id: se completa con el catálogo
 $tipoIdPorNombre = array_column($tiposMovimiento, 'id_tipo_mov', 'tipo');
@@ -46,8 +55,11 @@ $todosMovimientos = array_map(function ($m) use ($tipoIdPorNombre) {
     return $m;
 }, $movimientoModel->getAll(true));
 
-$movimientosFiltrados = array_values(array_filter($todosMovimientos, function ($m) use ($busqueda, $idTipoMov, $estado) {
+$movimientosFiltrados = array_values(array_filter($todosMovimientos, function ($m) use ($busqueda, $idTipoMov, $estado, $fecha) {
     $activo = !empty($m['activo']) && $m['activo'] !== 'f';
+    if ($fecha !== '' && substr((string)$m['fecha'], 0, 10) !== $fecha) {
+        return false;
+    }
     if ($estado === 'activo' && !$activo) {
         return false;
     }
@@ -97,7 +109,8 @@ include_once __DIR__ . '/../layout/header.php';
 <div id="alerta-movimientos" class="alerta-inline"></div>
 
 <!-- Barra de Filtros, Búsqueda y Botones de Acción -->
-<div class="action-bar-filters">
+<div class="action-bar-filters action-bar--agrupada">
+  <div class="barra-filtros">
     <div class="search-input-wrapper">
         <input type="text" id="buscador-movimiento" class="search-input" placeholder="Buscar por operario, usuario, ID o motivo..." value="<?= htmlspecialchars($busqueda) ?>">
     </div>
@@ -117,10 +130,15 @@ include_once __DIR__ . '/../layout/header.php';
         <option value="todos" <?= ($estado === 'todos') ? 'selected' : '' ?>>Todos</option>
     </select>
 
-    <?php if (canEdit()): ?>
-    <a href="crear_movimiento.php?tipo=entrega" class="btn-pill-action">Registrar Entrega</a>
-    <a href="crear_movimiento.php?tipo=devolucion" class="btn-pill-secondary">Registrar Devolución</a>
-    <?php endif; ?>
+    <input type="date" class="filter-select" id="filtro-fecha" value="<?= htmlspecialchars($fecha) ?>" title="Filtrar por día (vacío = todas las fechas)">
+  </div>
+
+  <?php if (canEdit()): ?>
+  <div class="barra-acciones">
+    <?php /* El tipo (entrega, devolución o ingreso) se elige dentro del formulario */ ?>
+    <a href="crear_movimiento.php" class="btn-pill-action">Registrar Movimiento</a>
+  </div>
+  <?php endif; ?>
 </div>
 
 <!-- Grilla / Historial de Movimientos -->
@@ -217,6 +235,8 @@ function cerrarModal(id) {
 }
 
 function mostrarAlerta(mensaje, esExito = true) {
+    // Con un modal abierto, el error se muestra dentro de él (la alerta de página queda detrás)
+    if (!esExito && mostrarErrorEnModal(mensaje)) return;
     const box = document.getElementById('alerta-movimientos');
     if (!box) return;
     box.style.display = 'block';
@@ -242,8 +262,9 @@ function cargarMovimientos(pagina = 1) {
     const busqueda = document.getElementById('buscador-movimiento').value.trim();
     const idTipoMov = document.getElementById('filtro-tipo-mov').value;
     const estado = document.getElementById('filtro-estado').value;
+    const fecha = document.getElementById('filtro-fecha').value;
 
-    const url = `dashboard.php?ajax=1&pagina=${pagina}&busqueda=${encodeURIComponent(busqueda)}&id_tipo_mov=${encodeURIComponent(idTipoMov)}&estado=${encodeURIComponent(estado)}`;
+    const url = `dashboard.php?ajax=1&pagina=${pagina}&busqueda=${encodeURIComponent(busqueda)}&id_tipo_mov=${encodeURIComponent(idTipoMov)}&estado=${encodeURIComponent(estado)}&fecha=${encodeURIComponent(fecha)}`;
 
     fetch(url, { credentials: 'same-origin' })
         .then(response => {
@@ -327,6 +348,10 @@ document.getElementById('filtro-tipo-mov').addEventListener('change', function()
 });
 
 document.getElementById('filtro-estado').addEventListener('change', function() {
+    cargarMovimientos(1);
+});
+
+document.getElementById('filtro-fecha').addEventListener('change', function() {
     cargarMovimientos(1);
 });
 

@@ -60,20 +60,12 @@ try {
     $id_tipo = !empty($input['id_tipo']) ? (int)$input['id_tipo'] : null;
     $id_unidad_medida = !empty($input['id_unidad_medida']) ? (int)$input['id_unidad_medida'] : null;
     $id_ubicacion = !empty($input['id_ubicacion']) ? (int)$input['id_ubicacion'] : null;
-    $stock_minimo = isset($input['stock_minimo']) && $input['stock_minimo'] !== '' ? (float)$input['stock_minimo'] : 0;
+    // Sin castear: Insumo::create() valida que sea un número no negativo y avisa si no lo es
+    $stock_minimo = isset($input['stock_minimo']) && trim((string)$input['stock_minimo']) !== '' ? $input['stock_minimo'] : 0;
     $es_perecedero = !empty($input['es_perecedero']) && ($input['es_perecedero'] === '1' || $input['es_perecedero'] === true || $input['es_perecedero'] === 'true');
     $fecha_vencimiento = (!empty($input['fecha_vencimiento']) && $es_perecedero) ? trim((string)$input['fecha_vencimiento']) : null;
 
-    // Un insumo nuevo no puede nacer ya vencido (la edición posterior sí permite corregir la fecha)
-    if ($fecha_vencimiento !== null) {
-        $fecha = DateTime::createFromFormat('Y-m-d', $fecha_vencimiento);
-        if (!$fecha || $fecha->format('Y-m-d') !== $fecha_vencimiento) {
-            throw new Exception('La fecha de vencimiento no es válida.');
-        }
-        if ($fecha_vencimiento < date('Y-m-d')) {
-            throw new Exception('La fecha de vencimiento no puede ser anterior a hoy.');
-        }
-    }
+    // La fecha de vencimiento (formato válido y no anterior a hoy) la valida Insumo::create()
 
     // Stock inicial: obligatorio para materiales (0 es válido). En herramientas se ignora: nacen con 1 unidad
     // en el pañol. Insumo::create() valida que exista, sea numérico y no sea negativo.
@@ -82,6 +74,7 @@ try {
     $datosInsumo = [
         'codigo'            => $codigo,
         'nombre'            => $nombre,
+        'descripcion'       => isset($input['descripcion']) ? trim((string)$input['descripcion']) : null,
         'id_rubro'          => $id_rubro,
         'id_tipo'           => $id_tipo,
         'id_unidad_medida'  => $id_unidad_medida,

@@ -8,6 +8,7 @@
  */
 
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../clases/foto_perfil.php';
 
 if (!isAuthenticated()) {
     redirect('auth/login.php');
@@ -118,7 +119,7 @@ $alerta_flash = getAlert();
                 <h1 class="page-title"><?= htmlspecialchars($titulo_vista ?? 'Panel Principal') ?></h1>
             </div>
             <div class="user-profile-header">
-                <div class="avatar-circle"></div>
+                <img class="avatar-circle" src="<?= htmlspecialchars(FotoPerfil::url($_SESSION['foto_perfil'] ?? null), ENT_QUOTES, 'UTF-8') ?>" alt="Foto de perfil de <?= htmlspecialchars($nombre_usuario) ?>">
                 <div class="user-meta">
                     <strong><?= htmlspecialchars($nombre_usuario) ?></strong>
                     <span>DNI: <?= htmlspecialchars($dni_usuario) ?></span>

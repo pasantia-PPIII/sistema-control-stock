@@ -14,6 +14,8 @@ if (!isAuthenticated()) {
 }
 
 require_once __DIR__ . '/../clases/panel.php';
+require_once __DIR__ . '/../clases/insumo.php';
+require_once __DIR__ . '/../clases/orden_de_trabajo.php';
 
 $seccion = 'panel';
 $css_modulo = 'panel';
@@ -29,11 +31,13 @@ $etiquetasRol = ['admin' => 'Administrador', 'panolero' => 'Pañolero', 'vista' 
 $etiquetaRol = $etiquetasRol[$rol] ?? 'Usuario';
 
 try {
+    // Cada tarjeta lleva al listado con el filtro que reproduce su número (ver los filtros de cada dashboard)
+    $herramientas = '../insumo/dashboard.php?tipo=' . Insumo::ID_TIPO_HERRAMIENTA . '&estado_herr=';
     $kpis = [
-        ['Insumos activos', $panel->totalInsumosActivos(), '../insumo/dashboard.php', ''],
-        ['Con stock bajo', $panel->totalStockBajo(), '../insumo/dashboard.php', 'alerta'],
-        ['Herramientas prestadas', $panel->totalHerramientasPrestadas(), '../insumo/dashboard.php', ''],
-        ['Movimientos de hoy', $panel->totalMovimientosHoy(), '../movimiento/dashboard.php', ''],
+        ['Insumos activos', $panel->totalInsumosActivos(), '../insumo/dashboard.php?estado=activo', ''],
+        ['Con stock bajo', $panel->totalStockBajo(), '../insumo/dashboard.php?stock=bajo', 'alerta'],
+        ['Herramientas prestadas', $panel->totalHerramientasPrestadas(), $herramientas . Movimiento::ESTADO_PRESTADA, ''],
+        ['Movimientos de hoy', $panel->totalMovimientosHoy(), '../movimiento/dashboard.php?fecha=hoy', ''],
     ];
 
     $ordenesPorEstado = $panel->ordenesPorEstado();
@@ -43,15 +47,15 @@ try {
             $abiertas += $cantidad;
         }
     }
-    $kpis[] = ['Órdenes de trabajo abiertas', $abiertas, '../orden_de_trabajo/dashboard.php', ''];
+    $kpis[] = ['Órdenes de trabajo abiertas', $abiertas, '../orden_de_trabajo/dashboard.php?estado=' . OrdenDeTrabajo::FILTRO_ABIERTAS, ''];
 
     if ($esAdmin) {
-        $kpis[] = ['Operarios activos', $panel->totalOperariosActivos(), '../operario/dashboard.php', ''];
-        $kpis[] = ['Rubros activos', $panel->totalRubrosActivos(), '../rubro/dashboard.php', ''];
-        $kpis[] = ['Usuarios inactivos', $panel->totalUsuariosInactivos(), '../usuario/dashboard.php', ''];
+        $kpis[] = ['Operarios activos', $panel->totalOperariosActivos(), '../operario/dashboard.php?estado=activo', ''];
+        $kpis[] = ['Rubros activos', $panel->totalRubrosActivos(), '../rubro/dashboard.php?estado=activo', ''];
+        $kpis[] = ['Usuarios inactivos', $panel->totalUsuariosInactivos(), '../usuario/dashboard.php?estado=inactivo', ''];
     }
     if ($esPanolero) {
-        $kpis[] = ['Herramientas en reparación', $panel->totalHerramientasEnReparacion(), '../insumo/dashboard.php', ''];
+        $kpis[] = ['Herramientas en reparación', $panel->totalHerramientasEnReparacion(), $herramientas . Insumo::ESTADO_EN_REPARACION, ''];
     }
 
     $stockBajo = $panel->stockBajo(5);

@@ -18,6 +18,48 @@ function cerrarModal(id) {
     }
 }
 
+/**
+ * Muestra un error DENTRO del modal que esté abierto (la alerta de la página queda detrás del fondo oscuro).
+ * Devuelve true si había un modal abierto y el mensaje quedó en él; false si no (el llamador usa su alerta de página).
+ * Usa la caja .msg-error-modal del modal si la tiene; si no, crea una antes de los botones.
+ */
+function mostrarErrorEnModal(mensaje) {
+    const abiertos = Array.from(document.querySelectorAll('.modal-backdrop, .modal-overlay'))
+        .filter(m => window.getComputedStyle(m).display !== 'none');
+    const modal = abiertos[abiertos.length - 1];
+    if (!modal) return false;
+
+    // Una sola caja de error a la vez: se reutiliza la propia del modal (o la creada antes por este ayudante)
+    let caja = modal.querySelector('.msg-error-modal');
+    if (!caja) {
+        caja = document.createElement('div');
+        caja.className = 'msg-error-modal';
+        caja.setAttribute('role', 'alert');
+        caja.dataset.auto = '1';
+        const botones = modal.querySelector('.modal-actions-row, .modal-acciones-centro, .modal-actions');
+        if (botones && botones.parentNode) {
+            botones.parentNode.insertBefore(caja, botones);
+        } else {
+            (modal.querySelector('form') || modal.querySelector('.modal-card') || modal).appendChild(caja);
+        }
+    }
+    caja.textContent = mensaje;
+    caja.style.display = 'block';
+    caja.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    return true;
+}
+
+// Las cajas creadas por mostrarErrorEnModal se ocultan al volver a enviar un formulario o al cerrar el modal
+function limpiarErroresModalAuto() {
+    document.querySelectorAll('.msg-error-modal[data-auto]').forEach(c => { c.style.display = 'none'; });
+}
+document.addEventListener('submit', limpiarErroresModalAuto, true);
+document.addEventListener('click', function (e) {
+    if (e.target && e.target.closest && e.target.closest('.modal-close-btn, .btn-modal-cancel')) {
+        limpiarErroresModalAuto();
+    }
+});
+
 // Cierre de modal al hacer clic en el fondo oscuro
 window.addEventListener('click', function(event) {
     if (event.target && event.target.classList.contains('modal-overlay')) {

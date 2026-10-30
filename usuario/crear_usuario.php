@@ -26,6 +26,8 @@ requireRole(['admin']);
 require_once __DIR__ . '/../clases/usuario.php';
 
 try {
+    FotoPerfil::verificarLimiteDePeticion();
+
     $input = $_POST;
     if (empty($input)) {
         $raw = file_get_contents('php://input');
@@ -42,9 +44,7 @@ try {
     $apellido = isset($input['apellido']) ? trim((string)$input['apellido']) : '';
     $id_operario = !empty($input['id_operario']) ? (int)$input['id_operario'] : null;
 
-    if ($dni === '') {
-        throw new Exception('El DNI del usuario es obligatorio.');
-    }
+    $dni = Validador::dni($dni, 'DNI del usuario');
 
     if ($nombre === '' || $apellido === '') {
         throw new Exception('El nombre y el apellido del usuario son obligatorios.');
@@ -54,21 +54,31 @@ try {
         throw new Exception('Debe seleccionar un rol válido para el usuario.');
     }
 
-    if (empty($password)) {
-        throw new Exception('La contraseña es obligatoria.');
-    }
+    Validador::password($password);
 
     $usuarioModel = new Usuario();
+
+    // Foto de perfil opcional: se guarda antes de crear y se borra si la creación falla
+    $foto = FotoPerfil::guardar($_FILES['foto_perfil'] ?? null, $dni);
 
     $datos = [
         'dni'          => $dni,
         'nombre'       => $nombre,
         'apellido'     => $apellido,
         'id_rol'       => $id_rol,
-        'id_operario'  => $id_operario
+        'id_operario'  => $id_operario,
+        'foto_perfil'  => $foto
     ];
 
-    $resultado = $usuarioModel->create($datos, $password);
+    try {
+        $resultado = $usuarioModel->create($datos, $password);
+    } catch (Throwable $e) {
+        FotoPerfil::eliminar($foto);
+        throw $e;
+    }
+    if (!$resultado) {
+        FotoPerfil::eliminar($foto);
+    }
 
     if ($resultado) {
         echo json_encode([
